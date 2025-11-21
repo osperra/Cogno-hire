@@ -194,7 +194,15 @@ const useStyles = makeStyles({
 
   tableWrapper: {
     overflowX: "auto",
+    overflowY: "auto",      
+    maxHeight: "60vh",     
     backgroundColor: "#FFFFFF",
+  },
+
+  table: {
+    width: "100%",
+    minWidth: "1100px",     
+    tableLayout: "fixed",  
   },
 
   tableHeaderRow: {
@@ -208,6 +216,7 @@ const useStyles = makeStyles({
     color: "#4B5563",
     fontWeight: 600,
     padding: "12px 20px",
+    whiteSpace: "nowrap",         
   },
 
   tableRow: {
@@ -224,6 +233,9 @@ const useStyles = makeStyles({
   tableCell: {
     padding: "14px 20px",
     fontSize: "0.85rem",
+    whiteSpace: "nowrap",        
+    overflow: "hidden",
+
   },
 
   statusCell: {
@@ -346,7 +358,6 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
 
   return (
     <div className={styles.root}>
-      {/* Filters row */}
       <Card className={`${styles.cardBase} ${styles.filterCard}`}>
         <div className={styles.filtersRow}>
           <div className={styles.searchWrapper}>
@@ -390,7 +401,6 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
         </div>
       </Card>
 
-      {/* Tabs */}
       <Card className={`${styles.tabsCard}`}>
         <TabList
           selectedValue={selectedTab}
@@ -408,10 +418,9 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
         </TabList>
       </Card>
 
-      {/* Table */}
       <Card className={`${styles.cardBase} ${styles.tableCard}`}>
         <div className={styles.tableWrapper}>
-          <Table aria-label="Applicants table" style={{ width: "100%" }}>
+          <Table aria-label="Applicants table" className={styles.table}>
             <TableHeader>
               <TableRow className={styles.tableHeaderRow}>
                 <TableHeaderCell className={styles.tableHeaderCell}>

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { makeStyles, shorthands } from "@fluentui/react-components";
+
 import { Sidebar } from "./SideBar";
 import { TopBar } from "./TopBar";
 import { EmployerDashboard } from "../Employer/EmployerDashboard";
@@ -12,7 +14,8 @@ import { EmployeeReviews } from "../hr/EmployeeReviews";
 import { OnboardingWorkflow } from "../hr/OnboardingWorkflow";
 import { CompanyProfile } from "../Employer/CompanyProfile";
 import { InterviewAnalytics } from "../Employer/InterviewAnalytics";
-import { FloatingActionButton } from "./FloatingActionButton"; 
+import { FloatingActionButton } from "./FloatingActionButton";
+import { AIJobDescriptionGenerator } from "../hr/AIJobDescriptionGenerator";
 
 type Role = "employer" | "candidate";
 
@@ -21,9 +24,32 @@ type PageMeta = {
   breadcrumbs?: string[];
 };
 
-export function AppLayout() {
-  const [role, setRole] = useState<Role>("employer");
+const useStyles = makeStyles({
+  appRoot: {
+    display: "flex",
+    height: "100vh",
+    backgroundColor: "#FFF8F8",
+    overflow: "hidden",
+  },
+  mainArea: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,
+  },
+  contentArea: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "24px",
+    boxSizing: "border-box",
+    ...shorthands.overflow("auto"),
+  },
+});
 
+export function AppLayout() {
+  const styles = useStyles();
+
+  const [role, setRole] = useState<Role>("employer");
   const [selectedPage, setSelectedPage] = useState(
     role === "employer" ? "dashboard" : "home"
   );
@@ -194,6 +220,8 @@ export function AppLayout() {
       case "onboarding":
       case "OnboardingWorkflow":
         return <OnboardingWorkflow />;
+         case "AIJobDescriptionGenerator":
+        return <AIJobDescriptionGenerator />;
 
       case "company":
       case "CompanyProfile":
@@ -201,9 +229,7 @@ export function AppLayout() {
 
       case "analytics":
       case "Interview Analytics":
-        return (
-          <InterviewAnalytics onNavigate={handleEmployerNavigate} />
-        );
+        return <InterviewAnalytics onNavigate={handleEmployerNavigate} />;
 
       case "create-job":
         return <EmployerCreateJob onNavigate={handleEmployerNavigate} />;
@@ -214,14 +240,14 @@ export function AppLayout() {
   };
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#FFF8F8" }}>
+    <div className={styles.appRoot}>
       <Sidebar
         userRole={role}
         currentPage={selectedPage}
         onNavigate={setSelectedPage}
       />
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+      <div className={styles.mainArea}>
         <TopBar
           title={pageMeta.title}
           role={role}
@@ -229,7 +255,7 @@ export function AppLayout() {
           onSwitchRole={handleSwitchRole}
         />
 
-        <div style={{ padding: 24, overflowY: "auto" }}>
+        <div className={styles.contentArea}>
           {role === "employer" ? (
             renderEmployerPage()
           ) : (
@@ -238,7 +264,7 @@ export function AppLayout() {
         </div>
       </div>
 
-=      <FloatingActionButton userRole={role} onAction={handleFabAction} />
+      <FloatingActionButton userRole={role} onAction={handleFabAction} />
     </div>
   );
 }

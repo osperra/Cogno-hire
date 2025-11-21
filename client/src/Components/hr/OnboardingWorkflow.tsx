@@ -9,7 +9,6 @@ import {
   TableRow,
   TableBody,
   TableCell,
-  //   Text,
   makeStyles,
   shorthands,
 } from "@fluentui/react-components";
@@ -107,7 +106,6 @@ const useStyles = makeStyles({
     rowGap: "16px",
   },
 
-  // ------- header -------
   headerRow: {
     display: "flex",
     justifyContent: "space-between",
@@ -142,7 +140,6 @@ const useStyles = makeStyles({
     },
   },
 
-  // ------- stats cards -------
   statsGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(1, minmax(0, 1fr))",
@@ -183,7 +180,6 @@ const useStyles = makeStyles({
     justifyContent: "center",
   },
 
-  // ------- section cards -------
   sectionCard: {
     ...shorthands.borderRadius("16px"),
     ...shorthands.border("1px", "solid", "rgba(2,6,23,0.08)"),
@@ -202,14 +198,13 @@ const useStyles = makeStyles({
     color: "#0B1220",
   },
 
-  // ------- table -------
   tableWrapper: {
     overflowX: "auto",
   },
 
   table: {
     width: "100%",
-    minWidth: "880px", // scroll on smaller screens
+    minWidth: "880px", 
   },
 
   tableHeaderRow: {
@@ -288,7 +283,6 @@ const useStyles = makeStyles({
     fontWeight: 500,
   },
 
-  // ------- workflow section -------
   workflowCardInner: {
     padding: "20px 20px 16px",
   },
@@ -396,7 +390,6 @@ const useStyles = makeStyles({
     },
   },
 
-  // hover styling for "Send Reminder"
   workflowSecondaryButton: {
     ":hover": {
       backgroundColor: "rgba(1,24,216,0.06)",
@@ -416,7 +409,6 @@ export function OnboardingWorkflow() {
 
   return (
     <div className={styles.root}>
-      {/* Header */}
       <div className={styles.headerRow}>
         <div className={styles.headerTitleBlock}>
           <span className={styles.headerTitle}>Employee Onboarding</span>
@@ -434,7 +426,6 @@ export function OnboardingWorkflow() {
         </Button>
       </div>
 
-      {/* Stats */}
       <div className={styles.statsGrid}>
         <Card className={styles.statCard}>
           <div
@@ -527,7 +518,6 @@ export function OnboardingWorkflow() {
         </Card>
       </div>
 
-      {/* Active Onboarding Table */}
       <Card className={styles.sectionCard}>
         <div className={styles.sectionHeader}>
           <span className={styles.sectionTitle}>
@@ -632,7 +622,6 @@ export function OnboardingWorkflow() {
         </div>
       </Card>
 
-      {/* Detailed Workflow */}
       <Card className={styles.sectionCard}>
         <div className={styles.workflowCardInner}>
           <div className={styles.workflowTitle}>

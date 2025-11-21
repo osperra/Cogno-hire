@@ -65,7 +65,6 @@ const useStyles = makeStyles({
     },
   },
 
-  // Color variants for small actions
   blue: {
     backgroundColor: "#2563EB",
   },
@@ -76,7 +75,6 @@ const useStyles = makeStyles({
     backgroundColor: "#7C3AED",
   },
 
-  // Main FAB
   fabButton: {
     width: "56px",
     height: "56px",

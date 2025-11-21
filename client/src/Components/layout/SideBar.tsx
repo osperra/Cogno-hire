@@ -29,13 +29,6 @@ const useStyles = makeStyles({
     boxShadow: "0 10px 30px rgba(15,23,42,0.06)",
     transition: "width 0.3s ease-in-out",
     overflow: "hidden",
-
-    "@media (max-width: 768px)": {
-      width: "100%",
-      height: "auto",
-      borderRight: "none",
-      borderBottom: "1px solid rgba(2,6,23,0.08)",
-    },
   },
 
   rootExpanded: {
@@ -47,11 +40,6 @@ const useStyles = makeStyles({
     width: "72px",
     padding: "0 0 0 0",
     alignItems: "center",
-
-    "@media (max-width: 768px)": {
-      width: "100%",
-      alignItems: "flex-start",
-    },
   },
 
   header: {
@@ -86,7 +74,7 @@ const useStyles = makeStyles({
   logoTextWrapper: {
     display: "flex",
     flexDirection: "column",
-    lineHeight: "1.1",
+    lineHeight: "1.5",
   },
 
   appTitle: {
@@ -104,7 +92,7 @@ const useStyles = makeStyles({
     flex: 1,
     padding: "16px 12px",
     overflowY: "auto",
-    overflowX: "auto",
+    overflowX: "hidden",
   },
 
   navList: {
@@ -155,13 +143,20 @@ const useStyles = makeStyles({
   },
 
   navButtonInactive: {
-    color: "#5B6475",
     backgroundColor: "transparent",
 
     ":hover": {
       backgroundColor: "#F3F4F6",
-      color: "#0B1220",
     },
+
+    ":hover .navLabel": {
+      color: "#0118D8",
+    },
+  },
+
+  navLabel: {
+    color: "#5B6475",
+    transition: "color 0.2s ease",
   },
 
   divider: {
@@ -241,10 +236,15 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
   const employerNav: NavItem[] = [
     { id: "dashboard", label: "Dashboard", icon: <GridRegular /> },
     { id: "jobs", label: "Jobs", icon: <Briefcase20Regular />, badge: "12" },
-    { id: "applicants", label: "Applicants", icon: <People20Regular />, badge: "28" },
+    {
+      id: "applicants",
+      label: "Applicants",
+      icon: <People20Regular />,
+      badge: "28",
+    },
     { id: "pipeline", label: "Pipeline", icon: <Branch20Regular /> },
     {
-      id: "ai-jd-generator",
+      id: "AIJobDescriptionGenerator",
       label: "AI Job Generator",
       icon: <Sparkle20Regular />,
       badge: "New",
@@ -371,7 +371,7 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
             marginLeft: 8,
           }}
         >
-          <span>{item.label}</span>
+          <span className={styles.navLabel}>{item.label}</span>
           {item.badge && (
             <Badge
               size="small"
@@ -399,7 +399,6 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
         expanded ? styles.rootExpanded : styles.rootCollapsed
       }`}
     >
-      {/* Header / Logo */}
       <div className={styles.header}>
         {expanded ? (
           <div className={styles.logoRow}>
@@ -414,7 +413,6 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
         )}
       </div>
 
-      {/* Nav / Scroll Area */}
       <div className={styles.scrollArea}>
         <div className={styles.navList}>{navItems.map(renderNavButton)}</div>
 
@@ -461,6 +459,7 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
                 onClick={() => onNavigate(item.id)}
               >
                 <span
+                  className={styles.navLabel}
                   style={{
                     marginLeft: 8,
                     textAlign: "left",
@@ -475,7 +474,6 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
         </div>
       </div>
 
-      {/* Footer / Status + Toggle */}
       <div className={styles.footer}>
         {expanded && (
           <div className={styles.statusCard}>

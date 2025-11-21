@@ -14,7 +14,6 @@ import {
   CloudArrowUp20Regular,
   Link20Regular,
   Save20Regular,
-//   Dismiss20Regular,
 } from "@fluentui/react-icons";
 
 const useStyles = makeStyles({
@@ -183,13 +182,6 @@ export function CompanyProfile() {
                   >
                     Upload Logo
                   </Button>
-                  {/* <Button
-                    appearance="subtle"
-                    size="small"
-                    icon={<Dismiss20Regular />}
-                  >
-                    Remove
-                  </Button> */}
                 </div>
                 <span className={styles.helperText}>
                   Recommended size: 200x200px. Max file size: 2MB. Supports JPG, PNG.

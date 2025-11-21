@@ -112,7 +112,6 @@ const useStyles = makeStyles({
     },
   },
 
-  // Candidate header card
   candidateCard: {
     ...shorthands.borderRadius("16px"),
     ...shorthands.border("1px", "solid", "rgba(2,6,23,0.08)"),
@@ -220,7 +219,6 @@ const useStyles = makeStyles({
     borderRadius: "8px",
   },
 
-  // Layout
   twoColumnGrid: {
     display: "grid",
     gridTemplateColumns: "1fr",
@@ -250,7 +248,6 @@ const useStyles = makeStyles({
     height: "300px",
   },
 
-  // Strengths / Improvements
   sectionHeaderRow: {
     display: "flex",
     alignItems: "center",
@@ -309,7 +306,6 @@ const useStyles = makeStyles({
     color: "#5B6475",
   },
 
-  // Status pills (for answers)
   statusRow: {
     display: "flex",
     justifyContent: "flex-start",
@@ -414,7 +410,6 @@ const useStyles = makeStyles({
     padding: "10px 12px",
   },
 
-  // Recommendation
   recommendationCard: {
     ...shorthands.borderRadius("18px"),
     ...shorthands.border("2px", "solid", "#0118D8"),
@@ -488,7 +483,6 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
 
   return (
     <div className={styles.root}>
-      {/* Header */}
       <div className={styles.headerRow}>
         <Button
           appearance="subtle"
@@ -517,7 +511,6 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
         </div>
       </div>
 
-      {/* Candidate summary */}
       <Card className={styles.candidateCard}>
         <div className={styles.candidateRow}>
           <div className={styles.candidateAvatar}>SC</div>
@@ -561,7 +554,6 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
         </div>
       </Card>
 
-      {/* Charts */}
       <div className={styles.twoColumnGrid}>
         <Card className={styles.sectionCard}>
           <div className={styles.sectionTitle}>Skills Breakdown</div>
@@ -609,7 +601,6 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
         </Card>
       </div>
 
-      {/* Strengths / Weaknesses */}
       <div className={styles.twoColumnGrid}>
         <Card className={styles.sectionCard}>
           <div className={styles.sectionHeaderRow}>
@@ -701,7 +692,6 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
         </Card>
       </div>
 
-      {/* Interview Highlights (scrollable) */}
       <Card className={styles.transcriptCard}>
         <div className={styles.transcriptHeader}>
           <ChatMultiple20Regular className={styles.transcriptHeaderIcon} />
@@ -709,7 +699,6 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
         </div>
 
         <div className={styles.transcriptBody}>
-          {/* Q1 */}
           <div className={styles.transcriptRow}>
             <div className={styles.transcriptMessageRow}>
               <div className={`${styles.avatarSmall} ${styles.avatarAi}`}>
@@ -725,7 +714,6 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
             </div>
           </div>
 
-          {/* A1 */}
           <div className={styles.transcriptRow}>
             <div className={styles.transcriptMessageRow}>
               <div
@@ -760,7 +748,6 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
             </div>
           </div>
 
-          {/* Q2 */}
           <div className={styles.transcriptRow}>
             <div className={styles.transcriptMessageRow}>
               <div className={`${styles.avatarSmall} ${styles.avatarAi}`}>
@@ -776,7 +763,6 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
             </div>
           </div>
 
-          {/* A2 */}
           <div className={styles.transcriptRow}>
             <div className={styles.transcriptMessageRow}>
               <div
@@ -812,7 +798,6 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
         </div>
       </Card>
 
-      {/* Recommendation */}
       <Card className={styles.recommendationCard}>
         <div className={styles.recommendationRow}>
           <div className={styles.recommendationIconCircle}>

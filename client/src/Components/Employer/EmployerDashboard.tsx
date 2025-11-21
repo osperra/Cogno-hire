@@ -449,7 +449,6 @@ const useStyles = makeStyles({
     },
   },
 
-  // ⭐ wrapper that clips + scrolls when needed
   tableWrapper: {
     width: "100%",
     maxWidth: "100%",
@@ -458,7 +457,6 @@ const useStyles = makeStyles({
     WebkitOverflowScrolling: "touch",
   },
 
-  // ⭐ table fills card, but will not shrink smaller than 1000px
   tableFull: {
     width: "100%",
     minWidth: "1000px",
@@ -485,7 +483,6 @@ const useStyles = makeStyles({
     },
   },
 
-  // ⭐ prevent columns from collapsing / wrapping
   noWrap: {
     whiteSpace: "nowrap",
   },
@@ -607,7 +604,6 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
 
   return (
     <div className={styles.root}>
-      {/* Stats */}
       <div className={styles.statsRow}>
         <Card className={styles.statCard}>
           <div className={styles.statHeaderRow}>
@@ -683,7 +679,6 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
         </Card>
       </div>
 
-      {/* Quick Actions + Activity */}
       <div className={styles.twoColumnRow}>
         <Card className={mergeClasses(styles.cardBase)}>
           <div className={styles.cardHeaderRow}>
@@ -884,7 +879,6 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
         </Card>
       </div>
 
-      {/* Recent Job Posts */}
       <Card className={styles.cardBase}>
         <div className={styles.cardHeaderRow}>
           <span className={styles.cardTitle}>Recent Job Posts</span>
@@ -1061,7 +1055,6 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
         </div>
       </Card>
 
-      {/* Recent Responses */}
       <Card className={styles.cardBase}>
         <div className={styles.cardHeaderRow}>
           <span className={styles.cardTitle}>Recent Responses</span>

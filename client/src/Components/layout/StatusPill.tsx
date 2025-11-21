@@ -1,4 +1,3 @@
-// StatusPill.tsx
 import type { ElementType } from "react";
 import {
   CheckmarkCircle20Regular,
@@ -48,28 +47,24 @@ const useStyles = makeStyles({
     height: "20px",
   },
 
-  // ✅ green for Completed
   success: {
     backgroundColor: "#E9FCEB",
     color: "#34C759",
     ...shorthands.border("1px", "solid", "#34C759"),
   },
 
-  // ✅ blue for Pending
   pending: {
     backgroundColor: "#E8F1FF",
     color: "#3B82F6",
     ...shorthands.border("1px", "solid", "#3B82F6"),
   },
 
-  // (you can keep danger if you use it elsewhere)
   danger: {
     backgroundColor: "#FEF2F2",
     color: "#B91C1C",
     ...shorthands.border("1px", "solid", "#FECACA"),
   },
 
-  // ✅ orange for In Progress
   warning: {
     backgroundColor: "#FFF4E5",
     color: "#F59E0B",

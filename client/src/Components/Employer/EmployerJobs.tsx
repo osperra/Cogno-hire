@@ -95,7 +95,7 @@ const useStyles = makeStyles({
     pointerEvents: "none",
     color: "#5B6475",
     fontSize: "16px",
-    zIndex:"10"
+    zIndex: "10",
   },
 
   searchInput: {
@@ -163,17 +163,30 @@ const useStyles = makeStyles({
 
   tableWrapper: {
     overflowX: "auto",
+    overflowY: "auto",
+    maxHeight: "60vh",
   },
 
-  tableHeaderRow: {
-    background:
-      "linear-gradient(to right, rgba(1,24,216,0.06), rgba(27,86,253,0.06))",
+  table: {
+    width: "100%",
+    minWidth: "1100px",
+    tableLayout: "fixed",
   },
 
   tableHeaderCell: {
     fontSize: "0.8rem",
     color: "#4B5563",
     fontWeight: 500,
+    whiteSpace: "nowrap",
+  },
+
+  tableCell: {
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+  },
+  tableHeaderRow: {
+    background:
+      "linear-gradient(to right, rgba(1,24,216,0.06), rgba(27,86,253,0.06))",
   },
 
   tableRow: {
@@ -196,7 +209,6 @@ const useStyles = makeStyles({
       backgroundColor: "#F3F4F6",
     },
   },
-
 
   dangerOutline: {
     ...shorthands.border("1px", "solid", "#FCA5A5"),
@@ -419,7 +431,7 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
 
       <Card className={`${styles.cardBase} ${styles.tableCard}`}>
         <div className={styles.tableWrapper}>
-          <Table aria-label="Jobs table">
+          <Table aria-label="Jobs table " className={styles.table}>
             <TableHeader>
               <TableRow className={styles.tableHeaderRow}>
                 <TableHeaderCell className={styles.tableHeaderCell}>

@@ -272,13 +272,13 @@ const useStyles = makeStyles({
   },
 
   tableWrapper: {
-    overflowX: "auto", // responsive horizontally
+    overflowX: "auto", 
     backgroundColor: "#FFFFFF",
   },
 
   table: {
     width: "100%",
-    minWidth: "980px", // keeps layout; scrolls on smaller screens
+    minWidth: "980px", 
   },
 
   tableHeaderRow: {

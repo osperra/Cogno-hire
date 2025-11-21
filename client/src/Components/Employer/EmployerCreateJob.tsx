@@ -309,7 +309,6 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
   return (
     <div className={styles.root}>
       <div className={styles.content}>
-        {/* Progress / header card */}
         <Card className={styles.stepsCard}>
           <div className={styles.stepsHeaderRow}>
             <div className={styles.stepsTitleBlock}>
@@ -365,9 +364,7 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
           </div>
         </Card>
 
-        {/* Main step content */}
         <Card className={styles.mainCard}>
-          {/* STEP 1: BASICS */}
           {currentStep === 1 && (
             <div>
               <div className={styles.sectionHeader}>
@@ -434,7 +431,6 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
             </div>
           )}
 
-          {/* STEP 2: REQUIREMENTS */}
           {currentStep === 2 && (
             <div>
               <div className={styles.sectionHeader}>
@@ -510,7 +506,6 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
             </div>
           )}
 
-          {/* STEP 3: INTERVIEW SETTINGS */}
           {currentStep === 3 && (
             <div>
               <div className={styles.sectionHeader}>
@@ -608,7 +603,6 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
             </div>
           )}
 
-          {/* STEP 4: REVIEW */}
           {currentStep === 4 && (
             <div>
               <div className={styles.sectionHeader}>
@@ -671,7 +665,6 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
                 </div>
               </div>
 
-              {/* info box – no shorthands here, pure inline CSS */}
               <div
                 style={{
                   marginTop: "14px",
@@ -690,7 +683,6 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
             </div>
           )}
 
-          {/* Navigation buttons */}
           <div className={styles.actionsBar}>
             <Button appearance="secondary" onClick={goBack}>
               {currentStep === 1 ? "Cancel" : "Back"}

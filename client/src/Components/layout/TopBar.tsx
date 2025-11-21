@@ -111,23 +111,36 @@ export function TopBar({
         style={{
           background: "#fff",
           borderBottom: "1px solid #eee",
+          height: 64,
+          minHeight: 64,
           display: "flex",
-          flexDirection: "column",
-          justifyContent: "flex-start",
-          padding: "8px 24px 10px 24px",
-          rowGap: 4,
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 24px",
+          boxSizing: "border-box",
+          position: "sticky",
+          top: 0,
+          zIndex: 1000,
         }}
       >
         <div
           style={{
             display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            columnGap: 20,
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: 2,
+            minWidth: 0,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Text size={500} weight="regular">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              minWidth: 0,
+            }}
+          >
+            <Text size={500} weight="regular" style={{ whiteSpace: "nowrap" }}>
               {title}
             </Text>
 
@@ -135,9 +148,9 @@ export function TopBar({
               style={{
                 fontSize: 12,
                 width: "auto",
-                height: 15,
-                padding: "4px 10px",
-                borderRadius: 8,
+                height: 18,
+                padding: "2px 10px",
+                borderRadius: 999,
                 background: role === "employer" ? "#0F5BFF" : "#16A34A",
                 color: "#fff",
                 display: "inline-flex",
@@ -158,193 +171,190 @@ export function TopBar({
               >
                 <Sparkle20Regular />
               </span>
-
               {roleLabel}
             </span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          {breadcrumbs && breadcrumbs.length > 0 && (
             <div
               style={{
-                position: "relative",
-                transition: "all 0.25s ease",
-                width: searchFocused ? 380 : 260,
-              }}
-            >
-              <span
-                style={{
-                  position: "absolute",
-                  left: 12,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  fontSize: 16,
-                  color: "#5B6475",
-                  pointerEvents: "none",
-                  zIndex: 1,
-                }}
-              >
-                <SearchRegular />
-              </span>
-
-              <Input
-                ref={inputRef}
-                placeholder="Search anything... (⌘K)"
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                style={{
-                  width: "100%",
-                  paddingLeft: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  borderColor: searchFocused ? "#0118D8" : "transparent",
-                  backgroundColor: searchFocused ? "#ffffff" : "#F3F4F6",
-                  boxShadow: searchFocused
-                    ? "0 0 0 2px rgba(1, 24, 216, 0.35)"
-                    : "none",
-                  transition: "all 0.25s ease",
-                }}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowNotifications(true)}
-              style={{
-                position: "relative",
-                background: "transparent",
-                border: "none",
-                padding: 6,
-                cursor: "pointer",
+                fontSize: 12,
+                color: "#6B7280",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
+                gap: 4,
+                marginTop: 2,
               }}
             >
-              <Alert24Regular />
-              {unreadCount > 0 && (
-                <Badge
-                  appearance="filled"
-                  color="danger"
-                  size="small"
-                  style={{
-                    position: "absolute",
-                    top: -2,
-                    right: -2,
-                  }}
-                >
-                  {unreadCount}
-                </Badge>
-              )}
-            </button>
-
-            <Menu>
-              <MenuTrigger disableButtonEnhancement>
-                <Button
-                  appearance="transparent"
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 8,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <Avatar
-                    name={accountLabel}
-                    color="brand"
-                    size={32}
-                    style={{ flexShrink: 0 }}
-                  />
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "flex-start",
-                      lineHeight: 1.1,
-                    }}
+              {breadcrumbs.map((crumb, index) => {
+                const isLast = index === breadcrumbs.length - 1;
+                return (
+                  <span
+                    key={`${crumb}-${index}`}
+                    style={{ display: "flex", alignItems: "center", gap: 4 }}
                   >
-                    <Text weight="semibold" size={200}>
-                      {accountLabel}
-                    </Text>
-                    <Text size={100} style={{ color: "#6B7280" }}>
-                      employer@company.com
-                    </Text>
-                  </div>
-                  <ChevronDownRegular />
-                </Button>
-              </MenuTrigger>
-
-              <MenuPopover>
-                <MenuList>
-                  <MenuItem onClick={onMyAccount}>
+                    {index > 0 && <span style={{ color: "#9CA3AF" }}>/</span>}
                     <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "999px",
-                        background: "#16a34a",
-                        marginRight: 8,
-                      }}
-                    />
-                    My Account
-                  </MenuItem>
-                  <MenuItem onClick={onProfileSettings}>
-                    Profile Settings
-                  </MenuItem>
-                  <MenuItem onClick={onPreferences}>Preferences</MenuItem>
-                  <MenuItem onClick={onSwitchRole}>{switchLabel}</MenuItem>
-                  <MenuItem
-                    onClick={onSignOut}
-                    style={{
-                      color: "#dc2626",
-                      borderTop: "1px solid #eee",
-                      marginTop: 4,
-                      paddingTop: 8,
-                    }}
-                  >
-                    Sign Out
-                  </MenuItem>
-                </MenuList>
-              </MenuPopover>
-            </Menu>
-          </div>
+                      style={
+                        isLast
+                          ? { fontWeight: 500, color: "#111827" }
+                          : undefined
+                      }
+                    >
+                      {crumb}
+                    </span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {breadcrumbs && breadcrumbs.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <div
             style={{
-              fontSize: 12,
-              color: "#6B7280",
-              marginTop: 4,
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
+              position: "relative",
+              transition: "all 0.25s ease",
+              width: searchFocused ? 380 : 260,
             }}
           >
-            {breadcrumbs.map((crumb, index) => {
-              const isLast = index === breadcrumbs.length - 1;
-              return (
-                <span
-                  key={`${crumb}-${index}`}
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                >
-                  {index > 0 && (
-                    <span style={{ color: "#9CA3AF" }}>/</span>
-                  )}
-                  <span
-                    style={
-                      isLast
-                        ? { fontWeight: 500, color: "#111827" }
-                        : undefined
-                    }
-                  >
-                    {crumb}
-                  </span>
-                </span>
-              );
-            })}
+            <span
+              style={{
+                position: "absolute",
+                left: 12,
+                top: "50%",
+                transform: "translateY(-50%)",
+                fontSize: 16,
+                color: "#5B6475",
+                pointerEvents: "none",
+                zIndex: 1,
+              }}
+            >
+              <SearchRegular />
+            </span>
+
+            <Input
+              ref={inputRef}
+              placeholder="Search anything... (⌘K)"
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              style={{
+                width: "100%",
+                paddingLeft: 36,
+                height: 36,
+                borderRadius: 10,
+                borderColor: searchFocused ? "#0118D8" : "transparent",
+                backgroundColor: searchFocused ? "#ffffff" : "#F3F4F6",
+                boxShadow: searchFocused
+                  ? "0 0 0 2px rgba(1, 24, 216, 0.35)"
+                  : "none",
+                transition: "all 0.25s ease",
+              }}
+            />
           </div>
-        )}
+
+          <button
+            type="button"
+            onClick={() => setShowNotifications(true)}
+            style={{
+              position: "relative",
+              background: "transparent",
+              border: "none",
+              padding: 6,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Alert24Regular />
+            {unreadCount > 0 && (
+              <Badge
+                appearance="filled"
+                color="danger"
+                size="small"
+                style={{
+                  position: "absolute",
+                  top: -2,
+                  right: -2,
+                }}
+              >
+                {unreadCount}
+              </Badge>
+            )}
+          </button>
+
+          <Menu>
+            <MenuTrigger disableButtonEnhancement>
+              <Button
+                appearance="transparent"
+                style={{
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Avatar
+                  name={accountLabel}
+                  color="brand"
+                  size={32}
+                  style={{ flexShrink: 0 }}
+                />
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  <Text weight="semibold" size={200}>
+                    {accountLabel}
+                  </Text>
+                  <Text size={100} style={{ color: "#6B7280" }}>
+                    employer@company.com
+                  </Text>
+                </div>
+                <ChevronDownRegular />
+              </Button>
+            </MenuTrigger>
+
+            <MenuPopover>
+              <MenuList>
+                <MenuItem onClick={onMyAccount}>
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "999px",
+                      background: "#16a34a",
+                      marginRight: 8,
+                    }}
+                  />
+                  My Account
+                </MenuItem>
+                <MenuItem onClick={onProfileSettings}>
+                  Profile Settings
+                </MenuItem>
+                <MenuItem onClick={onPreferences}>Preferences</MenuItem>
+                <MenuItem onClick={onSwitchRole}>{switchLabel}</MenuItem>
+                <MenuItem
+                  onClick={onSignOut}
+                  style={{
+                    color: "#dc2626",
+                    borderTop: "1px solid #eee",
+                    marginTop: 4,
+                    paddingTop: 8,
+                  }}
+                >
+                  Sign Out
+                </MenuItem>
+              </MenuList>
+            </MenuPopover>
+          </Menu>
+        </div>
       </header>
 
       {showNotifications && (
@@ -424,9 +434,7 @@ export function TopBar({
                     padding: "12px 14px",
                     borderRadius: 16,
                     backgroundColor: n.isUnread ? "#EEF4FF" : "#ffffff",
-                    border: `1px solid ${
-                      n.isUnread ? "#BFDBFE" : "#E5E7EB"
-                    }`,
+                    border: `1px solid ${n.isUnread ? "#BFDBFE" : "#E5E7EB"}`,
                     boxShadow: "0 8px 20px rgba(15,23,42,0.04)",
                   }}
                 >
