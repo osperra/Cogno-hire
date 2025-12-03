@@ -272,7 +272,6 @@ const useDesignSystemStyles = makeStyles({
   },
 });
 
-/** header-specific styles to match the screenshot */
 const useTopHeaderStyles = makeStyles({
   root: {
     position: "sticky",
@@ -280,18 +279,23 @@ const useTopHeaderStyles = makeStyles({
     zIndex: 50,
     backgroundColor: "#ffffff",
     display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingBlock: "18px",
-    paddingInline: "40px",
+    justifyContent: "center",
     borderBottom: "1px solid rgba(15,23,42,0.06)",
     boxShadow: "0 1px 0 rgba(15,23,42,0.04)",
+    paddingBlock: "18px",
+    paddingInline: "24px",
+  },
+  inner: {
+    width: "100%",
+    maxWidth: "1120px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   left: {
     display: "flex",
     alignItems: "center",
     columnGap: "12px",
-    paddingLeft: "280px"
   },
   logo: {
     width: "36px",
@@ -318,7 +322,6 @@ const useTopHeaderStyles = makeStyles({
     display: "flex",
     alignItems: "center",
     columnGap: "20px",
-    paddingRight:"300px"
   },
   backLink: {
     border: "none",
@@ -429,28 +432,30 @@ function TopHeader(props: {
 
   return (
     <div className={styles.root}>
-      <div className={styles.left}>
-        <div className={styles.logo}>C</div>
-        <span className={styles.title}>Cogno Design System</span>
-      </div>
+      <div className={styles.inner}>
+        <div className={styles.left}>
+          <div className={styles.logo}>C</div>
+          <span className={styles.title}>Cogno Design System</span>
+        </div>
 
-      <div className={styles.right}>
-        <button
-          type="button"
-          onClick={onBackToLanding}
-          className={styles.backLink}
-        >
-          <span className={styles.backArrow}>←</span>
-          <span>Back to Landing</span>
-        </button>
+        <div className={styles.right}>
+          <button
+            type="button"
+            onClick={onBackToLanding}
+            className={styles.backLink}
+          >
+            <span className={styles.backArrow}>←</span>
+            <span>Back to Landing</span>
+          </button>
 
-        <Button
-          appearance="primary"
-          onClick={onViewApp}
-          className={styles.viewAppButton}
-        >
-          View App
-        </Button>
+          <Button
+            appearance="primary"
+            onClick={onViewApp}
+            className={styles.viewAppButton}
+          >
+            View App
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -480,8 +485,6 @@ export function DesignSystem({
           </p>
         </div>
 
-        {/* ---- sections below unchanged ---- */}
-        {/* Color Palette */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Color Palette</h2>
 
@@ -560,7 +563,6 @@ export function DesignSystem({
           </div>
         </section>
 
-        {/* Typography */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Typography</h2>
           <Card className={styles.card}>
@@ -644,7 +646,6 @@ export function DesignSystem({
           </Card>
         </section>
 
-        {/* Buttons */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Buttons</h2>
           <Card className={styles.card}>
@@ -729,7 +730,6 @@ export function DesignSystem({
           </Card>
         </section>
 
-        {/* Status Pills */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Status Pills</h2>
           <Card className={styles.card}>
@@ -744,7 +744,6 @@ export function DesignSystem({
           </Card>
         </section>
 
-        {/* Badges */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Badges</h2>
           <Card className={styles.card}>
@@ -781,7 +780,6 @@ export function DesignSystem({
           </Card>
         </section>
 
-        {/* Form Inputs */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Form Inputs</h2>
           <Card className={styles.card}>
@@ -823,7 +821,6 @@ export function DesignSystem({
           </Card>
         </section>
 
-        {/* Cards */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Cards</h2>
           <div className={styles.cardsGrid}>
@@ -853,7 +850,6 @@ export function DesignSystem({
           </div>
         </section>
 
-        {/* Progress & Stepper */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Progress & Stepper</h2>
           <Card className={styles.card}>
@@ -907,7 +903,6 @@ export function DesignSystem({
           </Card>
         </section>
 
-        {/* Shadows & Elevation */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Shadows & Elevation</h2>
           <div className={styles.shadowGrid}>
@@ -949,7 +944,6 @@ export function DesignSystem({
           </div>
         </section>
 
-        {/* Spacing */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Spacing Scale (8pt)</h2>
           <Card className={styles.spacingCard}>
