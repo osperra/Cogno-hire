@@ -1,5 +1,5 @@
 import { useState, type JSX } from "react";
-import {  Text, Badge, makeStyles } from "@fluentui/react-components";
+import { Text, Badge, makeStyles } from "@fluentui/react-components";
 
 import {
   GridRegular,
@@ -141,18 +141,15 @@ const useStyles = makeStyles({
     marginInline: "auto",
   },
 
- navItemActive: {
-  backgroundImage: "linear-gradient(to right, #0118D8, #1B56FD)",
-  boxShadow: "0 10px 20px rgba(37, 99, 235, 0.38)",
-  color: "#ffffff !important",
-
-  "& svg": {
+  navItemActive: {
+    backgroundImage: "linear-gradient(to right, #0118D8, #1B56FD)",
+    boxShadow: "0 10px 20px rgba(37, 99, 235, 0.38)",
     color: "#ffffff !important",
+
+    "& svg": {
+      color: "#ffffff !important",
+    },
   },
-
-}
-,
-
   navItemInactive: {
     ":hover": {
       backgroundColor: "#F3F4F6",
@@ -231,7 +228,7 @@ const useStyles = makeStyles({
   collapseBtnCollapsed: {
     width: "40px",
     height: "40px",
-    borderRadius: "999px",
+    borderRadius: "9px",
   },
 });
 
@@ -286,7 +283,12 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
 
   const candidateNav: NavItem[] = [
     { id: "home", label: "Home", icon: <Home20Regular /> },
-    { id: "jobs", label: "Find Jobs", icon: <Briefcase20Regular />, badge: "234" },
+    {
+      id: "jobs",
+      label: "Find Jobs",
+      icon: <Briefcase20Regular />,
+      badge: "234",
+    },
     {
       id: "applications",
       label: "Applications",
@@ -387,7 +389,9 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
               size="small"
               style={{
                 marginLeft: 8,
-                backgroundColor: isActive ? "rgba(255,255,255,0.22)" : "#E9DFC3",
+                backgroundColor: isActive
+                  ? "rgba(255,255,255,0.22)"
+                  : "#E9DFC3",
                 color: isActive ? "#ffffff" : "#0B1220",
                 border: "none",
               }}
