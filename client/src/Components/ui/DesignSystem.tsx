@@ -20,6 +20,11 @@ import {
   CheckmarkCircle20Regular,
 } from "@fluentui/react-icons";
 
+type DesignSystemProps = {
+  onBackToLanding?: () => void;
+  onViewApp?: () => void;
+};
+
 const useDesignSystemStyles = makeStyles({
   root: {
     padding: tokens.spacingVerticalXXL,
@@ -267,6 +272,94 @@ const useDesignSystemStyles = makeStyles({
   },
 });
 
+/** header-specific styles to match the screenshot */
+const useTopHeaderStyles = makeStyles({
+  root: {
+    position: "sticky",
+    top: 0,
+    zIndex: 50,
+    backgroundColor: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBlock: "18px",
+    paddingInline: "40px",
+    borderBottom: "1px solid rgba(15,23,42,0.06)",
+    boxShadow: "0 1px 0 rgba(15,23,42,0.04)",
+  },
+  left: {
+    display: "flex",
+    alignItems: "center",
+    columnGap: "12px",
+    paddingLeft: "280px"
+  },
+  logo: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "12px",
+    backgroundImage: "linear-gradient(to bottom right,#0118D8,#1B56FD)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#ffffff",
+    fontWeight: 600,
+    fontSize: "18px",
+    boxShadow: "0 10px 24px rgba(37,99,235,0.45)",
+    flexShrink: 0,
+  },
+  title: {
+    fontSize: "18px",
+    lineHeight: "24px",
+    fontWeight: 600,
+    color: "#0B1220",
+    letterSpacing: "0.01em",
+  },
+  right: {
+    display: "flex",
+    alignItems: "center",
+    columnGap: "20px",
+    paddingRight:"300px"
+  },
+  backLink: {
+    border: "none",
+    background: "transparent",
+    padding: 0,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    columnGap: "6px",
+    fontSize: "14px",
+    color: "#6B7280",
+    textDecoration: "none",
+    transition: "color 0.15s ease",
+    ":hover": {
+      color: "#111827",
+      textDecoration: "underline",
+      textDecorationThickness: "1px",
+    },
+  },
+  backArrow: {
+    fontSize: "16px",
+    lineHeight: 1,
+  },
+  viewAppButton: {
+    backgroundImage: "linear-gradient(to right,#0118D8,#1B56FD)",
+    borderRadius: "999px",
+    paddingInline: "22px",
+    paddingBlock: "10px",
+    fontSize: "14px",
+    fontWeight: 600,
+    boxShadow: "0 14px 30px rgba(37,99,235,0.32)",
+    border: "none",
+    color: "#ffffff",
+    minWidth: "112px",
+    ":hover": {
+      backgroundImage: "linear-gradient(to right,#0113C5,#1B4DED)",
+      color: "#ffffff",
+    },
+  },
+});
+
 type StatusType =
   | "success"
   | "pending"
@@ -327,69 +420,34 @@ function StatusPill(props: { status: StatusType; label: string }) {
   );
 }
 
-function TopHeader() {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "20px 40px",
-        borderBottom: "1px solid rgba(0,0,0,0.05)",
-        background: "#ffffff",
-        position: "sticky",
-        top: 0,
-        zIndex: 50,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <div
-          style={{
-            width: "36px",
-            height: "36px",
-            backgroundColor: "#0118D8",
-            borderRadius: "10px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "white",
-            fontWeight: 600,
-            fontSize: "18px",
-          }}
-        >
-          C
-        </div>
+function TopHeader(props: {
+  onBackToLanding?: () => void;
+  onViewApp?: () => void;
+}) {
+  const { onBackToLanding, onViewApp } = props;
+  const styles = useTopHeaderStyles();
 
-        <span
-          style={{
-            fontSize: "20px",
-            fontWeight: 600,
-            color: "#0B1220",
-          }}
-        >
-          Cogno Design System
-        </span>
+  return (
+    <div className={styles.root}>
+      <div className={styles.left}>
+        <div className={styles.logo}>C</div>
+        <span className={styles.title}>Cogno Design System</span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-        <a
-          href="/"
-          style={{
-            color: "#5B6475",
-            fontSize: "15px",
-            textDecoration: "none",
-          }}
+      <div className={styles.right}>
+        <button
+          type="button"
+          onClick={onBackToLanding}
+          className={styles.backLink}
         >
-          ← Back to Landing
-        </a>
+          <span className={styles.backArrow}>←</span>
+          <span>Back to Landing</span>
+        </button>
 
         <Button
           appearance="primary"
-          style={{
-            backgroundColor: "#0118D8",
-            padding: "10px 20px",
-            borderRadius: "12px",
-          }}
+          onClick={onViewApp}
+          className={styles.viewAppButton}
         >
           View App
         </Button>
@@ -398,7 +456,10 @@ function TopHeader() {
   );
 }
 
-export function DesignSystem(): React.JSX.Element {
+export function DesignSystem({
+  onBackToLanding,
+  onViewApp,
+}: DesignSystemProps): React.JSX.Element {
   const styles = useDesignSystemStyles();
   const spacingValues = [1, 2, 3, 4, 6, 8, 12, 16, 24];
 
@@ -409,7 +470,7 @@ export function DesignSystem(): React.JSX.Element {
         minHeight: "100vh",
       }}
     >
-      <TopHeader />
+      <TopHeader onBackToLanding={onBackToLanding} onViewApp={onViewApp} />
 
       <div className={styles.root}>
         <div className={styles.header}>
@@ -419,6 +480,8 @@ export function DesignSystem(): React.JSX.Element {
           </p>
         </div>
 
+        {/* ---- sections below unchanged ---- */}
+        {/* Color Palette */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Color Palette</h2>
 
@@ -497,6 +560,7 @@ export function DesignSystem(): React.JSX.Element {
           </div>
         </section>
 
+        {/* Typography */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Typography</h2>
           <Card className={styles.card}>
@@ -580,6 +644,7 @@ export function DesignSystem(): React.JSX.Element {
           </Card>
         </section>
 
+        {/* Buttons */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Buttons</h2>
           <Card className={styles.card}>
@@ -664,6 +729,7 @@ export function DesignSystem(): React.JSX.Element {
           </Card>
         </section>
 
+        {/* Status Pills */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Status Pills</h2>
           <Card className={styles.card}>
@@ -678,6 +744,7 @@ export function DesignSystem(): React.JSX.Element {
           </Card>
         </section>
 
+        {/* Badges */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Badges</h2>
           <Card className={styles.card}>
@@ -714,6 +781,7 @@ export function DesignSystem(): React.JSX.Element {
           </Card>
         </section>
 
+        {/* Form Inputs */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Form Inputs</h2>
           <Card className={styles.card}>
@@ -755,6 +823,7 @@ export function DesignSystem(): React.JSX.Element {
           </Card>
         </section>
 
+        {/* Cards */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Cards</h2>
           <div className={styles.cardsGrid}>
@@ -784,6 +853,7 @@ export function DesignSystem(): React.JSX.Element {
           </div>
         </section>
 
+        {/* Progress & Stepper */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Progress & Stepper</h2>
           <Card className={styles.card}>
@@ -837,6 +907,7 @@ export function DesignSystem(): React.JSX.Element {
           </Card>
         </section>
 
+        {/* Shadows & Elevation */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Shadows & Elevation</h2>
           <div className={styles.shadowGrid}>
@@ -878,6 +949,7 @@ export function DesignSystem(): React.JSX.Element {
           </div>
         </section>
 
+        {/* Spacing */}
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Spacing Scale (8pt)</h2>
           <Card className={styles.spacingCard}>

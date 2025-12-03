@@ -286,7 +286,6 @@ export function AppLayout() {
     }
   };
 
-  // ---- FULL-SCREEN MODES ----
 
   if (viewMode === "landing") {
     return (
@@ -306,7 +305,6 @@ export function AppLayout() {
     );
   }
 
-  // ---- APP MODE (with sidebar + top bar) ----
 
   return (
     <div className={styles.appRoot}>

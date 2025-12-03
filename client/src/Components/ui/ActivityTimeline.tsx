@@ -45,7 +45,7 @@ const useStyles = makeStyles({
       backgroundColor: "rgba(248,250,252,0.9)",
     },
     ":hover .iconWrapper": {
-      transform: "scale(1.12) rotate(3deg)",
+      transform: "scale(1.12) ",
     },
   },
 
