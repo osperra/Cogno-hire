@@ -47,8 +47,23 @@ const useStyles = makeStyles({
     display: "flex",
     flexDirection: "column",
     rowGap: "24px",
-  },
+    minHeight: "100vh",
+    boxSizing: "border-box",
+    paddingLeft: "16px",
+    paddingRight: "16px",
+    paddingTop: "16px",
+    paddingBottom: "24px",
+    maxWidth: "2000px",
+    margin: "0 auto",
 
+    "@media (max-width: 768px)": {
+      paddingLeft: "12px",
+      paddingRight: "12px",
+      paddingTop: "12px",
+      paddingBottom: "16px",
+      rowGap: "16px",
+    },
+  },
   
   headerRow: {
     display: "flex",

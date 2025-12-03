@@ -32,7 +32,7 @@ import {
   Briefcase20Regular,
 } from "@fluentui/react-icons";
 
-import { StatusPill } from "../layout/StatusPill";
+import { StatusPill } from "../ui/StatusPill";
 
 interface EmployerApplicantsProps {
   onNavigate: (page: string, data?: Record<string, unknown>) => void;
@@ -102,10 +102,26 @@ const mockApplicants = [
 ];
 
 const useStyles = makeStyles({
-  root: {
+root: {
     display: "flex",
     flexDirection: "column",
-    rowGap: "16px",
+    rowGap: "24px",
+    minHeight: "100vh",
+    boxSizing: "border-box",
+    paddingLeft: "16px",
+    paddingRight: "16px",
+    paddingTop: "16px",
+    paddingBottom: "24px",
+    maxWidth: "2000px",
+    margin: "0 auto",
+
+    "@media (max-width: 768px)": {
+      paddingLeft: "12px",
+      paddingRight: "12px",
+      paddingTop: "12px",
+      paddingBottom: "16px",
+      rowGap: "16px",
+    },
   },
 
   cardBase: {

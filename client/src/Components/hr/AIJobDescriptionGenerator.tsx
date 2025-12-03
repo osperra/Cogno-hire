@@ -31,14 +31,27 @@ const useStyles = makeStyles({
     padding: "24px 32px",
   },
 
-  root: {
-    maxWidth: "1200px",
-    margin: "0 auto",
+ root: {
     display: "flex",
     flexDirection: "column",
     rowGap: "24px",
-  },
+    minHeight: "100vh",
+    boxSizing: "border-box",
+    paddingLeft: "16px",
+    paddingRight: "16px",
+    paddingTop: "16px",
+    paddingBottom: "24px",
+    maxWidth: "2000px",
+    margin: "0 auto",
 
+    "@media (max-width: 768px)": {
+      paddingLeft: "12px",
+      paddingRight: "12px",
+      paddingTop: "12px",
+      paddingBottom: "16px",
+      rowGap: "16px",
+    },
+  },
   sectionHeader: {
     display: "flex",
     justifyContent: "space-between",
