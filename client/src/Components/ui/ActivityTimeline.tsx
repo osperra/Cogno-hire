@@ -20,62 +20,68 @@ interface ActivityTimelineProps {
 
 const useStyles = makeStyles({
   card: {
-    padding: tokens.spacingHorizontalXL,
-    borderRadius: "12px",
-    boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
-    border: "1px solid rgba(2,6,23,0.08)",
-    backgroundColor: tokens.colorNeutralBackground1,
-    height:"450px",
+    padding: "20px 24px",
+    borderRadius: "16px",
+    boxShadow: "0 18px 45px rgba(15,23,42,0.06)",
+    border: "1px solid rgba(226,232,240,0.9)",
+    backgroundColor: "#FFFFFF",
   },
 
   list: {
     display: "flex",
     flexDirection: "column",
-    rowGap: tokens.spacingVerticalM,
-    marginTop: tokens.spacingVerticalM,
+    rowGap: "18px",
+    marginTop: "18px",
   },
 
   item: {
     display: "flex",
-    columnGap: tokens.spacingHorizontalM,
-    alignItems: "flex-start",
-    padding: "4px 0",
+    columnGap: "14px",
+    padding: "6px 4px",
+    borderRadius: "12px",
     transition: "background 200ms ease",
 
-    // "group hover" — animate icon when hovering the whole row
+    ":hover": {
+      backgroundColor: "rgba(248,250,252,0.9)",
+    },
     ":hover .iconWrapper": {
       transform: "scale(1.12) rotate(3deg)",
     },
   },
 
   iconBox: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "8px",
+    width: "44px",
+    height: "44px",
+    borderRadius: "9px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    transition: "transform 250ms ease", // smooth animation
+    boxShadow: "0 6px 14px rgba(15,23,42,0.12)",
+    transition: "transform 250ms ease",
+  },
+
+  textBlock: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: "2px",
   },
 
   title: {
     color: "#0B1220",
     fontWeight: 600,
-    fontSize: tokens.fontSizeBase200,
-    marginBottom: "2px",
+    fontSize: tokens.fontSizeBase300,
   },
 
   description: {
-    color: "#5B6475",
+    color: "#6B7280",
     fontSize: tokens.fontSizeBase200,
   },
 
   time: {
-    color: "#5B6475",
-    fontSize: tokens.fontSizeBase200,
-    marginTop: "4px",
-    display: "block",
+    color: "#9CA3AF",
+    fontSize: tokens.fontSizeBase100,
+    marginTop: "2px",
   },
 });
 
@@ -156,7 +162,12 @@ export function ActivityTimeline({ userRole }: ActivityTimelineProps) {
 
   return (
     <Card className={styles.card} appearance="outline">
-      <Text as="h3" size={500} weight="semibold" style={{ color: "#0B1220" }}>
+      <Text
+        as="h3"
+        size={500}
+        weight="semibold"
+        style={{ color: "#0B1220", marginBottom: 4 }}
+      >
         Recent Activity
       </Text>
 
@@ -176,7 +187,7 @@ export function ActivityTimeline({ userRole }: ActivityTimelineProps) {
                 <Icon />
               </div>
 
-              <div>
+              <div className={styles.textBlock}>
                 <Text className={styles.title}>{activity.title}</Text>
                 <Text className={styles.description}>
                   {activity.description}

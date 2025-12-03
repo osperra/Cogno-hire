@@ -9,15 +9,23 @@ import { EmployerCreateJob } from "../Employer/EmployerCreateJob";
 import { EmployerApplicants } from "../Employer/EmployerApplicants";
 import { CandidatePipeline } from "../hr/CandidatePipeline";
 import { DocumentManagement } from "../hr/DocumentManagement";
-import CandidateDashboard from "../Candidate/CandidateDashboard";
+import { CandidateHome } from "../Candidate/CandidateHome";
+import { CandidateJobs } from "../Candidate/CandidateJobs";
+import { CandidateApplications } from "../Candidate/CandidateApplications";
+import { CandidateNotifications } from "../Candidate/CandidateNotifications";
 import { EmployeeReviews } from "../hr/EmployeeReviews";
 import { OnboardingWorkflow } from "../hr/OnboardingWorkflow";
 import { CompanyProfile } from "../Employer/CompanyProfile";
 import { InterviewAnalytics } from "../Employer/InterviewAnalytics";
 import { FloatingActionButton } from "./FloatingActionButton";
 import { AIJobDescriptionGenerator } from "../hr/AIJobDescriptionGenerator";
+import { InterviewRoom } from "../Interview/InterviewRoom";
+
+import { LandingPage } from "../marketing/LandingPage";
+import { DesignSystem } from "../ui/DesignSystem";
 
 type Role = "employer" | "candidate";
+type ViewMode = "landing" | "design-system" | "app";
 
 type PageMeta = {
   title: string;
@@ -39,7 +47,6 @@ const useStyles = makeStyles({
   },
   contentArea: {
     flex: 1,
-    overflowY: "auto",
     padding: "24px",
     boxSizing: "border-box",
     ...shorthands.overflow("auto"),
@@ -49,9 +56,10 @@ const useStyles = makeStyles({
 export function AppLayout() {
   const styles = useStyles();
 
+  const [viewMode, setViewMode] = useState<ViewMode>("landing");
   const [role, setRole] = useState<Role>("employer");
   const [selectedPage, setSelectedPage] = useState(
-    role === "employer" ? "dashboard" : "home"
+    role === "employer" ? "dashboard" : "home",
   );
 
   const handleSwitchRole = () => {
@@ -62,11 +70,11 @@ export function AppLayout() {
     });
   };
 
-  const handleEmployerNavigate = (
-    page: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _data?: Record<string, unknown>
-  ) => {
+  const handleEmployerNavigate = (page: string) => {
+    setSelectedPage(page);
+  };
+
+  const handleCandidateNavigate = (page: string) => {
     setSelectedPage(page);
   };
 
@@ -76,28 +84,16 @@ export function AppLayout() {
         case "create-job":
           setSelectedPage("create-job");
           break;
-        case "support":
-          console.log("Employer support clicked");
-          break;
-        case "help":
-          console.log("Employer help clicked");
-          break;
         default:
-          break;
+          console.log("Employer action:", action);
       }
     } else {
       switch (action) {
         case "apply":
           setSelectedPage("jobs");
           break;
-        case "support":
-          console.log("Candidate support clicked");
-          break;
-        case "help":
-          console.log("Candidate help clicked");
-          break;
         default:
-          break;
+          console.log("Candidate action:", action);
       }
     }
   };
@@ -158,6 +154,12 @@ export function AppLayout() {
           breadcrumbs: ["Applicants", "Interview Analytics"],
         };
 
+      case "AIJobDescriptionGenerator":
+        return {
+          title: "AI Job Description Generator",
+          breadcrumbs: ["HR", "AI Job Description Generator"],
+        };
+
       default:
         return { title: page || "Dashboard" };
     }
@@ -180,6 +182,13 @@ export function AppLayout() {
       case "notifications":
       case "Notifications":
         return { title: "Notifications", breadcrumbs: ["Notifications"] };
+
+      case "interview-room":
+      case "Interview Room":
+        return {
+          title: "Interview Room",
+          breadcrumbs: ["Interview Room"],
+        };
 
       default:
         return { title: page || "Home" };
@@ -220,7 +229,8 @@ export function AppLayout() {
       case "onboarding":
       case "OnboardingWorkflow":
         return <OnboardingWorkflow />;
-         case "AIJobDescriptionGenerator":
+
+      case "AIJobDescriptionGenerator":
         return <AIJobDescriptionGenerator />;
 
       case "company":
@@ -229,7 +239,9 @@ export function AppLayout() {
 
       case "analytics":
       case "Interview Analytics":
-        return <InterviewAnalytics onNavigate={handleEmployerNavigate} />;
+        return (
+          <InterviewAnalytics onNavigate={handleEmployerNavigate} />
+        );
 
       case "create-job":
         return <EmployerCreateJob onNavigate={handleEmployerNavigate} />;
@@ -238,6 +250,63 @@ export function AppLayout() {
         return <EmployerDashboard onNavigate={handleEmployerNavigate} />;
     }
   };
+
+  const renderCandidatePage = () => {
+    switch (selectedPage) {
+      case "home":
+      case "Home":
+        return <CandidateHome onNavigate={handleCandidateNavigate} />;
+
+      case "jobs":
+      case "Find Jobs":
+        return <CandidateJobs onNavigate={handleCandidateNavigate} />;
+
+      case "applications":
+      case "Applications":
+        return (
+          <CandidateApplications onNavigate={handleCandidateNavigate} />
+        );
+
+      case "notifications":
+      case "Notifications":
+        return <CandidateNotifications />;
+
+      case "interview-room":
+      case "Interview Room":
+        return (
+          <InterviewRoom
+            jobTitle="Senior Frontend Developer"
+            company="TechCorp"
+            onComplete={() => setSelectedPage("home")}
+          />
+        );
+
+      default:
+        return <CandidateHome onNavigate={handleCandidateNavigate} />;
+    }
+  };
+
+  // ---- FULL-SCREEN MODES ----
+
+  if (viewMode === "landing") {
+    return (
+      <LandingPage
+        onGetStarted={() => setViewMode("app")}
+        onOpenDesignSystem={() => setViewMode("design-system")}
+      />
+    );
+  }
+
+  if (viewMode === "design-system") {
+    return (
+      <DesignSystem
+        onBackToLanding={() => setViewMode("landing")}
+        onViewApp={() => setViewMode("app")}
+      />
+    );
+  }
+
+  // ---- APP MODE (with sidebar + top bar) ----
 
   return (
     <div className={styles.appRoot}>
@@ -256,11 +325,7 @@ export function AppLayout() {
         />
 
         <div className={styles.contentArea}>
-          {role === "employer" ? (
-            renderEmployerPage()
-          ) : (
-            <CandidateDashboard currentPage={selectedPage} />
-          )}
+          {role === "employer" ? renderEmployerPage() : renderCandidatePage()}
         </div>
       </div>
 

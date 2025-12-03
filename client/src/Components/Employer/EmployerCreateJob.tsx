@@ -12,7 +12,7 @@ import {
   makeStyles,
   shorthands,
 } from "@fluentui/react-components";
-import { StatusPill } from "../layout/StatusPill";
+import { StatusPill } from "../ui/StatusPill";
 import {
   Dismiss12Regular,
   ChevronRight20Regular,
