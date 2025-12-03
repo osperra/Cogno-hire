@@ -23,7 +23,6 @@ const useStyles = makeStyles({
     },
   },
   trigger: {
-    // AccordionHeader already has good defaults; tweak spacing/weight
     fontSize: tokens.fontSizeBase300,
     fontWeight: tokens.fontWeightSemibold,
     textAlign: "left",
@@ -39,12 +38,7 @@ const useStyles = makeStyles({
   },
 });
 
-/**
- * Root Accordion
- */
-export function Accordion(
-  props: React.ComponentProps<typeof FluentAccordion>,
-) {
+export function Accordion(props: React.ComponentProps<typeof FluentAccordion>) {
   const styles = useStyles();
   const { className, ...rest } = props;
 
@@ -56,11 +50,8 @@ export function Accordion(
   );
 }
 
-/**
- * Accordion Item
- */
 export function AccordionItem(
-  props: React.ComponentProps<typeof FluentAccordionItem>,
+  props: React.ComponentProps<typeof FluentAccordionItem>
 ) {
   const styles = useStyles();
   const { className, ...rest } = props;
@@ -73,11 +64,8 @@ export function AccordionItem(
   );
 }
 
-/**
- * Accordion Trigger (header)
- */
 export function AccordionTrigger(
-  props: React.ComponentProps<typeof AccordionHeader>,
+  props: React.ComponentProps<typeof AccordionHeader>
 ) {
   const styles = useStyles();
   const { className, children, ...rest } = props;
@@ -93,11 +81,8 @@ export function AccordionTrigger(
   );
 }
 
-/**
- * Accordion Content (panel)
- */
 export function AccordionContent(
-  props: React.ComponentProps<typeof AccordionPanel>,
+  props: React.ComponentProps<typeof AccordionPanel>
 ) {
   const styles = useStyles();
   const { className, children, ...rest } = props;

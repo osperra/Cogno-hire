@@ -277,7 +277,6 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
 
   return (
     <div className={styles.root}>
-      {/* KPI cards */}
       <div className={styles.kpiGrid}>
         <AnimatedStats
           title="Active Job Posts"
@@ -311,14 +310,12 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
         />
       </div>
 
-      {/* Quick actions + activity */}
       <div className={styles.mainGrid}>
         <QuickActions userRole="employer" onNavigate={onNavigate} />
 
         <ActivityTimeline userRole="employer" />
       </div>
 
-      {/* Recent Job Posts */}
       <Card className={styles.cardBase} appearance="outline">
         <div className={styles.cardHeader}>
           <Text as="h3" weight="semibold" className={styles.cardTitle}>
@@ -423,7 +420,6 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({
         </div>
       </Card>
 
-      {/* Recent Responses */}
       <Card className={styles.cardBase} appearance="outline">
         <div className={styles.cardHeader}>
           <Text as="h3" weight="semibold" className={styles.cardTitle}>

@@ -1,5 +1,5 @@
 import { useState, type JSX } from "react";
-import { Button, Text, Badge, makeStyles } from "@fluentui/react-components";
+import {  Text, Badge, makeStyles } from "@fluentui/react-components";
 
 import {
   GridRegular,
@@ -33,12 +33,10 @@ const useStyles = makeStyles({
 
   rootExpanded: {
     width: "248px",
-    padding: "0 0 0 0",
   },
 
   rootCollapsed: {
     width: "72px",
-    padding: "0 0 0 0",
     alignItems: "center",
   },
 
@@ -46,7 +44,6 @@ const useStyles = makeStyles({
     height: "64px",
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingInline: "24px",
     borderBottom: "1px solid rgba(2,6,23,0.08)",
   },
@@ -110,20 +107,33 @@ const useStyles = makeStyles({
     marginTop: "12px",
   },
 
-  navButton: {
-    justifyContent: "flex-start",
-    borderRadius: "12px",
-    position: "relative",
-    transition: "all 0.2s ease",
+  navItemButton: {
+    border: "none",
+    outline: "none",
+    background: "transparent",
+    cursor: "pointer",
+    width: "100%",
     display: "flex",
     alignItems: "center",
-    paddingBlock: "8px",
+    position: "relative",
+    paddingBlock: "10px",
     paddingInline: "12px",
-    minHeight: "40px",
+    borderRadius: "12px",
     columnGap: "8px",
+    color: "#4B5563",
+    fontSize: "0.9rem",
+    textAlign: "left",
+    transition:
+      "background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
+    "& svg": {
+      color: "#4B5563",
+      flexShrink: 0,
+    },
   },
 
-  navButtonCollapsed: {
+  navItemExpanded: {},
+
+  navItemCollapsed: {
     justifyContent: "center",
     paddingInline: 0,
     width: "40px",
@@ -131,32 +141,41 @@ const useStyles = makeStyles({
     marginInline: "auto",
   },
 
-  navButtonActive: {
-    backgroundImage: "linear-gradient(to right,#0118D8,#1B56FD)",
-    color: "#ffffff",
-    boxShadow: "0 10px 20px rgba(37,99,235,0.38)",
+ navItemActive: {
+  backgroundImage: "linear-gradient(to right, #0118D8, #1B56FD)",
+  boxShadow: "0 10px 20px rgba(37, 99, 235, 0.38)",
+  color: "#ffffff !important",
 
-    ":hover": {
-      backgroundImage: "linear-gradient(to right,#0118D8,#1B56FD)",
-      color: "#ffffff",
-    },
+  "& svg": {
+    color: "#ffffff !important",
   },
 
-  navButtonInactive: {
-    backgroundColor: "transparent",
+}
+,
 
+  navItemInactive: {
     ":hover": {
       backgroundColor: "#F3F4F6",
-    },
-
-    ":hover .navLabel": {
-      color: "#0118D8",
+      color: "#0B1220",
+      "& svg": {
+        color: "#0B1220",
+      },
     },
   },
 
   navLabel: {
-    color: "#5B6475",
-    transition: "color 0.2s ease",
+    color: "inherit",
+  },
+
+  activeLeftPill: {
+    position: "absolute",
+    left: 0,
+    top: "50%",
+    transform: "translateY(-50%)",
+    width: "4px",
+    height: "32px",
+    borderRadius: "0 999px 999px 0",
+    backgroundColor: "rgba(255,255,255,0.95)",
   },
 
   divider: {
@@ -189,30 +208,30 @@ const useStyles = makeStyles({
     justifyContent: "center",
   },
 
-  collapseButton: {
+  collapseBtn: {
+    border: "none",
+    outline: "none",
+    cursor: "pointer",
+    background: "transparent",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: "4px",
+    color: "#6B7280",
     width: "100%",
     height: "40px",
     borderRadius: "12px",
-    color: "#6B7280",
-    transition: "all 0.25s ease",
+    transition: "background 0.2s ease, color 0.2s ease",
     ":hover": {
       backgroundImage: "linear-gradient(to right,#0118D8,#1B56FD)",
       color: "#ffffff",
     },
   },
 
-  collapseButtonCollapsed: {
-    marginTop: "4px",
+  collapseBtnCollapsed: {
     width: "40px",
     height: "40px",
     borderRadius: "999px",
-    color: "#6B7280",
-    transition: "all 0.25s ease",
-    ":hover": {
-      backgroundImage: "linear-gradient(to right,#0118D8,#1B56FD)",
-      color: "#ffffff",
-    },
   },
 });
 
@@ -289,7 +308,7 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
 
   const navItems = userRole === "employer" ? employerNav : candidateNav;
 
-  const renderNavButton = (item: NavItem) => {
+  const renderNavItem = (item: NavItem) => {
     const isActive = currentPage === item.id;
 
     if (!expanded) {
@@ -303,14 +322,17 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
             marginBottom: 4,
           }}
         >
-          <Button
-            icon={item.icon}
-            appearance="subtle"
-            className={`${styles.navButton} ${styles.navButtonCollapsed} ${
-              isActive ? styles.navButtonActive : styles.navButtonInactive
-            }`}
+          <button
+            type="button"
+            className={[
+              styles.navItemButton,
+              styles.navItemCollapsed,
+              isActive ? styles.navItemActive : styles.navItemInactive,
+            ].join(" ")}
             onClick={() => onNavigate(item.id)}
-          />
+          >
+            {item.icon}
+          </button>
           {item.badge && (
             <Badge
               appearance="filled"
@@ -338,30 +360,18 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
     }
 
     return (
-      <Button
+      <button
         key={item.id}
-        icon={item.icon}
-        appearance="subtle"
-        className={`${styles.navButton} ${
-          isActive ? styles.navButtonActive : styles.navButtonInactive
-        }`}
+        type="button"
+        className={[
+          styles.navItemButton,
+          styles.navItemExpanded,
+          isActive ? styles.navItemActive : styles.navItemInactive,
+        ].join(" ")}
         onClick={() => onNavigate(item.id)}
       >
-        {isActive && (
-          <span
-            style={{
-              position: "absolute",
-              left: 0,
-              top: "50%",
-              transform: "translateY(-50%)",
-              width: 4,
-              height: 32,
-              borderRadius: "0 999px 999px 0",
-              backgroundColor: "rgba(255,255,255,0.95)",
-            }}
-          />
-        )}
-
+        {isActive && <span className={styles.activeLeftPill} />}
+        {item.icon}
         <span
           style={{
             display: "flex",
@@ -377,10 +387,7 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
               size="small"
               style={{
                 marginLeft: 8,
-                top: 3,
-                backgroundColor: isActive
-                  ? "rgba(255,255,255,0.22)"
-                  : "#E9DFC3",
+                backgroundColor: isActive ? "rgba(255,255,255,0.22)" : "#E9DFC3",
                 color: isActive ? "#ffffff" : "#0B1220",
                 border: "none",
               }}
@@ -389,7 +396,7 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
             </Badge>
           )}
         </span>
-      </Button>
+      </button>
     );
   };
 
@@ -414,14 +421,13 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
       </div>
 
       <div className={styles.scrollArea}>
-        <div className={styles.navList}>{navItems.map(renderNavButton)}</div>
+        <div className={styles.navList}>{navItems.map(renderNavItem)}</div>
 
         <div className={styles.divider} />
 
         <div className={styles.navListBottom}>
           {bottomNav.map((item) => {
             const isActive = currentPage === item.id;
-
             if (!expanded) {
               return (
                 <div
@@ -432,43 +438,40 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
                     marginBottom: 4,
                   }}
                 >
-                  <Button
-                    icon={item.icon}
-                    appearance="subtle"
-                    className={`${styles.navButton} ${
-                      styles.navButtonCollapsed
-                    } ${
-                      isActive
-                        ? styles.navButtonActive
-                        : styles.navButtonInactive
-                    }`}
+                  <button
+                    type="button"
+                    className={[
+                      styles.navItemButton,
+                      styles.navItemCollapsed,
+                      isActive ? styles.navItemActive : styles.navItemInactive,
+                    ].join(" ")}
                     onClick={() => onNavigate(item.id)}
-                  />
+                  >
+                    {item.icon}
+                  </button>
                 </div>
               );
             }
 
             return (
-              <Button
+              <button
                 key={item.id}
-                icon={item.icon}
-                appearance="subtle"
-                className={`${styles.navButton} ${
-                  isActive ? styles.navButtonActive : styles.navButtonInactive
-                }`}
+                type="button"
+                className={[
+                  styles.navItemButton,
+                  styles.navItemExpanded,
+                  isActive ? styles.navItemActive : styles.navItemInactive,
+                ].join(" ")}
                 onClick={() => onNavigate(item.id)}
               >
+                {item.icon}
                 <span
                   className={styles.navLabel}
-                  style={{
-                    marginLeft: 8,
-                    textAlign: "left",
-                    width: "100%",
-                  }}
+                  style={{ marginLeft: 8, width: "100%", textAlign: "left" }}
                 >
                   {item.label}
                 </span>
-              </Button>
+              </button>
             );
           })}
         </div>
@@ -484,7 +487,6 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
                   height: 8,
                   borderRadius: "999px",
                   background: "#22C55E",
-                  animation: "pulse 1.5s ease-in-out infinite",
                 }}
               />
               <Text size={200} weight="semibold">
@@ -498,24 +500,15 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
         )}
 
         <div className={styles.collapseWrapper}>
-          <Button
-            appearance="transparent"
-            icon={
-              expanded ? (
-                <span style={{ transform: "scale(1.1)" }}>
-                  <ChevronLeft20Regular />
-                </span>
-              ) : (
-                <span style={{ transform: "scale(1.25)" }}>
-                  <ChevronRight20Regular />
-                </span>
-              )
-            }
-            className={
-              expanded ? styles.collapseButton : styles.collapseButtonCollapsed
-            }
+          <button
+            type="button"
+            className={`${styles.collapseBtn} ${
+              !expanded ? styles.collapseBtnCollapsed : ""
+            }`}
             onClick={() => setExpanded((prev) => !prev)}
-          />
+          >
+            {expanded ? <ChevronLeft20Regular /> : <ChevronRight20Regular />}
+          </button>
         </div>
       </div>
     </aside>
