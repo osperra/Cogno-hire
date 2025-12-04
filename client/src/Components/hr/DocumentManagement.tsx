@@ -42,7 +42,7 @@ import {
   CloudArrowUp20Regular,
 } from "@fluentui/react-icons";
 
-import { StatusPill,type StatusType } from "../ui/StatusPill";
+import { StatusPill, type StatusType } from "../ui/StatusPill";
 
 const mockDocuments = [
   {
@@ -107,10 +107,15 @@ const mockDocuments = [
   },
 ];
 
-type DocTab = "all" | "application" | "verification" | "onboarding" | "employee";
+type DocTab =
+  | "all"
+  | "application"
+  | "verification"
+  | "onboarding"
+  | "employee";
 
 const useStyles = makeStyles({
-root: {
+  root: {
     display: "flex",
     flexDirection: "column",
     rowGap: "24px",
@@ -235,7 +240,7 @@ root: {
     transform: "translateY(-50%)",
     color: "#5B6475",
     pointerEvents: "none",
-    zIndex:"10"
+    zIndex: "10",
   },
 
   searchInput: {
@@ -262,12 +267,13 @@ root: {
 
   tabsWrapper: {
     display: "inline-flex",
-    ...shorthands.borderRadius("999px"),
-    ...shorthands.border("1px", "solid", "rgba(2,6,23,0.08)"),
-    backgroundColor: "#FFFFFF",
-    padding: "4px 8px",
+    gap: "4px",
     alignSelf: "flex-start",
-    marginTop: "4px",
+    backgroundColor: "#FFFFFF",
+    border: "1px solid rgba(2,6,23,0.08)",
+    padding: "4px",
+    borderRadius: "9999px",
+    marginTop: "8px",
   },
 
   tabList: {
@@ -286,13 +292,13 @@ root: {
   },
 
   tableWrapper: {
-    overflowX: "auto", 
+    overflowX: "auto",
     backgroundColor: "#FFFFFF",
   },
 
   table: {
     width: "100%",
-    minWidth: "980px", 
+    minWidth: "980px",
   },
 
   tableHeaderRow: {
@@ -412,20 +418,19 @@ root: {
     marginBottom: "12px",
   },
 
- uploadButton: {
-  backgroundColor: "#0118D8",
-  color: "#FFFFFF",
-  marginTop: "8px",
-  display: "inline-flex",
-  justifyContent: "center",
-  paddingInline: "16px",   
-  marginInline: "auto", 
-  ":hover": {
-    backgroundColor: "#1B56FD",
+  uploadButton: {
+    backgroundColor: "#0118D8",
     color: "#FFFFFF",
+    marginTop: "8px",
+    display: "inline-flex",
+    justifyContent: "center",
+    paddingInline: "16px",
+    marginInline: "auto",
+    ":hover": {
+      backgroundColor: "#1B56FD",
+      color: "#FFFFFF",
+    },
   },
-},
-
 });
 
 const mapStatusToPill = (status: string): StatusType => {
@@ -435,7 +440,7 @@ const mapStatusToPill = (status: string): StatusType => {
     case "Signed":
       return "success";
     case "Pending":
-      return "warning"; 
+      return "warning";
     default:
       return "neutral";
   }
@@ -638,13 +643,13 @@ export function DocumentManagement() {
 
       <Card className={styles.tableCard}>
         <div className={styles.tableWrapper}>
-          <Table
-            aria-label="Documents table"
-            className={styles.table}
-          >
+          <Table aria-label="Documents table" className={styles.table}>
             <TableHeader>
               <TableRow className={styles.tableHeaderRow}>
-                <TableHeaderCell className={styles.tableHeaderCell} style={{ width: "30%"}}>
+                <TableHeaderCell
+                  className={styles.tableHeaderCell}
+                  style={{ width: "30%" }}
+                >
                   Document Name
                 </TableHeaderCell>
                 <TableHeaderCell className={styles.tableHeaderCell}>
@@ -783,9 +788,9 @@ export function DocumentManagement() {
           Supports: PDF, DOC, DOCX, JPG, PNG (Max 10MB)
         </div>
         <Button
-        style={{width:"20px"}}
+          style={{ width: "20px" }}
           appearance="primary"
-          size="small" 
+          size="small"
           className={styles.uploadButton}
           icon={<CloudArrowUp20Regular />}
         >

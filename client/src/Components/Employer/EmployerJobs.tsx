@@ -1,27 +1,30 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { Card } from "../ui/card";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Checkbox } from "../ui/checkbox";
 import {
-  Button,
-  Card,
-  Checkbox,
-  Dropdown,
-  Input,
-  Menu,
-  MenuItem,
-  MenuList,
-  MenuPopover,
-  MenuTrigger,
-  Option,
   Table,
   TableBody,
   TableCell,
+  TableHead,
   TableHeader,
-  TableHeaderCell,
   TableRow,
-  Text,
-  makeStyles,
-  shorthands,
-  tokens,
-} from "@fluentui/react-components";
+} from "../ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { StatusPill } from "../ui/StatusPill";
 import {
   SearchRegular,
   Add20Regular,
@@ -33,208 +36,9 @@ import {
   Copy20Regular,
 } from "@fluentui/react-icons";
 
-import { StatusPill } from "../ui/StatusPill";
-
 interface EmployerJobsProps {
   onNavigate: (page: string, data?: Record<string, unknown>) => void;
 }
-
-const useStyles = makeStyles({
-  root: {
-    display: "flex",
-    flexDirection: "column",
-    rowGap: "24px",
-    minHeight: "100vh",
-    boxSizing: "border-box",
-    paddingLeft: "16px",
-    paddingRight: "16px",
-    paddingTop: "16px",
-    paddingBottom: "24px",
-    maxWidth: "2000px",
-    margin: "0 auto",
-
-    "@media (max-width: 768px)": {
-      paddingLeft: "12px",
-      paddingRight: "12px",
-      paddingTop: "12px",
-      paddingBottom: "16px",
-      rowGap: "16px",
-    },
-  },
-
-  cardBase: {
-    borderRadius: "12px",
-    border: "1px solid rgba(2,6,23,0.08)",
-    boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
-    backgroundColor: "#FFFFFF",
-  },
-
-  toolbarCard: {
-    borderRadius: "999px",
-    padding: "8px 12px",
-    boxShadow: "0 8px 20px rgba(15,23,42,0.06)",
-    border: "1px solid rgba(148,163,184,0.35)",
-    backgroundColor: "#FFFFFF",
-  },
-
-  toolbarRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    rowGap: "8px",
-    columnGap: "8px",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  toolbarLeft: {
-    display: "flex",
-    flex: 1,
-    flexWrap: "wrap",
-    columnGap: "8px",
-    rowGap: "8px",
-    alignItems: "center",
-    minWidth: 0,
-  },
-
-  searchWrapper: {
-    position: "relative",
-    flex: 1,
-    minWidth: "260px",
-    maxWidth: "100%",
-  },
-
-  searchIcon: {
-    position: "absolute",
-    left: "14px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    pointerEvents: "none",
-    color: "#5B6475",
-    fontSize: "16px",
-    zIndex: "10",
-  },
-
-  searchInput: {
-    width: "100%",
-    height: "40px",
-    paddingLeft: "32px",
-    fontSize: "14px",
-    backgroundColor: "#FFFFFF",
-    ...shorthands.borderRadius("9px"),
-    ...shorthands.border("1px", "solid", "#E5E7EB"),
-
-    "::placeholder": {
-      color: "#9CA3AF",
-    },
-  },
-
-  filterDropdown: {
-    minWidth: "150px",
-  },
-
-  filterButton: {
-    minWidth: "36px",
-    height: "36px",
-    padding: 0,
-    ...shorthands.borderRadius("10px"),
-    ...shorthands.border("1px", "solid", "#E5E7EB"),
-    backgroundColor: "#FFFFFF",
-    color: "#6B7280",
-
-    ":hover": {
-      backgroundColor: "#F3F4F6",
-    },
-  },
-
-  createButton: {
-    height: "36px",
-    ...shorthands.borderRadius("999px"),
-    paddingInline: "16px",
-    backgroundColor: "#0F5BFF",
-    color: "#FFFFFF",
-    border: "none",
-    fontWeight: 600,
-
-    ":hover": {
-      backgroundColor: "#1B56FD",
-      color: "#FFFFFF",
-    },
-  },
-
-  bulkCard: {
-    padding: "12px 16px",
-    backgroundColor: "#EFF6FF",
-    ...shorthands.border("1px", "solid", "#BFDBFE"),
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    columnGap: "12px",
-  },
-
-  bulkActionsRow: {
-    display: "flex",
-    columnGap: "8px",
-  },
-  tableCard: {},
-
-  tableWrapper: {
-    overflowX: "auto",
-    overflowY: "auto",
-    maxHeight: "60vh",
-  },
-
-  table: {
-    width: "100%",
-    minWidth: "1100px",
-    tableLayout: "fixed",
-  },
-
-  tableHeaderCell: {
-    fontSize: "0.8rem",
-    color: "#4B5563",
-    fontWeight: 500,
-    whiteSpace: "nowrap",
-  },
-
-  tableCell: {
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-  },
-  tableHeaderRow: {
-    background:
-      "linear-gradient(to right, rgba(1,24,216,0.06), rgba(27,86,253,0.06))",
-  },
-
-  tableRow: {
-    ":hover": {
-      backgroundColor: "#F3F4F6",
-    },
-  },
-
-  subtleIconButton: {
-    ...shorthands.borderRadius("8px"),
-    ...shorthands.padding("4px"),
-    border: "none",
-    backgroundColor: "transparent",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-
-    ":hover": {
-      backgroundColor: "#F3F4F6",
-    },
-  },
-
-  dangerOutline: {
-    ...shorthands.border("1px", "solid", "#FCA5A5"),
-    color: "#DC2626",
-    backgroundColor: "transparent",
-    ":hover": {
-      backgroundColor: "#FEF2F2",
-    },
-  },
-});
 
 const mockJobs = [
   {
@@ -305,221 +109,268 @@ const mockJobs = [
 ];
 
 export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
-  const styles = useStyles();
   const [selectedJobs, setSelectedJobs] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all-types");
-  const [locationFilter, setLocationFilter] = useState("all-locations");
+  const [jobType, setJobType] = useState("All Types");
+  const [locationType, setLocationType] = useState("All Locations");
 
-  const toggleSelectAll = () => {
-    if (selectedJobs.length === mockJobs.length) {
-      setSelectedJobs([]);
-    } else {
-      setSelectedJobs(mockJobs.map((job) => job.id));
-    }
+  const toolbarContainerStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
   };
 
-  const toggleSelect = (id: number) => {
-    setSelectedJobs((prev) =>
-      prev.includes(id) ? prev.filter((jobId) => jobId !== id) : [...prev, id]
-    );
+  const filtersRowStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "minmax(260px, 1fr) 160px 160px auto",
+    columnGap: 12,
+    alignItems: "center",
+    flex: 1,
+    minWidth: 0,
   };
 
-  const filteredJobs = useMemo(() => {
-    return mockJobs.filter((job) => {
-      const matchesSearch =
-        searchQuery.trim().length === 0 ||
-        job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        job.location.toLowerCase().includes(searchQuery.toLowerCase());
+  const searchWrapperStyle: React.CSSProperties = {
+    position: "relative",
+    width: "95%",
+  };
 
-      const matchesType =
-        typeFilter === "all-types" ||
-        (typeFilter === "full-time" && job.type === "Full-time") ||
-        (typeFilter === "contract" && job.type === "Contract") ||
-        (typeFilter === "part-time" && job.type === "Part-time");
+  const iconButtonStyle: React.CSSProperties = {
+    width: 36,
+    height: 36,
+    padding: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+  const menuItemInnerStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  };
 
-      const matchesLocation =
-        locationFilter === "all-locations" ||
-        (locationFilter === "remote" &&
-          job.location.toLowerCase().includes("remote")) ||
-        (locationFilter === "onsite" &&
-          !job.location.toLowerCase().includes("remote")) ||
-        (locationFilter === "hybrid" &&
-          job.location.toLowerCase().includes("hybrid"));
+  const menuIconStyle: React.CSSProperties = {
+    width: 16,
+    height: 16,
+    flexShrink: 0,
+  };
 
-      return matchesSearch && matchesType && matchesLocation;
-    });
-  }, [searchQuery, typeFilter, locationFilter]);
-
-  const headerCheckboxValue =
-    selectedJobs.length === 0
-      ? false
-      : selectedJobs.length === mockJobs.length
-      ? true
-      : ("mixed" as const);
+  const menuLabelStyle: React.CSSProperties = {
+    lineHeight: 1.2,
+    display: "inline-block",
+  };
 
   return (
-    <div className={styles.root}>
-      <Card className={`${styles.cardBase} ${styles.toolbarCard}`}>
-        <div className={styles.toolbarRow}>
-          <div className={styles.toolbarLeft}>
-            <div className={styles.searchWrapper}>
-              <span className={styles.searchIcon}>
-                <SearchRegular />
-              </span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <Card style={{ padding: 16, border: "1px solid rgba(2,6,23,0.08)" }}>
+        <div style={toolbarContainerStyle}>
+          <div style={filtersRowStyle}>
+            <div style={searchWrapperStyle}>
+              <SearchRegular
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 16,
+                  height: 16,
+                  color: "#5B6475",
+                }}
+              />
               <Input
-                value={searchQuery}
-                onChange={(_, data) => setSearchQuery(data.value)}
                 placeholder="Search jobs..."
-                className={styles.searchInput}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ paddingLeft: 32, width: "100%" }}
               />
             </div>
 
-            <Dropdown
-              defaultValue="All-Types"
-              className={styles.filterDropdown}
-              onOptionSelect={(_, data) =>
-                setTypeFilter((data.optionValue as string) ?? "all-types")
-              }
-            >
-              <Option value="all-types">All Types</Option>
-              <Option value="full-time">Full-time</Option>
-              <Option value="contract">Contract</Option>
-              <Option value="part-time">Part-time</Option>
-            </Dropdown>
+            <Select value={jobType} onValueChange={setJobType}>
+              <SelectTrigger style={{ width: "100%" }}>
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All Types">All Types</SelectItem>
+                <SelectItem value="Full Time">Full Time</SelectItem>
+                <SelectItem value="Contract">Contract</SelectItem>
+                <SelectItem value="Part Time">Part Time</SelectItem>
+              </SelectContent>
+            </Select>
 
-            <Dropdown
-              defaultValue="All-Locations"
-              className={styles.filterDropdown}
-              onOptionSelect={(_, data) =>
-                setLocationFilter(
-                  (data.optionValue as string) ?? "all-locations"
-                )
-              }
-            >
-              <Option value="all-locations">All Locations</Option>
-              <Option value="remote">Remote</Option>
-              <Option value="onsite">On-site</Option>
-              <Option value="hybrid">Hybrid</Option>
-            </Dropdown>
+            <Select value={locationType} onValueChange={setLocationType}>
+              <SelectTrigger style={{ width: "100%" }}>
+                <SelectValue placeholder="All Locations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All Locations">All Locations</SelectItem>
+                <SelectItem value="Remote">Remote</SelectItem>
+                <SelectItem value="On-site">On-site</SelectItem>
+                <SelectItem value="Hybrid">Hybrid</SelectItem>
+              </SelectContent>
+            </Select>
 
-            <Button
-              appearance="subtle"
-              icon={<Filter20Regular />}
-              aria-label="More filters"
-              className={styles.filterButton}
-            />
+            <Button variant="outline" style={iconButtonStyle}>
+              <Filter20Regular style={{ width: 16, height: 16 }} />
+            </Button>
           </div>
 
           <Button
-            className={styles.createButton}
-            icon={<Add20Regular />}
             onClick={() => onNavigate("create-job")}
+            style={{
+              backgroundColor: "#0118D8",
+              color: "#FFFFFF",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              whiteSpace: "nowrap",
+            }}
           >
-            Create Job
+            <Add20Regular style={{ width: 16, height: 16 }} />
+            <span>Create Job</span>
           </Button>
         </div>
       </Card>
 
       {selectedJobs.length > 0 && (
-        <Card className={`${styles.cardBase} ${styles.bulkCard}`}>
-          <Text style={{ color: "#0118D8" }}>
-            {selectedJobs.length} job
-            {selectedJobs.length > 1 ? "s" : ""} selected
-          </Text>
-          <div className={styles.bulkActionsRow}>
-            <Button appearance="outline" size="small">
-              Duplicate
-            </Button>
-            <Button appearance="outline" size="small">
-              Archive
-            </Button>
-            <Button
-              appearance="outline"
-              size="small"
-              className={styles.dangerOutline}
-            >
-              Delete
-            </Button>
+        <Card
+          style={{
+            padding: 16,
+            border: "1px solid rgba(2,6,23,0.08)",
+            backgroundColor: "#EFF5FF",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <p style={{ color: "#0118D8", margin: 0 }}>
+              {selectedJobs.length} job{selectedJobs.length > 1 ? "s" : ""}{" "}
+              selected
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button variant="outline" size="sm">
+                Duplicate
+              </Button>
+              <Button variant="outline" size="sm">
+                Archive
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                style={{
+                  color: "#DC2626",
+                  borderColor: "#FECACA",
+                  backgroundColor: "#FEF2F2",
+                }}
+              >
+                Delete
+              </Button>
+            </div>
           </div>
         </Card>
       )}
 
-      <Card className={`${styles.cardBase} ${styles.tableCard}`}>
-        <div className={styles.tableWrapper}>
-          <Table aria-label="Jobs table " className={styles.table}>
+      <Card
+        style={{
+          border: "1px solid rgba(2,6,23,0.08)",
+          boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
+          padding: 0,
+        }}
+      >
+        <div style={{ overflowX: "auto" }}>
+          <Table>
             <TableHeader>
-              <TableRow className={styles.tableHeaderRow}>
-                <TableHeaderCell className={styles.tableHeaderCell}>
+              <TableRow
+                style={{
+                  background:
+                    "linear-gradient(to right, rgba(1,24,216,0.06), rgba(27,86,253,0.06))",
+                }}
+              >
+                <TableHead style={{ width: 40 }}>
                   <Checkbox
-                    checked={headerCheckboxValue}
-                    onChange={toggleSelectAll}
-                    aria-label="Select all jobs"
+                    checked={selectedJobs.length === mockJobs.length}
+                    onChange={(_, data) => {
+                      if (data?.checked) {
+                        setSelectedJobs(mockJobs.map((job) => job.id));
+                      } else {
+                        setSelectedJobs([]);
+                      }
+                    }}
                   />
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Title
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Type
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Location
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  CTC
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Experience
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Duration
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Difficulty
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Status
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Responses
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Date Posted
-                </TableHeaderCell>
-                <TableHeaderCell />
+                </TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>CTC</TableHead>
+                <TableHead>Experience</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Difficulty</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Responses</TableHead>
+                <TableHead>Date Posted</TableHead>
+                <TableHead style={{ width: 40 }} />
               </TableRow>
             </TableHeader>
-
             <TableBody>
-              {filteredJobs.map((job) => (
-                <TableRow key={job.id} className={styles.tableRow}>
+              {mockJobs.map((job) => (
+                <TableRow
+                  key={job.id}
+                  style={{
+                    cursor: "default",
+                    transition: "background-color 0.15s ease-in-out",
+                  }}
+                  onMouseEnter={(e) => {
+                    (
+                      e.currentTarget as HTMLTableRowElement
+                    ).style.backgroundColor = "#F3F4F6";
+                  }}
+                  onMouseLeave={(e) => {
+                    (
+                      e.currentTarget as HTMLTableRowElement
+                    ).style.backgroundColor = "transparent";
+                  }}
+                >
                   <TableCell>
                     <Checkbox
                       checked={selectedJobs.includes(job.id)}
-                      onChange={() => toggleSelect(job.id)}
-                      aria-label={`Select ${job.title}`}
+                      onChange={(_, data) => {
+                        const isChecked = !!data?.checked;
+                        if (isChecked) {
+                          setSelectedJobs((prev) =>
+                            prev.includes(job.id) ? prev : [...prev, job.id]
+                          );
+                        } else {
+                          setSelectedJobs((prev) =>
+                            prev.filter((jobId) => jobId !== job.id)
+                          );
+                        }
+                      }}
                     />
                   </TableCell>
                   <TableCell>
-                    <Text weight="semibold" style={{ color: "#0B1220" }}>
+                    <div
+                      style={{
+                        color: "#0B1220",
+                        fontWeight: 500,
+                      }}
+                    >
                       {job.title}
-                    </Text>
+                    </div>
                   </TableCell>
-                  <TableCell>
-                    <Text style={{ color: "#5B6475" }}>{job.type}</Text>
+                  <TableCell style={{ color: "#5B6475" }}>{job.type}</TableCell>
+                  <TableCell style={{ color: "#5B6475" }}>
+                    {job.location}
                   </TableCell>
-                  <TableCell>
-                    <Text style={{ color: "#5B6475" }}>{job.location}</Text>
+                  <TableCell style={{ color: "#5B6475" }}>{job.ctc}</TableCell>
+                  <TableCell style={{ color: "#5B6475" }}>
+                    {job.experience}
                   </TableCell>
-                  <TableCell>
-                    <Text style={{ color: "#5B6475" }}>{job.ctc}</Text>
-                  </TableCell>
-                  <TableCell>
-                    <Text style={{ color: "#5B6475" }}>{job.experience}</Text>
-                  </TableCell>
-                  <TableCell>
-                    <Text style={{ color: "#5B6475" }}>{job.duration}</Text>
+                  <TableCell style={{ color: "#5B6475" }}>
+                    {job.duration}
                   </TableCell>
                   <TableCell>
                     <StatusPill
@@ -547,60 +398,68 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                       size="sm"
                     />
                   </TableCell>
-                  <TableCell>
-                    <Text
-                      style={{
-                        color: tokens.colorBrandForeground1,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {job.responses}
-                    </Text>
+                  <TableCell
+                    style={{
+                      color: "#0118D8",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {job.responses}
+                  </TableCell>
+                  <TableCell style={{ color: "#5B6475" }}>
+                    {job.datePosted}
                   </TableCell>
                   <TableCell>
-                    <Text style={{ color: "#5B6475" }}>{job.datePosted}</Text>
-                  </TableCell>
-                  <TableCell>
-                    <Menu>
-                      <MenuTrigger disableButtonEnhancement>
-                        <button
-                          type="button"
-                          className={styles.subtleIconButton}
-                          aria-label="More actions"
+                    <DropdownMenu>
+                      <DropdownMenuTrigger>
+                        <Button
+                          variant="ghost"
+                          style={{
+                            ...iconButtonStyle,
+                            borderRadius: 6,
+                          }}
                         >
-                          <MoreVerticalRegular />{" "}
-                        </button>
-                      </MenuTrigger>
-                      <MenuPopover>
-                        <MenuList>
-                          <MenuItem
-                            icon={<Eye20Regular />}
-                            onClick={() =>
-                              onNavigate("job-details", { jobId: job.id })
-                            }
-                          >
-                            View Details
-                          </MenuItem>
-                          <MenuItem
-                            icon={<Edit20Regular />}
-                            onClick={() =>
-                              onNavigate("edit-job", { jobId: job.id })
-                            }
-                          >
-                            Edit Job
-                          </MenuItem>
-                          <MenuItem icon={<Copy20Regular />}>
-                            Duplicate
-                          </MenuItem>
-                          <MenuItem
-                            icon={<Delete20Regular />}
-                            style={{ color: "#DC2626" }}
-                          >
-                            Delete
-                          </MenuItem>
-                        </MenuList>
-                      </MenuPopover>
-                    </Menu>
+                          <MoreVerticalRegular
+                            style={{ width: 16, height: 16 }}
+                          />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem>
+                          <div style={menuItemInnerStyle}>
+                            <Eye20Regular style={menuIconStyle} />
+                            <span style={menuLabelStyle}>View Details</span>
+                          </div>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem>
+                          <div style={menuItemInnerStyle}>
+                            <Edit20Regular style={menuIconStyle} />
+                            <span style={menuLabelStyle}>Edit Job</span>
+                          </div>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem>
+                          <div style={menuItemInnerStyle}>
+                            <Copy20Regular style={menuIconStyle} />
+                            <span style={menuLabelStyle}>Duplicate</span>
+                          </div>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem>
+                          <div style={menuItemInnerStyle}>
+                            <Delete20Regular
+                              style={{ ...menuIconStyle}}
+                            />
+                            <span
+                              style={{ ...menuLabelStyle, color: "#DC2626" }}
+                            >
+                              Delete
+                            </span>
+                          </div>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}

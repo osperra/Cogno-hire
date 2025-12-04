@@ -30,25 +30,32 @@ const useTabsStyles = makeStyles({
     flexDirection: "column",
     rowGap: tokens.spacingVerticalS,
   },
+
   list: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "flex-start",
-    columnGap: tokens.spacingHorizontalXXS,
-    padding: tokens.spacingHorizontalXXS,
-    height: "36px",
-    backgroundColor: tokens.colorNeutralBackground3,
-    ...shorthands.borderRadius(tokens.borderRadiusXLarge),
+    columnGap: tokens.spacingHorizontalS,
+
+    padding: 0,
+    marginTop: tokens.spacingVerticalS,
+    height: "auto",
+    backgroundColor: "transparent",
+    ...shorthands.borderRadius(0),
   },
+
   triggerBase: {
-    flex: 1,
-    minWidth: "0",
+    flex: "0 0 auto",
+    minWidth: "auto",
+
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     columnGap: tokens.spacingHorizontalXS,
+
     paddingInline: tokens.spacingHorizontalM,
-    paddingBlock: tokens.spacingVerticalXS,
+    paddingBlock: tokens.spacingVerticalXXS,
+
     ...shorthands.borderRadius(tokens.borderRadiusXLarge),
     backgroundColor: "transparent",
     color: tokens.colorNeutralForeground1,
@@ -70,10 +77,12 @@ const useTabsStyles = makeStyles({
       boxShadow: `0 0 0 3px ${tokens.colorStrokeFocus2}`,
     },
   },
+
   triggerActive: {
     backgroundColor: tokens.colorNeutralBackground1,
     color: tokens.colorNeutralForeground1,
   },
+
   content: {
     flex: 1,
     outline: "none",

@@ -163,7 +163,6 @@ type DropdownMenuContentProps = React.ComponentProps<typeof MenuPopover> & {
 function DropdownMenuContent({
   className,
   children,
-  sideOffset, // eslint-disable-line @typescript-eslint/no-unused-vars
   ...props
 }: DropdownMenuContentProps) {
   const styles = useDropdownMenuStyles();
@@ -381,7 +380,6 @@ type DropdownMenuSubContentProps = DropdownMenuContentProps;
 function DropdownMenuSubContent({
   className,
   children,
-  sideOffset, // eslint-disable-line @typescript-eslint/no-unused-vars
   ...props
 }: DropdownMenuSubContentProps) {
   const styles = useDropdownMenuStyles();
