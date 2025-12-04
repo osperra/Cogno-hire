@@ -1,38 +1,37 @@
-import { useMemo, useState } from "react";
+import React, { useState } from "react";
+import { Card } from "../ui/card";
+import { Input } from "../ui/input";
+import { StatusPill } from "../ui/StatusPill";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import {
-  Card,
-  Dropdown,
-  Input,
-  Menu,
-  MenuItem,
-  MenuList,
-  MenuPopover,
-  MenuTrigger,
-  Option,
   Table,
   TableBody,
   TableCell,
+  TableHead,
   TableHeader,
-  TableHeaderCell,
   TableRow,
-  Tab,
-  TabList,
-  type TabValue,
-  Text,
-  makeStyles,
-  shorthands,
-  tokens,
-} from "@fluentui/react-components";
+} from "../ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 
 import {
   SearchRegular,
   MoreVerticalRegular,
-  DataHistogram20Regular,
   ContactCard20Regular,
   Briefcase20Regular,
+  DataBarHorizontal20Regular,
 } from "@fluentui/react-icons";
-
-import { StatusPill } from "../ui/StatusPill";
 
 interface EmployerApplicantsProps {
   onNavigate: (page: string, data?: Record<string, unknown>) => void;
@@ -101,8 +100,18 @@ const mockApplicants = [
   },
 ];
 
-const useStyles = makeStyles({
-root: {
+export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTab, setSelectedTab] = useState("All");
+
+  const filteredApplicants = mockApplicants.filter((applicant) => {
+    if (selectedTab === "All") return true;
+    return (
+      applicant.hiringStatus.toLowerCase().replace(" ", "-") === selectedTab
+    );
+  });
+
+  const pageContainerStyle: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
     rowGap: "24px",
@@ -114,482 +123,348 @@ root: {
     paddingBottom: "24px",
     maxWidth: "2000px",
     margin: "0 auto",
+  };
 
-    "@media (max-width: 768px)": {
-      paddingLeft: "12px",
-      paddingRight: "12px",
-      paddingTop: "12px",
-      paddingBottom: "16px",
-      rowGap: "16px",
-    },
-  },
-
-  cardBase: {
-    ...shorthands.borderRadius("12px"),
-    ...shorthands.border("1px", "solid", "rgba(2,6,23,0.08)"),
-    boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
-    backgroundColor: "#FFFFFF",
-  },
-
-  filterCard: {
-    padding: "12px 16px",
-  },
-
-  filtersRow: {
+  const filtersRowStyle: React.CSSProperties = {
     display: "flex",
-    flexDirection: "column",
-    rowGap: "12px",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+    alignItems: "center",
+  };
 
-    "@media (min-width: 768px)": {
-      flexDirection: "row",
-      alignItems: "center",
-      columnGap: "12px",
-    },
-  },
-
-  searchWrapper: {
+  const searchWrapperStyle: React.CSSProperties = {
     position: "relative",
     flex: 1,
-    width: "100%",
-    maxWidth: "100%",
-  },
+    minWidth: 260,
+  };
 
-  searchIcon: {
-    position: "absolute",
-    left: "14px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    color: "#5B6475",
-    pointerEvents: "none",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "18px",
-    zIndex:"1"
-  },
-
-  searchInput: {
-    width: "100%",
-    height: "40px",
-    paddingLeft: "32px",
-    fontSize: "14px",
-    backgroundColor: "#FFFFFF",
-    ...shorthands.borderRadius("8px"),
-    ...shorthands.border("1px", "solid", "rgba(2,6,23,0.18)"),
-
-    "::placeholder": {
-      color: "#9CA3AF",
-    },
-  },
-
-  filterDropdown: {
-    minWidth: "180px",
-  },
-
-  tabsCard: {
+  const tabsListStyle: React.CSSProperties = {
     display: "inline-flex",
-    width: "auto",
-    ...shorthands.borderRadius("999px"),
-    ...shorthands.border("1px", "solid", "rgba(2,6,23,0.08)"),
-    backgroundColor: "#FFFFFF",
-    padding: "4px 8px",
+    gap: 4,
     alignSelf: "flex-start",
-  },
-
-  tabList: {
-    columnGap: "6px",
-    rowGap: "6px",
-    flexWrap: "wrap",
-  },
-
-  tableCard: {
-    padding: 0,
-    overflow: "hidden",
-    borderRadius: "18px",
-  },
-
-  tableWrapper: {
-    overflowX: "auto",
-    overflowY: "auto",      
-    maxHeight: "60vh",     
     backgroundColor: "#FFFFFF",
-  },
+    border: "1px solid rgba(2,6,23,0.08)",
+    padding: 4,
+    borderRadius: 9999,
+    marginTop: 8,
+  };
 
-  table: {
-    width: "100%",
-    minWidth: "1100px",     
-    tableLayout: "fixed",  
-  },
-
-  tableHeaderRow: {
-    background: "linear-gradient(to bottom, #F9FAFF, #EEF2FF)",
-    borderBottom: "1px solid #E5E7EB",
-    height: "44px",
-  },
-
-  tableHeaderCell: {
-    fontSize: "0.8rem",
-    color: "#4B5563",
-    fontWeight: 600,
-    padding: "12px 20px",
-    whiteSpace: "nowrap",         
-  },
-
-  tableRow: {
-    height: "56px",
-    backgroundColor: "#FFFFFF",
-    ":not(:last-child)": {
-      borderBottom: "1px solid #F3F4F6",
-    },
-    ":hover": {
-      backgroundColor: "#F9FAFF",
-    },
-  },
-
-  tableCell: {
-    padding: "14px 20px",
-    fontSize: "0.85rem",
-    whiteSpace: "nowrap",        
-    overflow: "hidden",
-
-  },
-
-  statusCell: {
-    padding: "14px 20px",
-    fontSize: "0.85rem",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-start",
-  },
-
-  subtleIconButton: {
-    ...shorthands.borderRadius("999px"),
-    ...shorthands.padding("4px"),
+  const tabsTriggerStyle: React.CSSProperties = {
+    padding: "6px 12px",
+    borderRadius: 9999,
     border: "none",
-    backgroundColor: "transparent",
+    background: "transparent",
+    fontSize: 13,
     cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+  };
 
-    ":hover": {
-      backgroundColor: "#F3F4F6",
-    },
-  },
-});
-
-export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
-  const styles = useStyles();
-
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTab, setSelectedTab] = useState<TabValue>("all");
-  const [jobFilter, setJobFilter] = useState("All-jobs");
-  const [interviewFilter, setInterviewFilter] = useState("All-status");
-
-  const tabCounts = useMemo(() => {
-    const counts = {
-      Invited: 0,
-      "Under Review": 0,
-      Shortlisted: 0,
-      hired: 0,
-      rejected: 0,
-    };
-
-    mockApplicants.forEach((a) => {
-      const key = a.hiringStatus
-        .toLowerCase()
-        .replace(" ", "-") as keyof typeof counts;
-      if (counts[key] !== undefined) {
-        counts[key] += 1;
-      }
-    });
-
-    return counts;
-  }, []);
-
-  const filteredApplicants = useMemo(() => {
-    return mockApplicants.filter((applicant) => {
-      if (selectedTab !== "all") {
-        const normalizedHiring = applicant.hiringStatus
-          .toLowerCase()
-          .replace(" ", "-");
-        if (normalizedHiring !== selectedTab) {
-          return false;
-        }
-      }
-
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const inCandidate = applicant.candidate.toLowerCase().includes(q);
-        const inEmail = applicant.email.toLowerCase().includes(q);
-        const inJob = applicant.job.toLowerCase().includes(q);
-
-        if (!inCandidate && !inEmail && !inJob) {
-          return false;
-        }
-      }
-
-      if (jobFilter !== "All-jobs") {
-        if (
-          jobFilter === "frontend" &&
-          applicant.job !== "Senior Frontend Developer"
-        ) {
-          return false;
-        }
-        if (jobFilter === "designer" && applicant.job !== "Product Designer") {
-          return false;
-        }
-        if (jobFilter === "backend" && applicant.job !== "Backend Engineer") {
-          return false;
-        }
-        if (jobFilter === "devops" && applicant.job !== "DevOps Engineer") {
-          return false;
-        }
-      }
-
-      if (interviewFilter !== "All-status") {
-        if (
-          interviewFilter === "Completed" &&
-          applicant.interviewStatus !== "Completed"
-        ) {
-          return false;
-        }
-        if (
-          interviewFilter === "pending" &&
-          applicant.interviewStatus !== "Pending"
-        ) {
-          return false;
-        }
-        if (
-          interviewFilter === "in-progress" &&
-          applicant.interviewStatus !== "In Progress"
-        ) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [selectedTab, searchQuery, jobFilter, interviewFilter]);
+  const tabsContentWrapperStyle: React.CSSProperties = {
+    marginTop: 24,
+  };
 
   return (
-    <div className={styles.root}>
-      <Card className={`${styles.cardBase} ${styles.filterCard}`}>
-        <div className={styles.filtersRow}>
-          <div className={styles.searchWrapper}>
-            <span className={styles.searchIcon}>
-              <SearchRegular />
-            </span>
+    <div style={pageContainerStyle}>
+      <Card
+        style={{
+          padding: 16,
+          border: "1px solid rgba(2,6,23,0.08)",
+        }}
+      >
+        <div style={filtersRowStyle}>
+          <div style={searchWrapperStyle}>
+            <SearchRegular
+              style={{
+                position: "absolute",
+                left: 10,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 16,
+                height: 16,
+                color: "#5B6475",
+              }}
+            />
             <Input
               placeholder="Search by name, email, or job..."
               value={searchQuery}
-              onChange={(_, data) => setSearchQuery(data.value)}
-              className={styles.searchInput}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ paddingLeft: 32, width: "95%" }}
             />
           </div>
 
-          <Dropdown
-            className={styles.filterDropdown}
-            defaultValue="All Jobs"
-            onOptionSelect={(_, data) =>
-              setJobFilter((data.optionValue as string) ?? "all-jobs")
-            }
-          >
-            <Option value="all-jobs">All Jobs</Option>
-            <Option value="frontend">Senior Frontend Developer</Option>
-            <Option value="designer">Product Designer</Option>
-            <Option value="backend">Backend Engineer</Option>
-            <Option value="devops">DevOps Engineer</Option>
-          </Dropdown>
+          <Select defaultValue="All Jobs">
+            <SelectTrigger style={{ width: 190 }}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All Jobs">All Jobs</SelectItem>
+              <SelectItem value="Senior Frontend Developer">
+                Senior Frontend Developer
+              </SelectItem>
+              <SelectItem value="Product Designer">Product Designer</SelectItem>
+              <SelectItem value="Backend Engineer">Backend Engineer</SelectItem>
+              <SelectItem value="DevOps Engineer">DevOps Engineer</SelectItem>
+            </SelectContent>
+          </Select>
 
-          <Dropdown
-            className={styles.filterDropdown}
-            defaultValue="All Interview Status"
-            onOptionSelect={(_, data) =>
-              setInterviewFilter((data.optionValue as string) ?? "all-status")
-            }
-          >
-            <Option value="all-status">All Interview Status</Option>
-            <Option value="Completed">Completed</Option>
-            <Option value="pending">Pending</Option>
-            <Option value="in-progress">In Progress</Option>
-          </Dropdown>
+          <Select defaultValue="All Status">
+            <SelectTrigger style={{ width: 210 }}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All Status">All Interview Status</SelectItem>
+              <SelectItem value="Completed">Completed</SelectItem>
+              <SelectItem value="Pending">Pending</SelectItem>
+              <SelectItem value="In-progress">In Progress</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </Card>
 
-      <Card className={`${styles.tabsCard}`}>
-        <TabList
-          selectedValue={selectedTab}
-          onTabSelect={(_, data) => setSelectedTab(data.value)}
-          className={styles.tabList}
-        >
-          <Tab value="all">All ({mockApplicants.length})</Tab>
-          <Tab value="Invited">Invited ({tabCounts.Invited})</Tab>
-          <Tab value="Under Review">
-            Under Review ({tabCounts["Under Review"]})
-          </Tab>
-          <Tab value="Shortlisted">Shortlisted ({tabCounts.Shortlisted})</Tab>
-          <Tab value="hired">Hired ({tabCounts.hired})</Tab>
-          <Tab value="rejected">Rejected ({tabCounts.rejected})</Tab>
-        </TabList>
-      </Card>
+      <Tabs
+        defaultValue="All"
+        value={selectedTab}
+        onValueChange={setSelectedTab}
+      >
+        <TabsList style={tabsListStyle}>
+          <TabsTrigger value="All" style={tabsTriggerStyle}>
+            All ({mockApplicants.length})
+          </TabsTrigger>
+          <TabsTrigger value="invited" style={tabsTriggerStyle}>
+            Invited (
+            {mockApplicants.filter((a) => a.hiringStatus === "Invited").length})
+          </TabsTrigger>
+          <TabsTrigger value="under-review" style={tabsTriggerStyle}>
+            Under Review (
+            {
+              mockApplicants.filter((a) => a.hiringStatus === "Under Review")
+                .length
+            }
+            )
+          </TabsTrigger>
+          <TabsTrigger value="shortlisted" style={tabsTriggerStyle}>
+            Shortlisted (
+            {
+              mockApplicants.filter((a) => a.hiringStatus === "Shortlisted")
+                .length
+            }
+            )
+          </TabsTrigger>
+          <TabsTrigger value="hired" style={tabsTriggerStyle}>
+            Hired (
+            {mockApplicants.filter((a) => a.hiringStatus === "Hired").length})
+          </TabsTrigger>
+          <TabsTrigger value="rejected" style={tabsTriggerStyle}>
+            Rejected (
+            {mockApplicants.filter((a) => a.hiringStatus === "Rejected").length}
+            )
+          </TabsTrigger>
+        </TabsList>
 
-      <Card className={`${styles.cardBase} ${styles.tableCard}`}>
-        <div className={styles.tableWrapper}>
-          <Table aria-label="Applicants table" className={styles.table}>
-            <TableHeader>
-              <TableRow className={styles.tableHeaderRow}>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Candidate
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Email
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Job Role
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Applied Date
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Score
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Interview Status
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Hiring Status
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Actions
-                </TableHeaderCell>
-              </TableRow>
-            </TableHeader>
+        <TabsContent value={selectedTab} style={tabsContentWrapperStyle}>
+          <Card
+            style={{
+              border: "1px solid rgba(2,6,23,0.08)",
+              boxShadow:
+                "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
+            }}
+          >
+            <div style={{ overflowX: "auto" }}>
+              <Table>
+                <TableHeader>
+                  <TableRow
+                    style={{
+                      background:
+                        "linear-gradient(to right, rgba(1,24,216,0.06), rgba(27,86,253,0.06))",
+                    }}
+                  >
+                    <TableHead>Candidate</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Job Role</TableHead>
+                    <TableHead>Applied Date</TableHead>
+                    <TableHead>Score</TableHead>
+                    <TableHead>Interview Status</TableHead>
+                    <TableHead>Hiring Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
 
-            <TableBody>
-              {filteredApplicants.map((applicant) => (
-                <TableRow key={applicant.id} className={styles.tableRow}>
-                  <TableCell className={styles.tableCell}>
-                    <Text weight="semibold" style={{ color: "#0B1220" }}>
-                      {applicant.candidate}
-                    </Text>
-                  </TableCell>
-
-                  <TableCell className={styles.tableCell}>
-                    <Text style={{ color: "#5B6475" }}>{applicant.email}</Text>
-                  </TableCell>
-
-                  <TableCell className={styles.tableCell}>
-                    <Text style={{ color: "#5B6475" }}>{applicant.job}</Text>
-                  </TableCell>
-
-                  <TableCell className={styles.tableCell}>
-                    <Text style={{ color: "#5B6475" }}>
-                      {applicant.appliedDate}
-                    </Text>
-                  </TableCell>
-
-                  <TableCell className={styles.tableCell}>
-                    {applicant.score != null ? (
-                      <Text
-                        style={{
-                          color: tokens.colorBrandForeground1,
-                          fontWeight: 500,
-                        }}
-                      >
-                        {applicant.score}%
-                      </Text>
-                    ) : (
-                      <Text style={{ color: "#9CA3AF" }}>-</Text>
-                    )}
-                  </TableCell>
-                  <TableCell className={styles.tableCell}>
-                    <StatusPill
-                      status={
-                        applicant.interviewStatus === "Completed"
-                          ? "success"
-                          : applicant.interviewStatus === "Pending"
-                          ? "pending"
-                          : applicant.interviewStatus === "In Progress"
-                          ? "warning"
-                          : "neutral"
-                      }
-                      label={applicant.interviewStatus}
-                      size="sm"
-                    />
-                  </TableCell>
-
-                  <TableCell className={styles.tableCell}>
-                    <Dropdown
-                      defaultValue={applicant.hiringStatus
-                        .toLowerCase()
-                        .replace(" ", "-")}
-                      style={{ minWidth: 160 }}
-                    >
-                      <Option value="Invited">Invited</Option>
-                      <Option value="Under Review">Under Review</Option>
-                      <Option value="Shortlisted">Shortlisted</Option>
-                      <Option value="Hired">Hired</Option>
-                      <Option value="Rejected">Rejected</Option>
-                    </Dropdown>
-                  </TableCell>
-
-                  <TableCell className={styles.tableCell}>
-                    <Menu>
-                      <MenuTrigger disableButtonEnhancement>
-                        <button
-                          type="button"
-                          className={styles.subtleIconButton}
-                          aria-label="More actions"
-                        >
-                          <MoreVerticalRegular />
-                        </button>
-                      </MenuTrigger>
-                      <MenuPopover>
-                        <MenuList>
-                          <MenuItem
-                            icon={<DataHistogram20Regular />}
-                            onClick={() =>
-                              onNavigate("Interview Analytics", {
-                                candidateId: applicant.id,
-                              })
-                            }
-                          >
-                            View Analytics
-                          </MenuItem>
-                          <MenuItem icon={<ContactCard20Regular />}>
-                            View Candidate
-                          </MenuItem>
-                          <MenuItem icon={<Briefcase20Regular />}>
-                            View Job
-                          </MenuItem>
-                        </MenuList>
-                      </MenuPopover>
-                    </Menu>
-                  </TableCell>
-                </TableRow>
-              ))}
-
-              {filteredApplicants.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className={styles.tableCell}>
-                    <Text
+                <TableBody>
+                  {filteredApplicants.map((applicant) => (
+                    <TableRow
+                      key={applicant.id}
                       style={{
-                        display: "block",
-                        textAlign: "center",
-                        padding: "16px 0",
-                        color: "#6B7280",
+                        cursor: "default",
+                        transition: "background-color 0.15s ease-in-out",
+                      }}
+                      onMouseEnter={(e) => {
+                        (
+                          e.currentTarget as HTMLTableRowElement
+                        ).style.backgroundColor = "#F3F4F6";
+                      }}
+                      onMouseLeave={(e) => {
+                        (
+                          e.currentTarget as HTMLTableRowElement
+                        ).style.backgroundColor = "transparent";
                       }}
                     >
-                      No applicants match the current filters.
-                    </Text>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
+                      <TableCell>
+                        <div
+                          style={{
+                            color: "#0B1220",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {applicant.candidate}
+                        </div>
+                      </TableCell>
+                      <TableCell style={{ color: "#5B6475" }}>
+                        {applicant.email}
+                      </TableCell>
+                      <TableCell style={{ color: "#5B6475" }}>
+                        {applicant.job}
+                      </TableCell>
+                      <TableCell style={{ color: "#5B6475" }}>
+                        {applicant.appliedDate}
+                      </TableCell>
+                      <TableCell>
+                        {applicant.score !== null &&
+                        applicant.score !== undefined ? (
+                          <span
+                            style={{
+                              color: "#0118D8",
+                              fontWeight: 500,
+                            }}
+                          >
+                            {applicant.score}%
+                          </span>
+                        ) : (
+                          <span style={{ color: "#5B6475" }}>-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <StatusPill
+                          status={
+                            applicant.interviewStatus === "Completed"
+                              ? "success"
+                              : applicant.interviewStatus === "In Progress"
+                              ? "warning"
+                              : "info"
+                          }
+                          label={applicant.interviewStatus}
+                          size="sm"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          defaultValue={applicant.hiringStatus
+                            .toLowerCase()
+                            .replace(" ", "-")}
+                        >
+                          <SelectTrigger style={{ width: 160, height: 32 }}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="invited">Invited</SelectItem>
+                            <SelectItem value="under-review">
+                              Under Review
+                            </SelectItem>
+                            <SelectItem value="shortlisted">
+                              Shortlisted
+                            </SelectItem>
+                            <SelectItem value="hired">Hired</SelectItem>
+                            <SelectItem value="rejected">Rejected</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger>
+                            <button
+                              style={{
+                                height: 32,
+                                width: 32,
+                                borderRadius: 6,
+                                border: "none",
+                                background: "transparent",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                              }}
+                              onMouseEnter={(e) => {
+                                (
+                                  e.currentTarget as HTMLButtonElement
+                                ).style.backgroundColor = "#F3F4F6";
+                              }}
+                              onMouseLeave={(e) => {
+                                (
+                                  e.currentTarget as HTMLButtonElement
+                                ).style.backgroundColor = "transparent";
+                              }}
+                            >
+                              <MoreVerticalRegular
+                                style={{ width: 16, height: 16 }}
+                              />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                onNavigate("analytics", {
+                                  candidateId: applicant.id,
+                                })
+                              }
+                            >
+                              <span
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <DataBarHorizontal20Regular
+                                  style={{ marginRight: 8 }}
+                                />
+                                <span>View Analytics</span>
+                              </span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <span
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <ContactCard20Regular
+                                  style={{ marginRight: 8 }}
+                                />
+                                <span>View Candidate</span>
+                              </span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <span
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <Briefcase20Regular
+                                  style={{ marginRight: 8 }}
+                                />
+                                <span>View Job</span>
+                              </span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
