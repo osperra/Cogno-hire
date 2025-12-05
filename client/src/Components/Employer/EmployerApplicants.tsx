@@ -159,7 +159,7 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
     cursor: "pointer",
   };
 
-  const tabsContentWrapperStyle: React.CSSProperties = {
+  const tabsContentWrapperStyle: React.CSSProperties = { 
     marginTop: 24,
   };
 

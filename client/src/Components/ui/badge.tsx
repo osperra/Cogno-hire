@@ -20,7 +20,7 @@ const useBadgeStyles = makeStyles({
     justifyContent: "center",
     ...shorthands.border("1px", "solid", "transparent"),
     ...shorthands.padding("2px", "8px"), 
-    borderRadius: tokens.borderRadiusSmall,
+    borderRadius: tokens.borderRadiusLarge,
     fontSize: tokens.fontSizeBase100, 
     fontWeight: tokens.fontWeightMedium,
     lineHeight: 1,

@@ -1,13 +1,9 @@
-import * as React from "react";
-import {
-  Badge,
-  Button,
-  Card,
-  ProgressBar,
-  Text,
-  makeStyles,
-  shorthands,
-} from "@fluentui/react-components";
+import { useState, useEffect } from "react";
+import { Card } from "../ui/card";
+import { Button } from "../ui/button";
+import { Progress } from "../ui/progress";
+import { Badge } from "../ui/badge";
+import { ScrollArea } from "../ui/scroll-area";
 
 import {
   Mic20Regular,
@@ -20,6 +16,7 @@ import {
   CheckmarkCircle20Regular,
   Clock20Regular,
   Alert20Regular,
+  Bot24Regular,
 } from "@fluentui/react-icons";
 
 interface InterviewRoomProps {
@@ -35,370 +32,22 @@ interface Message {
   timestamp: string;
 }
 
-const useStyles = makeStyles({
-  root: {
-    minHeight: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: "#0B1220",
-    color: "#F9FAFB",
-  },
+const BREAKPOINT_LG = 1200;
+const BREAKPOINT_MD = 900;
+const BREAKPOINT_SM = 600;
 
-  // --- Top bar ---
-  topBar: {
-    backgroundColor: "#1F2937",
-    borderBottom: "1px solid rgba(255,255,255,0.1)",
-    ...shorthands.padding("12px", "16px"),
-  },
-  topBarInner: {
-    maxWidth: "1120px",
-    margin: "0 auto",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    columnGap: "24px",
-  },
-  topBarLeft: {
-    display: "flex",
-    alignItems: "center",
-    columnGap: "16px",
-  },
-  logo: {
-    width: "48px",
-    height: "48px",
-    borderRadius: "12px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundImage: "linear-gradient(135deg, #0118D8, #1B56FD)",
-    color: "#FFFFFF",
-    fontWeight: 600,
-    fontSize: "20px",
-    flexShrink: 0,
-  },
-  jobTitleBlock: {
-    display: "flex",
-    flexDirection: "column",
-    rowGap: "2px",
-  },
-  jobCompany: {
-    color: "#9CA3AF",
-    fontSize: "0.875rem",
-  },
-  topBarRight: {
-    display: "flex",
-    alignItems: "center",
-    columnGap: "16px",
-  },
-  timeBlock: {
-    display: "flex",
-    alignItems: "center",
-    columnGap: "6px",
-    color: "#F9FAFB",
-    fontSize: "1.125rem",
-    fontWeight: 500,
-  },
-  recordingBadge: {
-    backgroundColor: "rgba(34,197,94,0.15)",
-    color: "#4ADE80",
-    display: "flex",
-    alignItems: "center",
-    columnGap: "6px",
-  },
-  recordingDot: {
-    width: "8px",
-    height: "8px",
-    borderRadius: "999px",
-    backgroundColor: "#22C55E",
-    animation: "pulse 1.5s infinite",
-  },
+export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomProps) {
+  const [isMicOn, setIsMicOn] = useState(true);
+  const [isVideoOn, setIsVideoOn] = useState(true);
+  const [isSoundOn, setIsSoundOn] = useState(true);
+  const [currentQuestion, setCurrentQuestion] = useState(1);
+  const [progress, setProgress] = useState(15);
+  const [isAISpeaking, setIsAISpeaking] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1400
+  );
 
-  // --- Layout ---
-  main: {
-    flex: 1,
-    display: "flex",
-    overflow: "hidden",
-  },
-
-  // Left side (video & controls)
-  leftPane: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: "#0B1220",
-    ...shorthands.padding("24px"),
-    rowGap: "16px",
-  },
-  videoGrid: {
-    flex: 1,
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    columnGap: "16px",
-    rowGap: "16px",
-  },
-  aiCard: {
-    position: "relative",
-    backgroundImage:
-      "linear-gradient(135deg, rgba(129,140,248,0.35), rgba(59,130,246,0.25))",
-    overflow: "hidden",
-  },
-  aiCardInner: {
-    position: "absolute",
-    inset: "0",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  aiAvatar: {
-    position: "relative",
-    width: "128px",
-    height: "128px",
-    borderRadius: "999px",
-    backgroundImage: "linear-gradient(135deg, #0118D8, #1B56FD)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "40px",
-    color: "#FFFFFF",
-  },
-  aiSpeakingOverlay: {
-    position: "absolute",
-    inset: "0",
-    backgroundImage:
-      "linear-gradient(135deg, rgba(59,130,246,0.35), rgba(168,85,247,0.35))",
-    animation: "pulse 1.5s infinite",
-  },
-  aiBadge: {
-    position: "absolute",
-    left: "16px",
-    bottom: "16px",
-    backgroundColor: "rgba(168,85,247,0.2)",
-    color: "#E9D5FF",
-  },
-
-  candidateCard: {
-    position: "relative",
-    backgroundColor: "#111827",
-    overflow: "hidden",
-  },
-  candidatePlaceholder: {
-    position: "absolute",
-    inset: "0",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#111827",
-  },
-  candidateBadge: {
-    position: "absolute",
-    left: "16px",
-    bottom: "16px",
-    backgroundColor: "rgba(59,130,246,0.2)",
-    color: "#BFDBFE",
-  },
-
-  // Progress card
-  progressCard: {
-    backgroundColor: "#1F2937",
-    ...shorthands.padding("16px", "20px"),
-  },
-  progressHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: "8px",
-  },
-  progressHeaderLeft: {
-    display: "flex",
-    alignItems: "center",
-    columnGap: "8px",
-  },
-  progressPercent: {
-    color: "#9CA3AF",
-    fontSize: "0.875rem",
-  },
-  progressBar: {
-    marginTop: "8px",
-    marginBottom: "12px",
-    "& .fui-ProgressBar-bar": {
-      backgroundColor: "#22C55E",
-    },
-  },
-  progressStepsRow: {
-    display: "flex",
-    alignItems: "center",
-    columnGap: "4px",
-  },
-  progressStep: {
-    flex: 1,
-    height: "8px",
-    borderRadius: "999px",
-    backgroundColor: "#374151",
-  },
-
-  // Controls
-  controlsRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    columnGap: "16px",
-    marginTop: "8px",
-  },
-  roundControlButton: {
-    minWidth: "56px",
-    height: "56px",
-    borderRadius: "999px",
-    padding: 0,
-  },
-
-  // Right pane (transcript)
-  rightPane: {
-    width: "380px",
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: "#1F2937",
-    borderLeft: "1px solid rgba(255,255,255,0.1)",
-  },
-  rightHeader: {
-    ...shorthands.padding("12px", "16px"),
-    borderBottom: "1px solid rgba(255,255,255,0.1)",
-  },
-  rightHeaderInner: {
-    display: "flex",
-    alignItems: "center",
-    columnGap: "8px",
-    color: "#FFFFFF",
-  },
-  transcriptScroll: {
-    flex: 1,
-    overflowY: "auto",
-    ...shorthands.padding("16px"),
-  },
-  transcriptList: {
-    display: "flex",
-    flexDirection: "column",
-    rowGap: "12px",
-  },
-  messageRow: {
-    display: "flex",
-    columnGap: "8px",
-    alignItems: "flex-start",
-  },
-  messageRowCandidate: {
-    flexDirection: "row-reverse",
-  },
-  avatarCircle: {
-    width: "32px",
-    height: "32px",
-    borderRadius: "999px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    color: "#FFFFFF",
-    fontSize: "12px",
-    fontWeight: 600,
-  },
-  avatarAI: {
-    backgroundImage: "linear-gradient(135deg, #A855F7, #3B82F6)",
-  },
-  avatarYou: {
-    backgroundImage: "linear-gradient(135deg, #22C55E, #10B981)",
-  },
-  messageBody: {
-    flex: 1,
-  },
-  messageBodyCandidate: {
-    textAlign: "right",
-  },
-  messageTimestamp: {
-    marginBottom: "4px",
-    color: "#9CA3AF",
-    fontSize: "0.75rem",
-  },
-  messageBubbleAI: {
-    display: "inline-block",
-    maxWidth: "100%",
-    backgroundColor: "rgba(76,29,149,0.45)",
-    color: "#EDE9FE",
-    ...shorthands.padding("8px", "12px"),
-    borderRadius: "10px",
-    fontSize: "0.875rem",
-  },
-  messageBubbleYou: {
-    display: "inline-block",
-    maxWidth: "100%",
-    backgroundColor: "rgba(6,95,70,0.45)",
-    color: "#DCFCE7",
-    ...shorthands.padding("8px", "12px"),
-    borderRadius: "10px",
-    fontSize: "0.875rem",
-  },
-
-  typingDotsBubble: {
-    display: "inline-block",
-    backgroundColor: "rgba(76,29,149,0.45)",
-    ...shorthands.padding("8px", "12px"),
-    borderRadius: "10px",
-  },
-  typingDotsRow: {
-    display: "flex",
-    columnGap: "4px",
-  },
-  typingDot: {
-    width: "8px",
-    height: "8px",
-    borderRadius: "999px",
-    backgroundColor: "#C4B5FD",
-    animation: "bounce 1.4s infinite",
-  },
-
-  tipsBox: {
-    ...shorthands.padding("12px", "16px"),
-    borderTop: "1px solid rgba(255,255,255,0.1)",
-    backgroundColor: "rgba(30,64,175,0.25)",
-  },
-  tipsRow: {
-    display: "flex",
-    alignItems: "flex-start",
-    columnGap: "8px",
-  },
-  tipsTitle: {
-    color: "#BFDBFE",
-    fontSize: "0.875rem",
-    fontWeight: 500,
-    marginBottom: "2px",
-  },
-  tipsText: {
-    color: "rgba(191,219,254,0.75)",
-    fontSize: "0.75rem",
-  },
-
-  "@keyframes pulse": {
-    "0%, 100%": { opacity: 1, transform: "scale(1)" },
-    "50%": { opacity: 0.6, transform: "scale(1.1)" },
-  },
-
-  "@keyframes bounce": {
-    "0%, 80%, 100%": { transform: "scale(0)" },
-    "40%": { transform: "scale(1)" },
-  },
-});
-
-export const InterviewRoom: React.FC<InterviewRoomProps> = ({
-  jobTitle,
-  company,
-  onComplete,
-}) => {
-  const styles = useStyles();
-
-  const [isMicOn, setIsMicOn] = React.useState(true);
-  const [isVideoOn, setIsVideoOn] = React.useState(true);
-  const [isSoundOn, setIsSoundOn] = React.useState(true);
-  const [currentQuestion, setCurrentQuestion] = React.useState(1);
-  const [progress, setProgress] = React.useState(15);
-  const [isAISpeaking, setIsAISpeaking] = React.useState(false);
-  const [transcript, setTranscript] = React.useState<Message[]>([
+  const [transcript, setTranscript] = useState<Message[]>([
     {
       id: 1,
       role: "ai",
@@ -407,6 +56,12 @@ export const InterviewRoom: React.FC<InterviewRoomProps> = ({
       timestamp: "10:30 AM",
     },
   ]);
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const totalQuestions = 12;
   const timeElapsed = "12:34";
@@ -435,16 +90,19 @@ export const InterviewRoom: React.FC<InterviewRoomProps> = ({
     setTimeout(() => {
       setIsAISpeaking(true);
       setTimeout(() => {
-        const aiMessage: Message = {
-          id: transcript.length + 2,
-          role: "ai",
-          content: mockQuestions[currentQuestion % mockQuestions.length],
-          timestamp: new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-        };
-        setTranscript((prev) => [...prev, aiMessage]);
+        setTranscript((prev) => {
+          const aiMessage: Message = {
+            id: prev.length + 1,
+            role: "ai",
+            content: mockQuestions[currentQuestion % mockQuestions.length],
+            timestamp: new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          };
+          return [...prev, aiMessage];
+        });
+
         const nextQuestion = currentQuestion + 1;
         setCurrentQuestion(nextQuestion);
         setProgress((nextQuestion / totalQuestions) * 100);
@@ -453,26 +111,419 @@ export const InterviewRoom: React.FC<InterviewRoomProps> = ({
     }, 1000);
   };
 
+  const isStackedLayout = viewportWidth < BREAKPOINT_LG;
+  const isSingleVideoColumn = viewportWidth < BREAKPOINT_MD;
+  const isCompact = viewportWidth < BREAKPOINT_SM;
+
+  // --- Styles ---
+
+  const rootStyle: React.CSSProperties = {
+    minHeight: "100vh",
+    display: "flex",
+    flexDirection: "column",
+    backgroundColor: "#0B1220",
+    color: "#F9FAFB",
+  };
+
+  const topBarStyle: React.CSSProperties = {
+    backgroundColor: "#1F2937",
+    borderBottom: "1px solid rgba(255,255,255,0.1)",
+    padding: "12px 16px",
+  };
+
+  const topBarInnerStyle: React.CSSProperties = {
+    maxWidth: 1120,
+    margin: "0 auto",
+    display: "flex",
+    alignItems: isStackedLayout ? "flex-start" : "center",
+    justifyContent: isStackedLayout ? "space-between" : "space-between",
+    flexDirection: isStackedLayout ? "column" : "row",
+    rowGap: isStackedLayout ? 8 : 0,
+    columnGap: 24,
+  };
+
+  const topBarLeftStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    columnGap: 16,
+  };
+
+  const logoStyle: React.CSSProperties = {
+    width: isCompact ? 40 : 48,
+    height: isCompact ? 40 : 48,
+    borderRadius: 12,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundImage: "linear-gradient(135deg, #0118D8, #1B56FD)",
+    color: "#FFFFFF",
+    fontWeight: 600,
+    fontSize: isCompact ? 16 : 20,
+    flexShrink: 0,
+  };
+
+  const jobTitleBlockStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: 2,
+  };
+
+  const jobTitleTextStyle: React.CSSProperties = {
+    fontWeight: 600,
+    fontSize: 16,
+  };
+
+  const jobCompanyStyle: React.CSSProperties = {
+    color: "#9CA3AF",
+    fontSize: 14,
+  };
+
+  const topBarRightStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    columnGap: 16,
+    marginTop: isStackedLayout ? 8 : 0,
+  };
+
+  const timeBlockStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    columnGap: 6,
+    color: "#F9FAFB",
+    fontSize: isCompact ? 14 : 18,
+    fontWeight: 500,
+  };
+
+  const recordingBadgeStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    columnGap: 6,
+    backgroundColor: "rgba(34,197,94,0.15)",
+    color: "#4ADE80",
+    borderColor: "rgba(34,197,94,0.4)",
+  };
+
+  const recordingDotStyle: React.CSSProperties = {
+    width: 8,
+    height: 8,
+    borderRadius: "999px",
+    backgroundColor: "#22C55E",
+  };
+
+  const mainStyle: React.CSSProperties = {
+    flex: 1,
+    display: "flex",
+    flexDirection: isStackedLayout ? "column" : "row",
+    overflow: "hidden",
+  };
+
+  const leftPaneStyle: React.CSSProperties = {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    backgroundColor: "#0B1220",
+    padding: isCompact ? 16 : 24,
+    rowGap: 16,
+  };
+
+  const videoGridStyle: React.CSSProperties = {
+    flex: 1,
+    display: "grid",
+    gridTemplateColumns: isSingleVideoColumn ? "1fr" : "1fr 1fr",
+    columnGap: 16,
+    rowGap: 16,
+  };
+
+  const aiCardStyle: React.CSSProperties = {
+    position: "relative",
+    backgroundImage:
+      "linear-gradient(135deg, rgba(129,140,248,0.35), rgba(59,130,246,0.25))",
+    overflow: "hidden",
+    minHeight: 220,
+  };
+
+  const aiCardInnerStyle: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
+  const aiAvatarStyle: React.CSSProperties = {
+    position: "relative",
+    width: isCompact ? 96 : 128,
+    height: isCompact ? 96 : 128,
+    borderRadius: "999px",
+    backgroundImage: "linear-gradient(135deg, #0118D8, #1B56FD)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#FFFFFF",
+  };
+
+  const aiSpeakingOverlayStyle: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    backgroundImage:
+      "linear-gradient(135deg, rgba(59,130,246,0.35), rgba(168,85,247,0.35))",
+  };
+
+  const aiBadgeStyle: React.CSSProperties = {
+    position: "absolute",
+    left: 16,
+    bottom: 16,
+    backgroundColor: "rgba(168,85,247,0.2)",
+    color: "#E9D5FF",
+    borderColor: "rgba(168,85,247,0.5)",
+  };
+
+  const candidateCardStyle: React.CSSProperties = {
+    position: "relative",
+    backgroundColor: "#111827",
+    overflow: "hidden",
+    minHeight: 220,
+  };
+
+  const candidatePlaceholderStyle: React.CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#111827",
+  };
+
+  const candidateBadgeStyle: React.CSSProperties = {
+    position: "absolute",
+    left: 16,
+    bottom: 16,
+    backgroundColor: "rgba(59,130,246,0.2)",
+    color: "#BFDBFE",
+    borderColor: "rgba(59,130,246,0.5)",
+  };
+
+  const progressCardStyle: React.CSSProperties = {
+    backgroundColor: "#1F2937",
+    padding: 16,
+    borderColor: "rgba(255,255,255,0.08)",
+  };
+
+  const progressHeaderStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  };
+
+  const progressHeaderLeftStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    columnGap: 8,
+  };
+
+  const progressPercentStyle: React.CSSProperties = {
+    color: "#9CA3AF",
+    fontSize: 14,
+  };
+
+  const progressBarStyle: React.CSSProperties = {
+    height: 12,
+    borderRadius: 999,
+    marginTop: 8,
+    marginBottom: 12,
+    backgroundColor: "#374151",
+  };
+
+  const progressStepsRowStyle: React.CSSProperties = {
+    display: viewportWidth < 480 ? "none" : "flex",
+    alignItems: "center",
+    columnGap: 4,
+  };
+
+  const progressStepBaseStyle: React.CSSProperties = {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#374151",
+  };
+
+  const controlsRowStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    columnGap: isCompact ? 10 : 16,
+    rowGap: isCompact ? 10 : 0,
+    flexWrap: viewportWidth < BREAKPOINT_MD ? "wrap" : "nowrap",
+    marginTop: 8,
+  };
+
+  const roundControlButtonStyle: React.CSSProperties = {
+    width: isCompact ? 48 : 56,
+    height: isCompact ? 48 : 56,
+    borderRadius: "999px",
+    padding: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
+  const answerButtonStyle: React.CSSProperties = {
+    paddingInline: 32,
+    paddingBlock: isCompact ? 12 : 18,
+    borderRadius: 999,
+    backgroundImage: "linear-gradient(90deg, #0118D8, #1B56FD)",
+    border: "none",
+    display: "flex",
+    alignItems: "center",
+    columnGap: 8,
+  };
+
+  const endButtonStyle: React.CSSProperties = {
+    paddingInline: 24,
+    paddingBlock: isCompact ? 12 : 18,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: "#EF4444",
+    color: "#FCA5A5",
+  };
+
+  const rightPaneStyle: React.CSSProperties = {
+    width: isStackedLayout ? "100%" : 380,
+    height: isStackedLayout ? 320 : "auto",
+    display: "flex",
+    flexDirection: "column",
+    backgroundColor: "#1F2937",
+    borderLeft: isStackedLayout ? "none" : "1px solid rgba(255,255,255,0.1)",
+    borderTop: isStackedLayout ? "1px solid rgba(255,255,255,0.1)" : "none",
+  };
+
+  const rightHeaderStyle: React.CSSProperties = {
+    padding: "12px 16px",
+    borderBottom: "1px solid rgba(255,255,255,0.1)",
+  };
+
+  const rightHeaderInnerStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    columnGap: 8,
+    color: "#FFFFFF",
+  };
+
+  const transcriptScrollStyle: React.CSSProperties = {
+    flex: 1,
+    padding: isCompact ? 12 : 16,
+  };
+
+  const transcriptListStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: 12,
+  };
+
+  const messageRowStyle: React.CSSProperties = {
+    display: "flex",
+    columnGap: 8,
+    alignItems: "flex-start",
+  };
+
+  const avatarCircleBaseStyle: React.CSSProperties = {
+    width: 32,
+    height: 32,
+    borderRadius: "999px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: 600,
+  };
+
+  const avatarAIStyle: React.CSSProperties = {
+    ...avatarCircleBaseStyle,
+    backgroundImage: "linear-gradient(135deg, #A855F7, #3B82F6)",
+  };
+
+  const avatarYouStyle: React.CSSProperties = {
+    ...avatarCircleBaseStyle,
+    backgroundImage: "linear-gradient(135deg, #22C55E, #10B981)",
+  };
+
+  const messageBodyBaseStyle: React.CSSProperties = {
+    flex: 1,
+  };
+
+  const messageTimestampStyle: React.CSSProperties = {
+    marginBottom: 4,
+    color: "#9CA3AF",
+    fontSize: 12,
+  };
+
+  const messageBubbleAIStyle: React.CSSProperties = {
+    display: "inline-block",
+    maxWidth: "100%",
+    backgroundColor: "rgba(76,29,149,0.45)",
+    color: "#EDE9FE",
+    padding: isCompact ? "6px 10px" : "8px 12px",
+    borderRadius: 10,
+    fontSize: isCompact ? 12 : 14,
+  };
+
+  const messageBubbleYouStyle: React.CSSProperties = {
+    display: "inline-block",
+    maxWidth: "100%",
+    backgroundColor: "rgba(6,95,70,0.45)",
+    color: "#DCFCE7",
+    padding: isCompact ? "6px 10px" : "8px 12px",
+    borderRadius: 10,
+    fontSize: isCompact ? 12 : 14,
+  };
+
+  const tipsBoxStyle: React.CSSProperties = {
+    padding: "12px 16px",
+    borderTop: "1px solid rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(30,64,175,0.25)",
+  };
+
+  const tipsRowStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "flex-start",
+    columnGap: 8,
+  };
+
+  const tipsTitleStyle: React.CSSProperties = {
+    color: "#BFDBFE",
+    fontSize: 14,
+    fontWeight: 500,
+    marginBottom: 2,
+  };
+
+  const tipsTextStyle: React.CSSProperties = {
+    color: "rgba(191,219,254,0.75)",
+    fontSize: 12,
+  };
+
   return (
-    <div className={styles.root}>
+    <div style={rootStyle}>
       {/* Top bar */}
-      <div className={styles.topBar}>
-        <div className={styles.topBarInner}>
-          <div className={styles.topBarLeft}>
-            <div className={styles.logo}>AI</div>
-            <div className={styles.jobTitleBlock}>
-              <Text weight="semibold">{jobTitle}</Text>
-              <span className={styles.jobCompany}>{company}</span>
+      <div style={topBarStyle}>
+        <div style={topBarInnerStyle}>
+          <div style={topBarLeftStyle}>
+            <div style={logoStyle}>AI</div>
+            <div style={jobTitleBlockStyle}>
+              <div style={jobTitleTextStyle}>{jobTitle}</div>
+              <div style={jobCompanyStyle}>{company}</div>
             </div>
           </div>
 
-          <div className={styles.topBarRight}>
-            <div className={styles.timeBlock}>
+          <div style={topBarRightStyle}>
+            <div style={timeBlockStyle}>
               <Clock20Regular />
               <span>{timeElapsed}</span>
             </div>
-            <Badge className={styles.recordingBadge} appearance="outline">
-              <span className={styles.recordingDot} />
+            <Badge style={recordingBadgeStyle}>
+              <span style={recordingDotStyle} />
               Recording
             </Badge>
           </div>
@@ -480,89 +531,74 @@ export const InterviewRoom: React.FC<InterviewRoomProps> = ({
       </div>
 
       {/* Main content */}
-      <div className={styles.main}>
+      <div style={mainStyle}>
         {/* LEFT PANE */}
-        <div className={styles.leftPane}>
+        <div style={leftPaneStyle}>
           {/* Video grid */}
-          <div className={styles.videoGrid}>
+          <div style={videoGridStyle}>
             {/* AI Avatar */}
-            <Card className={styles.aiCard} appearance="outline">
-              <div className={styles.aiCardInner}>
-                {isAISpeaking && (
-                  <div className={styles.aiSpeakingOverlay} />
-                )}
-                <div className={styles.aiAvatar}>✨</div>
+            <Card style={aiCardStyle}>
+              <div style={aiCardInnerStyle}>
+                {isAISpeaking && <div style={aiSpeakingOverlayStyle} />}
+                <div style={aiAvatarStyle}>
+                  <Bot24Regular style={{ width: 40, height: 40 }} />
+                </div>
               </div>
-              <Badge className={styles.aiBadge} appearance="outline">
-                AI Interviewer
-              </Badge>
+              <Badge style={aiBadgeStyle}>AI Interviewer</Badge>
             </Card>
 
             {/* Candidate video */}
-            <Card className={styles.candidateCard} appearance="outline">
-              <div className={styles.candidatePlaceholder}>
+            <Card style={candidateCardStyle}>
+              <div style={candidatePlaceholderStyle}>
                 {isVideoOn ? (
-                  <>
-                    <Video20Regular
-                      style={{ fontSize: 48, color: "#4B5563" }}
-                    />
-                  </>
+                  <Video20Regular style={{ width: 48, height: 48, color: "#4B5563" }} />
                 ) : (
                   <div style={{ textAlign: "center" }}>
                     <VideoOff20Regular
                       style={{
-                        fontSize: 48,
+                        width: 48,
+                        height: 48,
                         color: "#4B5563",
                         marginBottom: 8,
                       }}
                     />
-                    <Text style={{ color: "#9CA3AF" }}>Camera Off</Text>
+                    <span style={{ color: "#9CA3AF", fontSize: 14 }}>Camera Off</span>
                   </div>
                 )}
               </div>
-              <Badge className={styles.candidateBadge} appearance="outline">
-                You
-              </Badge>
+              <Badge style={candidateBadgeStyle}>You</Badge>
             </Card>
           </div>
 
           {/* Progress */}
-          <Card className={styles.progressCard} appearance="outline">
-            <div className={styles.progressHeader}>
-              <div className={styles.progressHeaderLeft}>
-                <CheckmarkCircle20Regular
-                  style={{ color: "#4ADE80" }}
-                />
-                <Text>
+          <Card style={progressCardStyle}>
+            <div style={progressHeaderStyle}>
+              <div style={progressHeaderLeftStyle}>
+                <CheckmarkCircle20Regular style={{ color: "#4ADE80" }} />
+                <span>
                   Question {currentQuestion} of {totalQuestions}
-                </Text>
+                </span>
               </div>
-              <span className={styles.progressPercent}>
-                {Math.round(progress)}% Complete
-              </span>
+              <span style={progressPercentStyle}>{Math.round(progress)}% Complete</span>
             </div>
 
-            <ProgressBar
-              value={progress}
-              max={100}
-              className={styles.progressBar}
-            />
+            <Progress value={progress} style={progressBarStyle} />
 
-            <div className={styles.progressStepsRow}>
+            <div style={progressStepsRowStyle}>
               {Array.from({ length: totalQuestions }).map((_, i) => {
                 let background = "#374151";
                 if (i < currentQuestion) {
-                  background =
-                    "linear-gradient(90deg, #22C55E, #10B981)";
+                  background = "linear-gradient(90deg, #22C55E, #10B981)";
                 } else if (i === currentQuestion) {
-                  background =
-                    "linear-gradient(90deg, #0118D8, #1B56FD)";
+                  background = "linear-gradient(90deg, #0118D8, #1B56FD)";
                 }
                 return (
                   <div
                     key={i}
-                    className={styles.progressStep}
-                    style={{ background }}
+                    style={{
+                      ...progressStepBaseStyle,
+                      background,
+                    }}
                   />
                 );
               })}
@@ -570,133 +606,91 @@ export const InterviewRoom: React.FC<InterviewRoomProps> = ({
           </Card>
 
           {/* Controls */}
-          <div className={styles.controlsRow}>
+          <div style={controlsRowStyle}>
             <Button
               onClick={() => setIsMicOn((m) => !m)}
-              className={styles.roundControlButton}
-              appearance={isMicOn ? "secondary" : "primary"}
               style={{
+                ...roundControlButtonStyle,
                 backgroundColor: isMicOn ? "#374151" : "#EF4444",
                 borderColor: "transparent",
               }}
-              icon={
-                isMicOn ? <Mic20Regular /> : <MicOff20Regular />
-              }
-            />
+              variant={isMicOn ? "outline" : "default"}
+              size="icon"
+            >
+              {isMicOn ? <Mic20Regular /> : <MicOff20Regular />}
+            </Button>
 
             <Button
               onClick={() => setIsVideoOn((v) => !v)}
-              className={styles.roundControlButton}
-              appearance={isVideoOn ? "secondary" : "primary"}
               style={{
+                ...roundControlButtonStyle,
                 backgroundColor: isVideoOn ? "#374151" : "#EF4444",
                 borderColor: "transparent",
               }}
-              icon={
-                isVideoOn ? <Video20Regular /> : <VideoOff20Regular />
-              }
-            />
+              variant={isVideoOn ? "outline" : "default"}
+              size="icon"
+            >
+              {isVideoOn ? <Video20Regular /> : <VideoOff20Regular />}
+            </Button>
 
             <Button
               onClick={() => setIsSoundOn((s) => !s)}
-              className={styles.roundControlButton}
-              appearance={isSoundOn ? "secondary" : "primary"}
               style={{
+                ...roundControlButtonStyle,
                 backgroundColor: isSoundOn ? "#374151" : "#EF4444",
                 borderColor: "transparent",
               }}
-              icon={
-                isSoundOn ? (
-                  <Speaker220Regular />
-                ) : (
-                  <SpeakerMute20Regular />
-                )
-              }
-            />
+              variant={isSoundOn ? "outline" : "default"}
+              size="icon"
+            >
+              {isSoundOn ? <Speaker220Regular /> : <SpeakerMute20Regular />}
+            </Button>
 
             <Button
               onClick={handleAnswer}
               disabled={isAISpeaking}
-              appearance="primary"
-              style={{
-                paddingInline: 32,
-                paddingBlock: 18,
-                borderRadius: 999,
-                backgroundImage:
-                  "linear-gradient(90deg, #0118D8, #1B56FD)",
-                border: "none",
-              }}
-              icon={<Mic20Regular />}
+              style={answerButtonStyle}
             >
-              Answer
+              <Mic20Regular />
+              <span>Answer</span>
             </Button>
 
-            <Button
-              onClick={onComplete}
-              appearance="outline"
-              style={{
-                paddingInline: 24,
-                paddingBlock: 18,
-                borderRadius: 999,
-                borderWidth: 2,
-                borderColor: "#EF4444",
-                color: "#FCA5A5",
-              }}
-            >
+            <Button onClick={onComplete} variant="outline" style={endButtonStyle}>
               End Interview
             </Button>
           </div>
         </div>
 
         {/* RIGHT PANE */}
-        <div className={styles.rightPane}>
-          <div className={styles.rightHeader}>
-            <div className={styles.rightHeaderInner}>
+        <div style={rightPaneStyle}>
+          <div style={rightHeaderStyle}>
+            <div style={rightHeaderInnerStyle}>
               <Chat20Regular />
-              <Text weight="semibold">Live Transcript</Text>
+              <span style={{ fontWeight: 600 }}>Live Transcript</span>
             </div>
           </div>
 
-          <div className={styles.transcriptScroll}>
-            <div className={styles.transcriptList}>
+          <ScrollArea style={transcriptScrollStyle}>
+            <div style={transcriptListStyle}>
               {transcript.map((message) => {
                 const isAI = message.role === "ai";
+                const rowStyle: React.CSSProperties = {
+                  ...messageRowStyle,
+                  flexDirection: isAI ? "row" : "row-reverse",
+                };
+                const bodyStyle: React.CSSProperties = {
+                  ...messageBodyBaseStyle,
+                  textAlign: isAI ? "left" : "right",
+                };
+
                 return (
-                  <div
-                    key={message.id}
-                    className={
-                      styles.messageRow +
-                      " " +
-                      (!isAI ? styles.messageRowCandidate : "")
-                    }
-                  >
-                    <div
-                      className={
-                        styles.avatarCircle +
-                        " " +
-                        (isAI ? styles.avatarAI : styles.avatarYou)
-                      }
-                    >
+                  <div key={message.id} style={rowStyle}>
+                    <div style={isAI ? avatarAIStyle : avatarYouStyle}>
                       {isAI ? "AI" : "You"}
                     </div>
-
-                    <div
-                      className={
-                        styles.messageBody +
-                        " " +
-                        (!isAI ? styles.messageBodyCandidate : "")
-                      }
-                    >
-                      <div className={styles.messageTimestamp}>
-                        {message.timestamp}
-                      </div>
-                      <div
-                        className={
-                          isAI
-                            ? styles.messageBubbleAI
-                            : styles.messageBubbleYou
-                        }
-                      >
+                    <div style={bodyStyle}>
+                      <div style={messageTimestampStyle}>{message.timestamp}</div>
+                      <div style={isAI ? messageBubbleAIStyle : messageBubbleYouStyle}>
                         {message.content}
                       </div>
                     </div>
@@ -705,45 +699,25 @@ export const InterviewRoom: React.FC<InterviewRoomProps> = ({
               })}
 
               {isAISpeaking && (
-                <div className={styles.messageRow}>
-                  <div
-                    className={
-                      styles.avatarCircle + " " + styles.avatarAI
-                    }
-                  >
-                    AI
-                  </div>
-                  <div className={styles.messageBody}>
-                    <div className={styles.typingDotsBubble}>
-                      <div className={styles.typingDotsRow}>
-                        <span className={styles.typingDot} />
-                        <span
-                          className={styles.typingDot}
-                          style={{ animationDelay: "0.1s" }}
-                        />
-                        <span
-                          className={styles.typingDot}
-                          style={{ animationDelay: "0.2s" }}
-                        />
-                      </div>
+                <div style={messageRowStyle}>
+                  <div style={avatarAIStyle}>AI</div>
+                  <div style={messageBodyBaseStyle}>
+                    <div style={messageBubbleAIStyle}>
+                      <span>Thinking…</span>
                     </div>
                   </div>
                 </div>
               )}
             </div>
-          </div>
+          </ScrollArea>
 
-          {/* Tips */}
-          <div className={styles.tipsBox}>
-            <div className={styles.tipsRow}>
-              <Alert20Regular
-                style={{ color: "#60A5FA", marginTop: 2 }}
-              />
+          <div style={tipsBoxStyle}>
+            <div style={tipsRowStyle}>
+              <Alert20Regular style={{ color: "#60A5FA", marginTop: 2 }} />
               <div>
-                <p className={styles.tipsTitle}>Pro Tip</p>
-                <p className={styles.tipsText}>
-                  Speak clearly and take your time. The AI will wait for
-                  you to finish.
+                <p style={tipsTitleStyle}>Pro Tip</p>
+                <p style={tipsTextStyle}>
+                  Speak clearly and take your time. The AI will wait for you to finish.
                 </p>
               </div>
             </div>
@@ -752,4 +726,4 @@ export const InterviewRoom: React.FC<InterviewRoomProps> = ({
       </div>
     </div>
   );
-};
+}
