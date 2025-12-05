@@ -1,4 +1,4 @@
-import { useState } from "react";
+import * as React from "react";
 import {
   Button,
   Card,
@@ -7,501 +7,287 @@ import {
   Textarea,
   Dropdown,
   Option,
+  Badge,
   ProgressBar,
-  Text,
   makeStyles,
   shorthands,
+  tokens,
 } from "@fluentui/react-components";
-
 import {
   Sparkle24Regular,
-  Wand24Regular,
-  Copy24Regular,
-  ArrowDownload24Regular,
-  Send24Regular,
-  Globe24Regular,
-  CheckmarkCircle24Regular,
+  WandRegular,
+  Copy20Regular,
+  ArrowDownload20Regular,
+  Send20Regular,
+  Globe20Regular,
+  CheckmarkCircle20Regular,
 } from "@fluentui/react-icons";
 
 const useStyles = makeStyles({
-  page: {
-    minHeight: "100vh",
-    boxSizing: "border-box",
-    backgroundColor: "#FFF5F5",
-    padding: "24px 32px",
-  },
-
- root: {
+  root: {
     display: "flex",
     flexDirection: "column",
     rowGap: "24px",
-    minHeight: "100vh",
+    padding: "24px",
     boxSizing: "border-box",
-    paddingLeft: "16px",
-    paddingRight: "16px",
-    paddingTop: "16px",
-    paddingBottom: "24px",
-    maxWidth: "2000px",
+    maxWidth: "1200px",
     margin: "0 auto",
-
     "@media (max-width: 768px)": {
-      paddingLeft: "12px",
-      paddingRight: "12px",
-      paddingTop: "12px",
-      paddingBottom: "16px",
-      rowGap: "16px",
+      padding: "16px",
     },
   },
-  sectionHeader: {
+
+  headerRow: {
     display: "flex",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
     columnGap: "16px",
+    rowGap: "8px",
+    flexWrap: "wrap",
   },
 
-  titleRow: {
+  headerTitleBlock: {
     display: "flex",
     alignItems: "center",
     columnGap: "8px",
-    marginBottom: "4px",
+    marginBottom: "2px",
   },
 
-  titleText: {
+  headerTitle: {
+    fontSize: "1.2rem",
+    fontWeight: 600,
     color: "#0B1220",
   },
 
-  subtitle: {
+  headerSubtitle: {
+    fontSize: "0.9rem",
     color: "#5B6475",
   },
 
-  badgeAI: {
-    background: "linear-gradient(to right, #8B5CF6, #3B82F6)",
-    color: "#FFFFFF",
-    padding: "6px 12px",
-    borderRadius: "999px",
-    fontWeight: 600,
+  poweredBadge: {
+    border: "none",
+    backgroundImage: "linear-gradient(to right,#a855f7,#3b82f6)",
+    color: "#ffffff",
+    fontSize: "0.75rem",
     display: "inline-flex",
     alignItems: "center",
-    columnGap: "6px",
-    border: "none",
+    columnGap: "4px",
   },
 
   grid: {
     display: "grid",
     gridTemplateColumns: "1fr",
-    rowGap: "24px",
-
-    "@media (min-width: 900px)": {
+    gap: "16px",
+    "@media (min-width: 1024px)": {
       gridTemplateColumns: "1fr 1fr",
       columnGap: "24px",
     },
   },
 
-  card: {
-    padding: "24px",
-    backgroundColor: "#FFFFFF",
-    ...shorthands.border("1px", "solid", "rgba(148,163,184,0.35)"),
-    borderRadius: "20px",
-    boxShadow: "0 1px 0 rgba(15,23,42,0.04), 0 16px 40px rgba(15,23,42,0.06)",
+  leftCard: {
+    ...shorthands.borderRadius("16px"),
+    ...shorthands.border("1px", "solid", "rgba(2,6,23,0.08)"),
+    padding: "18px 20px 20px",
   },
 
-  cardTitle: {
-    marginBottom: "20px",
-    color: "#0B1220",
-  },
-
-  field: {
+  rightCard: {
+    ...shorthands.borderRadius("16px"),
+    ...shorthands.border("1px", "solid", "rgba(2,6,23,0.08)"),
+    padding: "18px 20px 20px",
     display: "flex",
     flexDirection: "column",
-    rowGap: "6px",
+  },
+
+  sectionTitle: {
+    fontSize: "1rem",
+    fontWeight: 600,
+    color: "#0B1220",
     marginBottom: "16px",
   },
 
-  label: {
-    fontSize: "0.875rem",
-    fontWeight: 500,
-    color: "#111827",
-  },
-
-  inputRow: {
+  fieldGroup: {
     display: "flex",
     flexDirection: "column",
+    rowGap: "4px",
+  },
+
+  fieldLabel: {
+    marginBottom: "2px",
+  },
+
+  twoColRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    columnGap: "12px",
     rowGap: "12px",
-
-    "@media (min-width: 768px)": {
-      display: "grid",
+    "@media (min-width: 640px)": {
       gridTemplateColumns: "1fr 1fr",
-      columnGap: "16px",
-      rowGap: "0",
     },
   },
-  copyButton:{
-    backgroundColor:"#FEF2F2",
-    ":hover":{backgroundColor:"#E9DFC3"},
-    padding:"4px 8px",borderRadius:"8px"
+
+  textarea: {
+    minHeight: "96px",
   },
-  exportButton:{
-    backgroundColor:"#FEF2F2",
-    ":hover":{backgroundColor:"#E9DFC3"},
-    padding:"4px 8px",borderRadius:"8px"
-  },
+
   generateButton: {
-    marginTop: "12px",
     width: "100%",
-    height: "44px",
-    borderRadius: "999px",
-    background: "linear-gradient(to right, #0118D8, #1B56FD)",
-    color: "#FFFFFF",
-    fontWeight: 600,
+    marginTop: "4px",
+    backgroundImage: "linear-gradient(to right,#0118D8,#1B56FD)",
+    color: "#ffffff",
+    border: "none",
     ":hover": {
-      background: "linear-gradient(to right, #1B56FD, #0118D8)",
-      color: "#FFFFFF",
+      backgroundImage: "linear-gradient(to right,#1B56FD,#0118D8)",
+      color: "#ffffff",
     },
   },
 
-  progressContainer: {
-    marginTop: "16px",
+  spinner: {
+    width: "16px",
+    height: "16px",
+    borderRadius: "999px",
+    border: "4px solid #ffffff",
+    animationName: {
+      from: { transform: "rotate(0deg)" },
+      to: { transform: "rotate(360deg)" },
+    } ,
+    animationDuration: "0.7s",
+    animationIterationCount: "infinite",
+    animationTimingFunction: "linear",
+    marginRight: "8px",
   },
 
-  outputHeader: {
+  progressWrapper: {
+    marginTop: "8px",
+  },
+
+  progressHeaderRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: "4px",
+    fontSize: "0.85rem",
+  },
+
+  progressLabel: {
+    color: "#5B6475",
+  },
+
+  progressValue: {
+    color: "#0118D8",
+    fontWeight: 500,
+  },
+
+  progressBar: {
+    height: "8px",
+  },
+
+  rightHeaderRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    columnGap: "12px",
     marginBottom: "16px",
   },
 
-  outputContainer: {
-    minHeight: "360px",
-    borderRadius: "18px",
-    border: "2px dashed rgba(148,163,184,0.7)",
-    backgroundColor: "#FDFDFE",
+  copyActionsRow: {
     display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "24px",
+    columnGap: "8px",
   },
 
-  jobBoardSection: {
-    marginTop: "24px",
+  generatedTextContainer: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: "16px",
+    flex: 1,
+  },
+
+  generatedPre: {
+    margin: 0,
+    whiteSpace: "pre-wrap",
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: "0.9rem",
+    color: "#0B1220",
+    lineHeight: 1.5,
+  },
+
+  postSection: {
+    borderTop: "1px solid rgba(2,6,23,0.08)",
     paddingTop: "16px",
-    borderTop: "1px solid rgba(226,232,240,0.8)",
+    marginTop: "8px",
   },
 
-  jobBoardButton: {
-    width: "100%",
-    justifyContent: "flex-start",
-    padding: "14px",
-    borderRadius: "12px",
+  postTitle: {
+    fontSize: "0.95rem",
+    fontWeight: 600,
+    color: "#0B1220",
     marginBottom: "12px",
   },
 
-  jobBoardTextTitle: {
-    fontWeight: 500,
-    color: "#0B1220",
+  postGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    rowGap: "10px",
   },
 
-  jobBoardTextSubtitle: {
-    fontSize: "0.875rem",
+  postButton: {
+    justifyContent: "flex-start",
+    height: "auto",
+    paddingTop: "10px",
+    paddingBottom: "10px",
+  },
+
+  postLogoBox: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "10px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: "12px",
+    flexShrink: 0,
+  },
+
+  postTextBlock: {
+    textAlign: "left" as const,
+    flex: 1,
+  },
+
+  postMain: {
+    fontSize: "0.9rem",
+    fontWeight: 500,
+    color: "#0B1220",
+    marginBottom: "2px",
+  },
+
+  postSub: {
+    fontSize: "0.8rem",
+    color: "#5B6475",
+  },
+
+  emptyState: {
+    flex: 1,
+    minHeight: "260px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px dashed rgba(2,6,23,0.08)",
+    borderRadius: "12px",
+  },
+  emptyInner: {
+    textAlign: "center" as const,
+    maxWidth: "280px",
+  },
+  emptyIcon: {
+    width: "48px",
+    height: "48px",
+    margin: "0 auto 12px",
+    color: "#5B6475",
+  },
+  emptyText: {
+    fontSize: "0.9rem",
     color: "#5B6475",
   },
 });
-
-export function AIJobDescriptionGenerator() {
-  const styles = useStyles();
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState(0);
-  const [generatedJD, setGeneratedJD] = useState("");
-
-  const handleGenerate = () => {
-    setIsGenerating(true);
-    setGenerationProgress(0);
-
-    const interval = setInterval(() => {
-      setGenerationProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsGenerating(false);
-          setGeneratedJD(sampleGeneratedJD);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
-  };
-
-  return (
-    <div className={styles.page}>
-      <div className={styles.root}>
-        <div className={styles.sectionHeader}>
-          <div>
-            <div className={styles.titleRow}>
-              <Sparkle24Regular style={{ color: "#0118D8" }} />
-              <Text weight="semibold" size={600} className={styles.titleText}>
-                AI Job Description Generator
-              </Text>
-            </div>
-            <Text size={300} className={styles.subtitle}>
-              Create professional, compelling job descriptions in seconds using
-              AI
-            </Text>
-          </div>
-
-          <div className={styles.badgeAI}>
-            <Sparkle24Regular />
-            <span>Powered by AI</span>
-          </div>
-        </div>
-
-        <div className={styles.grid}>
-          <Card className={styles.card}>
-            <Text weight="semibold" size={500} className={styles.cardTitle}>
-              Job Details
-            </Text>
-
-            <div className={styles.field}>
-              <Label className={styles.label}>Job Title *</Label>
-              <Input
-                defaultValue="Senior Frontend Developer"
-                placeholder="e.g. Senior Frontend Developer"
-              />
-            </div>
-
-            <div className={styles.inputRow}>
-              <div className={styles.field}>
-                <Label className={styles.label}>Experience Level *</Label>
-                <Dropdown defaultValue="senior">
-                  <Option value="junior">Junior (0–2 years)</Option>
-                  <Option value="mid">Mid-level (3–5 years)</Option>
-                  <Option value="senior">Senior (5–7 years)</Option>
-                  <Option value="lead">Lead (7+ years)</Option>
-                </Dropdown>
-              </div>
-
-              <div className={styles.field}>
-                <Label className={styles.label}>Employment Type *</Label>
-                <Dropdown defaultValue="full-time">
-                  <Option value="full-time">Full-time</Option>
-                  <Option value="part-time">Part-time</Option>
-                  <Option value="contract">Contract</Option>
-                  <Option value="internship">Internship</Option>
-                </Dropdown>
-              </div>
-            </div>
-
-            <div className={styles.field}>
-              <Label className={styles.label}>
-                Key Skills (comma separated) *
-              </Label>
-              <Input
-                defaultValue="React, TypeScript, JavaScript, CSS, HTML"
-                placeholder="e.g. React, TypeScript, Node.js"
-              />
-            </div>
-
-            <div className={styles.inputRow}>
-              <div className={styles.field}>
-                <Label className={styles.label}>Location</Label>
-                <Input placeholder="e.g. Remote, New York" />
-              </div>
-
-              <div className={styles.field}>
-                <Label className={styles.label}>Salary Range</Label>
-                <Input placeholder="e.g. $100k – $150k" />
-              </div>
-            </div>
-
-            <div className={styles.field}>
-              <Label className={styles.label}>
-                Additional Requirements (optional)
-              </Label>
-              <Textarea
-                rows={4}
-                placeholder="Any specific requirements, benefits, or company details..."
-              />
-            </div>
-
-            <Button
-              className={styles.generateButton}
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              icon={<Wand24Regular />}
-            >
-              {isGenerating ? "Generating..." : "Generate Job Description"}
-            </Button>
-
-            {isGenerating && (
-              <div className={styles.progressContainer}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginBottom: 4,
-                  }}
-                >
-                  <Text size={300} style={{ color: "#5B6475" }}>
-                    Generating...
-                  </Text>
-                  <Text
-                    weight="semibold"
-                    style={{ color: "#0118D8" }}
-                    size={300}
-                  >
-                    {generationProgress}%
-                  </Text>
-                </div>
-                <ProgressBar value={generationProgress} />
-              </div>
-            )}
-          </Card>
-
-          <Card className={styles.card}>
-            <div className={styles.outputHeader}>
-              <Text
-                weight="semibold"
-                size={500}
-                className={styles.cardTitle}
-                style={{ marginBottom: 0 }}
-              >
-                Generated Job Description
-              </Text>
-
-              {generatedJD && (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Button 
-                    className={styles.copyButton}
-                    appearance="outline"
-                    icon={<Copy24Regular />}
-                    size="small"
-                  >
-                    Copy
-                  </Button>
-                  <Button
-                    className={styles.exportButton}
-                    appearance="outline"
-                    icon={<ArrowDownload24Regular />}
-                    size="small"
-                  >
-                    Export
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {generatedJD ? (
-              <>
-                <pre
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont",
-                    marginTop: 8,
-                    color: "#0B1220",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {generatedJD}
-                </pre>
-
-                <div className={styles.jobBoardSection}>
-                  <Text
-                    weight="semibold"
-                    size={400}
-                    style={{ marginBottom: 12, display: "block" }}
-                  >
-                    Post to Job Boards
-                  </Text>
-
-                  <Button
-                    appearance="outline"
-                    icon={<Globe24Regular />}
-                    className={styles.jobBoardButton}
-                  >
-                    <div style={{ flex: 1, textAlign: "left" }}>
-                      <div className={styles.jobBoardTextTitle}>
-                        Post to LinkedIn
-                      </div>
-                      <div className={styles.jobBoardTextSubtitle}>
-                        Reach millions of professionals
-                      </div>
-                    </div>
-                    <CheckmarkCircle24Regular style={{ color: "#16A34A" }} />
-                  </Button>
-
-                  <Button
-                    appearance="outline"
-                    icon={<Globe24Regular />}
-                    className={styles.jobBoardButton}
-                  >
-                    <div style={{ textAlign: "left" }}>
-                      <div className={styles.jobBoardTextTitle}>
-                        Post to Indeed
-                      </div>
-                      <div className={styles.jobBoardTextSubtitle}>
-                        World&apos;s largest job site
-                      </div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    appearance="outline"
-                    icon={<Globe24Regular />}
-                    className={styles.jobBoardButton}
-                  >
-                    <div style={{ textAlign: "left" }}>
-                      <div className={styles.jobBoardTextTitle}>
-                        Post to Glassdoor
-                      </div>
-                      <div className={styles.jobBoardTextSubtitle}>
-                        Connect with active job seekers
-                      </div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    icon={<Send24Regular />}
-                    style={{
-                      background: "linear-gradient(to right, #0118D8, #1B56FD)",
-                      color: "#FFFFFF",
-                      width: "100%",
-                      marginTop: 8,
-                      borderRadius: "999px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Post to All Platforms
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className={styles.outputContainer}>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    textAlign: "center",
-                  }}
-                >
-                  <Sparkle24Regular
-                    style={{
-                      fontSize: 48,
-                      color: "#9CA3AF",
-                      marginBottom: 12,
-                    }}
-                  />
-                  <Text size={300} style={{ color: "#6B7280" }}>
-                    Fill in the details and click "Generate" to create your job
-                    description
-                  </Text>
-                </div>
-              </div>
-            )}
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const sampleGeneratedJD = `Senior Frontend Developer
 
@@ -520,7 +306,7 @@ Required Qualifications:
 • Expert knowledge of React, TypeScript, and modern JavaScript (ES6+)
 • Strong understanding of responsive design and cross-browser compatibility
 • Experience with state management libraries (Redux, Zustand, or similar)
-• Proficiency in HTML5, CSS3, and modern CSS frameworks
+• Proficiency in HTML5, CSS3, and modern CSS frameworks (Tailwind, styled-components)
 • Experience with testing frameworks (Jest, React Testing Library)
 • Excellent problem-solving skills and attention to detail
 
@@ -541,3 +327,303 @@ What We Offer:
 
 Application Process:
 Qualified candidates will undergo an AI-powered technical interview followed by team interviews. We strive to complete the hiring process within 2-3 weeks.`;
+
+export const AIJobDescriptionGenerator: React.FC = () => {
+  const styles = useStyles();
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const [generationProgress, setGenerationProgress] = React.useState(0);
+  const [generatedJD, setGeneratedJD] = React.useState("");
+
+  const handleGenerate = () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setGenerationProgress(0);
+    setGeneratedJD("");
+
+    const interval = window.setInterval(() => {
+      setGenerationProgress((prev) => {
+        if (prev >= 100) {
+          window.clearInterval(interval);
+          setIsGenerating(false);
+          setGeneratedJD(sampleGeneratedJD);
+          return 100;
+        }
+        return prev + 10;
+      });
+    }, 200);
+  };
+
+  const handleCopy = () => {
+    if (!generatedJD) return;
+    navigator.clipboard?.writeText(generatedJD).catch(() => {});
+  };
+
+  return (
+    <div className={styles.root}>
+      <div className={styles.headerRow}>
+        <div>
+          <div className={styles.headerTitleBlock}>
+            <Sparkle24Regular style={{ color: "#0118D8" }} />
+            <span className={styles.headerTitle}>AI Job Description Generator</span>
+          </div>
+          <div className={styles.headerSubtitle}>
+            Create professional, compelling job descriptions in seconds using AI
+          </div>
+        </div>
+        <Badge className={styles.poweredBadge}>
+          <Sparkle24Regular style={{ width: 14, height: 14 }} />
+          <span>Powered by AI</span>
+        </Badge>
+      </div>
+
+      <div className={styles.grid}>
+        <Card className={styles.leftCard}>
+          <div className={styles.sectionTitle}>Job Details</div>
+
+          <div style={{ display: "flex", flexDirection: "column", rowGap: "12px" }}>
+            <div className={styles.fieldGroup}>
+              <Label htmlFor="job-title" className={styles.fieldLabel}>
+                Job Title *
+              </Label>
+              <Input
+                id="job-title"
+                placeholder="e.g. Senior Frontend Developer"
+                defaultValue="Senior Frontend Developer"
+              />
+            </div>
+
+            <div className={styles.twoColRow}>
+              <div className={styles.fieldGroup}>
+                <Label htmlFor="level" className={styles.fieldLabel}>
+                  Experience Level *
+                </Label>
+                <Dropdown
+                  id="level"
+                  defaultSelectedOptions={["senior"]}
+                  placeholder="Select level"
+                >
+                  <Option value="junior">Junior (0-2 years)</Option>
+                  <Option value="mid">Mid-level (3-5 years)</Option>
+                  <Option value="senior">Senior (5-7 years)</Option>
+                  <Option value="lead">Lead (7+ years)</Option>
+                </Dropdown>
+              </div>
+
+              <div className={styles.fieldGroup}>
+                <Label htmlFor="type" className={styles.fieldLabel}>
+                  Employment Type *
+                </Label>
+                <Dropdown
+                  id="type"
+                  defaultSelectedOptions={["full-time"]}
+                  placeholder="Select type"
+                >
+                  <Option value="full-time">Full-time</Option>
+                  <Option value="part-time">Part-time</Option>
+                  <Option value="contract">Contract</Option>
+                  <Option value="internship">Internship</Option>
+                </Dropdown>
+              </div>
+            </div>
+
+            <div className={styles.fieldGroup}>
+              <Label htmlFor="skills" className={styles.fieldLabel}>
+                Key Skills (comma separated) *
+              </Label>
+              <Input
+                id="skills"
+                placeholder="e.g. React, TypeScript, Node.js"
+                defaultValue="React, TypeScript, JavaScript, CSS, HTML"
+              />
+            </div>
+
+            <div className={styles.twoColRow}>
+              <div className={styles.fieldGroup}>
+                <Label htmlFor="location" className={styles.fieldLabel}>
+                  Location
+                </Label>
+                <Input
+                  id="location"
+                  placeholder="e.g. Remote, New York"
+                />
+              </div>
+              <div className={styles.fieldGroup}>
+                <Label htmlFor="salary" className={styles.fieldLabel}>
+                  Salary Range
+                </Label>
+                <Input
+                  id="salary"
+                  placeholder="e.g. $100k - $150k"
+                />
+              </div>
+            </div>
+
+            <div className={styles.fieldGroup}>
+              <Label htmlFor="additional" className={styles.fieldLabel}>
+                Additional Requirements (optional)
+              </Label>
+              <Textarea
+                id="additional"
+                className={styles.textarea}
+                placeholder="Any specific requirements, benefits, or company details..."
+              />
+            </div>
+
+            <Button
+              appearance="primary"
+              className={styles.generateButton}
+              onClick={handleGenerate}
+              disabled={isGenerating}
+            >
+              {isGenerating ? (
+                <>
+                  <span className={styles.spinner} />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <WandRegular style={{ width: 18, height: 18, marginRight: 8 }} />
+                  Generate Job Description
+                </>
+              )}
+            </Button>
+
+            {isGenerating && (
+              <div className={styles.progressWrapper}>
+                <div className={styles.progressHeaderRow}>
+                  <span className={styles.progressLabel}>Generating...</span>
+                  <span className={styles.progressValue}>{generationProgress}%</span>
+                </div>
+                <ProgressBar
+                  value={generationProgress}
+                  max={100}
+                  className={styles.progressBar}
+                />
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <Card className={styles.rightCard}>
+          <div className={styles.rightHeaderRow}>
+            <div className={styles.sectionTitle}>Generated Job Description</div>
+            {generatedJD && (
+              <div className={styles.copyActionsRow}>
+                <Button
+                  appearance="outline"
+                  size="small"
+                  icon={<Copy20Regular />}
+                  onClick={handleCopy}
+                >
+                  Copy
+                </Button>
+                <Button
+                  appearance="outline"
+                  size="small"
+                  icon={<ArrowDownload20Regular />}
+                >
+                  Export
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {generatedJD ? (
+            <div className={styles.generatedTextContainer}>
+              <pre className={styles.generatedPre}>{generatedJD}</pre>
+
+              <div className={styles.postSection}>
+                <div className={styles.postTitle}>Post to Job Boards</div>
+                <div className={styles.postGrid}>
+                  <Button
+                    appearance="outline"
+                    className={styles.postButton}
+                  >
+                    <div
+                      className={styles.postLogoBox}
+                      style={{ backgroundColor: "#0077B5" }}
+                    >
+                      <Globe20Regular style={{ color: "#ffffff" }} />
+                    </div>
+                    <div className={styles.postTextBlock}>
+                      <div className={styles.postMain}>Post to LinkedIn</div>
+                      <div className={styles.postSub}>
+                        Reach millions of professionals
+                      </div>
+                    </div>
+                    <CheckmarkCircle20Regular
+                      style={{ color: "#16A34A", flexShrink: 0 }}
+                    />
+                  </Button>
+
+                  <Button
+                    appearance="outline"
+                    className={styles.postButton}
+                    style={{
+                      borderColor: "#2557A7",
+                    }}
+                  >
+                    <div
+                      className={styles.postLogoBox}
+                      style={{ backgroundColor: "#2557A7" }}
+                    >
+                      <Globe20Regular style={{ color: "#ffffff" }} />
+                    </div>
+                    <div className={styles.postTextBlock}>
+                      <div className={styles.postMain}>Post to Indeed</div>
+                      <div className={styles.postSub}>
+                        World's largest job site
+                      </div>
+                    </div>
+                  </Button>
+
+                  <Button
+                    appearance="outline"
+                    className={styles.postButton}
+                    style={{
+                      borderColor: "#0CAA41",
+                    }}
+                  >
+                    <div
+                      className={styles.postLogoBox}
+                      style={{ backgroundColor: "#0CAA41" }}
+                    >
+                      <Globe20Regular style={{ color: "#ffffff" }} />
+                    </div>
+                    <div className={styles.postTextBlock}>
+                      <div className={styles.postMain}>Post to Glassdoor</div>
+                      <div className={styles.postSub}>
+                        Connect with active job seekers
+                      </div>
+                    </div>
+                  </Button>
+
+                  <Button
+                    appearance="primary"
+                    icon={<Send20Regular />}
+                    style={{
+                      backgroundImage: "linear-gradient(to right,#0118D8,#1B56FD)",
+                      color: "#ffffff",
+                      border: "none",
+                    }}
+                  >
+                    Post to All Platforms
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyInner}>
+                <Sparkle24Regular className={styles.emptyIcon} />
+                <div className={styles.emptyText}>
+                  Fill in the details and click &quot;Generate&quot; to create your job description.
+                </div>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+};
