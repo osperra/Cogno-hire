@@ -1,335 +1,207 @@
-import { useState } from "react";
+// client/src/Components/layout/AppLayout.tsx
+import { useEffect, useMemo, useState } from "react";
 import { makeStyles, shorthands } from "@fluentui/react-components";
+import { useLocation, useNavigate } from "react-router-dom";
+import { api } from "../../api/http";
 
 import { Sidebar } from "./SideBar";
 import { TopBar } from "./TopBar";
+import { FloatingActionButton } from "./FloatingActionButton";
+
 import { EmployerDashboard } from "../Employer/EmployerDashboard";
 import { EmployerJobs } from "../Employer/EmployerJobs";
 import { EmployerCreateJob } from "../Employer/EmployerCreateJob";
 import { EmployerApplicants } from "../Employer/EmployerApplicants";
-import { CandidatePipeline } from "../hr/CandidatePipeline";
-import { DocumentManagement } from "../hr/DocumentManagement";
+import { CompanyProfile } from "../Employer/CompanyProfile";
+import { InterviewAnalytics } from "../Employer/InterviewAnalytics";
+
 import { CandidateHome } from "../Candidate/CandidateHome";
 import { CandidateJobs } from "../Candidate/CandidateJobs";
 import { CandidateApplications } from "../Candidate/CandidateApplications";
 import { CandidateNotifications } from "../Candidate/CandidateNotifications";
-import { EmployeeReviews } from "../hr/EmployeeReviews";
-import { OnboardingWorkflow } from "../hr/OnboardingWorkflow";
-import { CompanyProfile } from "../Employer/CompanyProfile";
-import { InterviewAnalytics } from "../Employer/InterviewAnalytics";
-import { FloatingActionButton } from "./FloatingActionButton";
-import { AIJobDescriptionGenerator } from "../hr/AIJobDescriptionGenerator";
 import { InterviewRoom } from "../Interview/InterviewRoom";
 
-import { LandingPage } from "../marketing/LandingPage";
-import { DesignSystem } from "../ui/DesignSystem";
+import { CandidatePipeline } from "../hr/CandidatePipeline";
+import { DocumentManagement } from "../hr/DocumentManagement";
+import { EmployeeReviews } from "../hr/EmployeeReviews";
+import { OnboardingWorkflow } from "../hr/OnboardingWorkflow";
+import { AIJobDescriptionGenerator } from "../hr/AIJobDescriptionGenerator";
 
-type Role = "employer" | "candidate";
-type ViewMode = "landing" | "design-system" | "app";
+export type Role = "employer" | "candidate";
 
-type PageMeta = {
-  title: string;
-  breadcrumbs?: string[];
-};
+type MeResponse = { _id: string; name: string; email: string; role: Role };
+
+export const ROUTES = {
+  employerDashboard: "/app/employer/dashboard",
+  employerJobs: "/app/employer/jobs",
+  employerCreateJob: "/app/employer/jobs/create",
+  employerApplicants: "/app/employer/applicants",
+  employerCompany: "/app/employer/company",
+  employerAnalytics: "/app/employer/analytics",
+
+  employerPipeline: "/app/employer/pipeline",
+  employerDocuments: "/app/employer/documents",
+  employerReviews: "/app/employer/reviews",
+  employerOnboarding: "/app/employer/onboarding",
+  employerAIJobDescription: "/app/employer/ai-job-description",
+
+  candidateHome: "/app/candidate/home",
+  candidateJobs: "/app/candidate/jobs",
+  candidateApplications: "/app/candidate/applications",
+  candidateNotifications: "/app/candidate/notifications",
+  candidateInterview: "/app/candidate/interview",
+} as const;
 
 const useStyles = makeStyles({
-  appRoot: {
-    display: "flex",
-    height: "100vh",
-    backgroundColor: "#FFF8F8",
-    overflow: "hidden",
-  },
-  mainArea: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    minWidth: 0,
-  },
-  contentArea: {
-    flex: 1,
-    padding: "24px",
-    boxSizing: "border-box",
-    ...shorthands.overflow("auto"),
-  },
+  appRoot: { display: "flex", height: "100vh", backgroundColor: "#FFF8F8", overflow: "hidden" },
+  mainArea: { flex: 1, display: "flex", flexDirection: "column", minWidth: 0 },
+  contentArea: { flex: 1, padding: "24px", boxSizing: "border-box", ...shorthands.overflow("auto") },
 });
 
-export function AppLayout() {
+function startsWithPath(pathname: string, base: string) {
+  return pathname === base || pathname.startsWith(base + "/");
+}
+
+function metaForPath(pathname: string) {
+  if (startsWithPath(pathname, ROUTES.employerDashboard)) return { title: "Dashboard" };
+  if (startsWithPath(pathname, ROUTES.employerCreateJob)) return { title: "Create Job", breadcrumbs: ["Jobs", "Create"] };
+  if (startsWithPath(pathname, ROUTES.employerJobs)) return { title: "Jobs", breadcrumbs: ["Jobs"] };
+  if (startsWithPath(pathname, ROUTES.employerApplicants)) return { title: "Applicants", breadcrumbs: ["Applicants"] };
+  if (startsWithPath(pathname, ROUTES.employerCompany)) return { title: "Company Profile", breadcrumbs: ["Company"] };
+  if (startsWithPath(pathname, ROUTES.employerAnalytics)) return { title: "Interview Analytics", breadcrumbs: ["Analytics"] };
+
+  if (startsWithPath(pathname, ROUTES.employerPipeline)) return { title: "Candidate Pipeline", breadcrumbs: ["Pipeline"] };
+  if (startsWithPath(pathname, ROUTES.employerDocuments)) return { title: "Documents", breadcrumbs: ["Documents"] };
+  if (startsWithPath(pathname, ROUTES.employerReviews)) return { title: "Performance Reviews", breadcrumbs: ["Reviews"] };
+  if (startsWithPath(pathname, ROUTES.employerOnboarding)) return { title: "Onboarding", breadcrumbs: ["Onboarding"] };
+  if (startsWithPath(pathname, ROUTES.employerAIJobDescription)) return { title: "AI Job Description", breadcrumbs: ["AI JD"] };
+
+  if (startsWithPath(pathname, ROUTES.candidateHome)) return { title: "Home" };
+  if (startsWithPath(pathname, ROUTES.candidateJobs)) return { title: "Find Jobs", breadcrumbs: ["Find Jobs"] };
+  if (startsWithPath(pathname, ROUTES.candidateApplications)) return { title: "Applications", breadcrumbs: ["Applications"] };
+  if (startsWithPath(pathname, ROUTES.candidateNotifications)) return { title: "Notifications", breadcrumbs: ["Notifications"] };
+  if (startsWithPath(pathname, ROUTES.candidateInterview)) return { title: "Interview Room", breadcrumbs: ["Interview"] };
+
+  return { title: "App" };
+}
+
+export default function AppLayout() {
   const styles = useStyles();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const [viewMode, setViewMode] = useState<ViewMode>("landing");
-  const [role, setRole] = useState<Role>("employer");
-  const [selectedPage, setSelectedPage] = useState(
-    role === "employer" ? "dashboard" : "home",
-  );
+  const [me, setMe] = useState<MeResponse | null>(null);
 
-  const handleSwitchRole = () => {
-    setRole((prev) => {
-      const nextRole: Role = prev === "employer" ? "candidate" : "employer";
-      setSelectedPage(nextRole === "employer" ? "dashboard" : "home");
-      return nextRole;
-    });
-  };
+  // ✅ single source of truth: /auth/me
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const data = await api<MeResponse>("/api/auth/me");
+        if (!alive) return;
+        setMe(data);
 
-  const handleEmployerNavigate = (page: string) => {
-    setSelectedPage(page);
-  };
+        // force correct landing route if user is on /app
+        if (location.pathname === "/app" || location.pathname === "/app/") {
+          navigate(data.role === "employer" ? ROUTES.employerDashboard : ROUTES.candidateHome, { replace: true });
+        }
+      } catch {
+        // token invalid -> logout
+        localStorage.removeItem("token");
+        localStorage.removeItem("role");
+        navigate("/login", { replace: true });
+      }
+    })();
 
-  const handleCandidateNavigate = (page: string) => {
-    setSelectedPage(page);
+    return () => {
+      alive = false;
+    };
+  }, [location.pathname, navigate]); 
+
+  const role: Role = me?.role ?? ((localStorage.getItem("role") as Role) || "candidate");
+  const pageMeta = useMemo(() => metaForPath(location.pathname), [location.pathname]);
+
+  const onNavigate = (to: string) => {
+    // allow absolute routes
+    if (to.startsWith("/")) return navigate(to);
+
+    // allow simple keys
+    if (role === "employer") {
+      if (to === "dashboard") return navigate(ROUTES.employerDashboard);
+      if (to === "jobs") return navigate(ROUTES.employerJobs);
+      if (to === "create-job") return navigate(ROUTES.employerCreateJob);
+      if (to === "applicants") return navigate(ROUTES.employerApplicants);
+      if (to === "pipeline") return navigate(ROUTES.employerPipeline);
+      if (to === "documents") return navigate(ROUTES.employerDocuments);
+      if (to === "reviews") return navigate(ROUTES.employerReviews);
+      if (to === "onboarding") return navigate(ROUTES.employerOnboarding);
+      if (to === "ai") return navigate(ROUTES.employerAIJobDescription);
+      if (to === "company") return navigate(ROUTES.employerCompany);
+    } else {
+      if (to === "home") return navigate(ROUTES.candidateHome);
+      if (to === "jobs") return navigate(ROUTES.candidateJobs);
+      if (to === "applications") return navigate(ROUTES.candidateApplications);
+      if (to === "notifications") return navigate(ROUTES.candidateNotifications);
+      if (to === "interview-room") return navigate(ROUTES.candidateInterview);
+    }
+
+    navigate(role === "employer" ? ROUTES.employerDashboard : ROUTES.candidateHome);
   };
 
   const handleFabAction = (action: string) => {
-    if (role === "employer") {
-      switch (action) {
-        case "create-job":
-          setSelectedPage("create-job");
-          break;
-        default:
-          console.log("Employer action:", action);
-      }
-    } else {
-      switch (action) {
-        case "apply":
-          setSelectedPage("jobs");
-          break;
-        default:
-          console.log("Candidate action:", action);
-      }
-    }
+    if (role === "employer" && action === "create-job") navigate(ROUTES.employerCreateJob);
+    if (role === "candidate" && action === "apply") navigate(ROUTES.candidateJobs);
   };
 
-  const getEmployerPageMeta = (page: string): PageMeta => {
-    switch (page) {
-      case "dashboard":
-      case "Dashboard":
-        return { title: "Dashboard" };
+  const renderContent = () => {
+    const p = location.pathname;
 
-      case "jobs":
-      case "Jobs":
-        return { title: "Jobs", breadcrumbs: ["Jobs"] };
+    // ✅ Employer
+    if (startsWithPath(p, ROUTES.employerDashboard)) return <EmployerDashboard onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.employerCreateJob)) return <EmployerCreateJob onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.employerJobs)) return <EmployerJobs onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.employerApplicants)) return <EmployerApplicants onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.employerCompany)) return <CompanyProfile />;
+    if (startsWithPath(p, ROUTES.employerAnalytics)) return <InterviewAnalytics onNavigate={onNavigate} />;
 
-      case "applicants":
-      case "Applicants":
-        return { title: "Applicants", breadcrumbs: ["Applicants"] };
+    if (startsWithPath(p, ROUTES.employerPipeline)) return <CandidatePipeline />;
+    if (startsWithPath(p, ROUTES.employerDocuments)) return <DocumentManagement />;
+    if (startsWithPath(p, ROUTES.employerReviews)) return <EmployeeReviews />;
+    if (startsWithPath(p, ROUTES.employerOnboarding)) return <OnboardingWorkflow />;
+    if (startsWithPath(p, ROUTES.employerAIJobDescription)) return <AIJobDescriptionGenerator />;
 
-      case "pipeline":
-      case "Pipeline":
-        return { title: "Candidate Pipeline", breadcrumbs: ["Pipeline"] };
-
-      case "documents":
-      case "Documents":
-        return { title: "Documents", breadcrumbs: ["Documents"] };
-
-      case "create-job":
-        return {
-          title: "Create Job",
-          breadcrumbs: ["Jobs", "Create Job"],
-        };
-
-      case "reviews":
-      case "Reviews":
-        return {
-          title: "Performance Reviews",
-          breadcrumbs: ["HR", "Reviews"],
-        };
-
-      case "onboarding":
-      case "OnboardingWorkflow":
-        return {
-          title: "Onboarding Workflow",
-          breadcrumbs: ["HR", "Onboarding"],
-        };
-
-      case "company":
-      case "CompanyProfile":
-        return {
-          title: "Company Profile",
-          breadcrumbs: ["Company Profile"],
-        };
-
-      case "analytics":
-      case "Interview Analytics":
-        return {
-          title: "Interview Analytics",
-          breadcrumbs: ["Applicants", "Interview Analytics"],
-        };
-
-      case "AIJobDescriptionGenerator":
-        return {
-          title: "AI Job Description Generator",
-          breadcrumbs: ["HR", "AI Job Description Generator"],
-        };
-
-      default:
-        return { title: page || "Dashboard" };
+    // ✅ Candidate
+    if (startsWithPath(p, ROUTES.candidateHome)) return <CandidateHome onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.candidateJobs)) return <CandidateJobs onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.candidateApplications)) return <CandidateApplications onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.candidateNotifications)) return <CandidateNotifications />;
+    if (startsWithPath(p, ROUTES.candidateInterview)) {
+      return <InterviewRoom jobTitle="Interview" company="Company" onComplete={() => navigate(ROUTES.candidateHome)} />;
     }
+
+    // fallback
+    return role === "employer" ? <EmployerDashboard onNavigate={onNavigate} /> : <CandidateHome onNavigate={onNavigate} />;
   };
-
-  const getCandidatePageMeta = (page: string): PageMeta => {
-    switch (page) {
-      case "home":
-      case "Home":
-        return { title: "Home" };
-
-      case "jobs":
-      case "Find Jobs":
-        return { title: "Find Jobs", breadcrumbs: ["Find Jobs"] };
-
-      case "applications":
-      case "Applications":
-        return { title: "Applications", breadcrumbs: ["Applications"] };
-
-      case "notifications":
-      case "Notifications":
-        return { title: "Notifications", breadcrumbs: ["Notifications"] };
-
-      case "interview-room":
-      case "Interview Room":
-        return {
-          title: "Interview Room",
-          breadcrumbs: ["Interview Room"],
-        };
-
-      default:
-        return { title: page || "Home" };
-    }
-  };
-
-  const pageMeta: PageMeta =
-    role === "employer"
-      ? getEmployerPageMeta(selectedPage)
-      : getCandidatePageMeta(selectedPage);
-
-  const renderEmployerPage = () => {
-    switch (selectedPage) {
-      case "dashboard":
-      case "Dashboard":
-        return <EmployerDashboard onNavigate={handleEmployerNavigate} />;
-
-      case "jobs":
-      case "Jobs":
-        return <EmployerJobs onNavigate={handleEmployerNavigate} />;
-
-      case "applicants":
-      case "Applicants":
-        return <EmployerApplicants onNavigate={handleEmployerNavigate} />;
-
-      case "pipeline":
-      case "Pipeline":
-        return <CandidatePipeline />;
-
-      case "documents":
-      case "Documents":
-        return <DocumentManagement />;
-
-      case "reviews":
-      case "Reviews":
-        return <EmployeeReviews />;
-
-      case "onboarding":
-      case "OnboardingWorkflow":
-        return <OnboardingWorkflow />;
-
-      case "AIJobDescriptionGenerator":
-        return <AIJobDescriptionGenerator />;
-
-      case "company":
-      case "CompanyProfile":
-        return <CompanyProfile />;
-
-      case "analytics":
-      case "Interview Analytics":
-        return (
-          <InterviewAnalytics onNavigate={handleEmployerNavigate} />
-        );
-
-      case "create-job":
-        return <EmployerCreateJob onNavigate={handleEmployerNavigate} />;
-
-      default:
-        return <EmployerDashboard onNavigate={handleEmployerNavigate} />;
-    }
-  };
-
-  const renderCandidatePage = () => {
-    switch (selectedPage) {
-      case "home":
-      case "Home":
-        return <CandidateHome onNavigate={handleCandidateNavigate} />;
-
-      case "jobs":
-      case "Find Jobs":
-        return <CandidateJobs onNavigate={handleCandidateNavigate} />;
-
-      case "applications":
-      case "Applications":
-        return (
-          <CandidateApplications onNavigate={handleCandidateNavigate} />
-        );
-
-      case "notifications":
-      case "Notifications":
-        return <CandidateNotifications />;
-
-      case "interview-room":
-      case "Interview Room":
-        return (
-          <InterviewRoom
-            jobTitle="Senior Frontend Developer"
-            company="TechCorp"
-            onComplete={() => setSelectedPage("home")}
-          />
-        );
-
-      default:
-        return <CandidateHome onNavigate={handleCandidateNavigate} />;
-    }
-  };
-
-
-  if (viewMode === "landing") {
-    return (
-      <LandingPage
-        onGetStarted={() => setViewMode("app")}
-        onOpenDesignSystem={() => setViewMode("design-system")}
-      />
-    );
-  }
-
-  if (viewMode === "design-system") {
-    return (
-      <DesignSystem
-        onBackToLanding={() => setViewMode("landing")}
-        onViewApp={() => setViewMode("app")}
-      />
-    );
-  }
-
 
   return (
     <div className={styles.appRoot}>
-      <Sidebar
-        userRole={role}
-        currentPage={selectedPage}
-        onNavigate={setSelectedPage}
-      />
+      <Sidebar userRole={role} currentPage={location.pathname} onNavigate={onNavigate} />
 
       <div className={styles.mainArea}>
         <TopBar
           title={pageMeta.title}
           role={role}
           breadcrumbs={pageMeta.breadcrumbs}
-          onSwitchRole={handleSwitchRole}
+          onSignOut={() => {
+            localStorage.removeItem("token");
+            localStorage.removeItem("role");
+            navigate("/login");
+          }}
         />
-
-        <div className={styles.contentArea}>
-          {role === "employer" ? renderEmployerPage() : renderCandidatePage()}
-        </div>
+        <div className={styles.contentArea}>{renderContent()}</div>
       </div>
 
       <FloatingActionButton userRole={role} onAction={handleFabAction} />
     </div>
   );
 }
-
-export default AppLayout;

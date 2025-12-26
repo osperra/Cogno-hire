@@ -1,9 +1,5 @@
-import {
-  Card,
-  Text,
-  makeStyles,
-  tokens,
-} from "@fluentui/react-components";
+import React, { useMemo } from "react";
+import { Card, Text, makeStyles, tokens } from "@fluentui/react-components";
 
 import {
   Briefcase20Regular,
@@ -14,8 +10,23 @@ import {
   Warning20Regular,
 } from "@fluentui/react-icons";
 
+export type IconComponent = React.ComponentType<Record<string, never>>;
+
+export type ActivityItem = {
+  icon: IconComponent;
+  bg: string;
+  color: string;
+  title: string;
+  description: string;
+  time: string;
+  __placeholder?: true; // internal (for stable layout)
+};
+
 interface ActivityTimelineProps {
   userRole: "employer" | "candidate";
+
+  /** ✅ pass dynamic activity items from Dashboard */
+  activities?: ActivityItem[];
 }
 
 const useStyles = makeStyles({
@@ -85,9 +96,9 @@ const useStyles = makeStyles({
   },
 });
 
-const employerActivities = [
+const employerActivitiesDemo: ActivityItem[] = [
   {
-    icon: Briefcase20Regular,
+    icon: Briefcase20Regular as unknown as IconComponent,
     bg: "#EFF6FF",
     color: "#1D4ED8",
     title: "New job posted",
@@ -95,7 +106,7 @@ const employerActivities = [
     time: "2 hours ago",
   },
   {
-    icon: PersonAddRegular,
+    icon: PersonAddRegular as unknown as IconComponent,
     bg: "#ECFDF5",
     color: "#059669",
     title: "Candidate shortlisted",
@@ -103,7 +114,7 @@ const employerActivities = [
     time: "5 hours ago",
   },
   {
-    icon: DocumentText20Regular,
+    icon: DocumentText20Regular as unknown as IconComponent,
     bg: "#EEF2FF",
     color: "#4F46E5",
     title: "28 new applications",
@@ -111,7 +122,7 @@ const employerActivities = [
     time: "1 day ago",
   },
   {
-    icon: Clock20Regular,
+    icon: Clock20Regular as unknown as IconComponent,
     bg: "#FFF7ED",
     color: "#EA580C",
     title: "Interview reminder",
@@ -120,9 +131,9 @@ const employerActivities = [
   },
 ];
 
-const candidateActivities = [
+const candidateActivitiesDemo: ActivityItem[] = [
   {
-    icon: CheckmarkCircle20Regular,
+    icon: CheckmarkCircle20Regular as unknown as IconComponent,
     bg: "#ECFDF5",
     color: "#059669",
     title: "Interview completed",
@@ -130,7 +141,7 @@ const candidateActivities = [
     time: "1 hour ago",
   },
   {
-    icon: DocumentText20Regular,
+    icon: DocumentText20Regular as unknown as IconComponent,
     bg: "#EFF6FF",
     color: "#1D4ED8",
     title: "Application submitted",
@@ -138,7 +149,7 @@ const candidateActivities = [
     time: "3 hours ago",
   },
   {
-    icon: PersonAddRegular,
+    icon: PersonAddRegular as unknown as IconComponent,
     bg: "#F5F3FF",
     color: "#7C3AED",
     title: "Profile updated",
@@ -146,7 +157,7 @@ const candidateActivities = [
     time: "1 day ago",
   },
   {
-    icon: Warning20Regular,
+    icon: Warning20Regular as unknown as IconComponent,
     bg: "#FFF7ED",
     color: "#EA580C",
     title: "Interview pending",
@@ -155,10 +166,31 @@ const candidateActivities = [
   },
 ];
 
-export function ActivityTimeline({ userRole }: ActivityTimelineProps) {
+function makePlaceholder(): ActivityItem {
+  return {
+    icon: Clock20Regular as unknown as IconComponent,
+    bg: "transparent",
+    color: "transparent",
+    title: "",
+    description: "",
+    time: "",
+    __placeholder: true,
+  };
+}
+
+export function ActivityTimeline({ userRole, activities }: ActivityTimelineProps) {
   const styles = useStyles();
-  const activities =
-    userRole === "candidate" ? candidateActivities : employerActivities;
+
+  const fallback = userRole === "candidate" ? candidateActivitiesDemo : employerActivitiesDemo;
+  const baseList = activities && activities.length > 0 ? activities : fallback;
+
+  // ✅ Keep UI stable: always 4 rows, missing become invisible placeholders
+  const stableActivities = useMemo(() => {
+    const targetCount = 4;
+    const list = [...baseList];
+    while (list.length < targetCount) list.push(makePlaceholder());
+    return list.slice(0, targetCount);
+  }, [baseList]);
 
   return (
     <Card className={styles.card} appearance="outline">
@@ -172,11 +204,15 @@ export function ActivityTimeline({ userRole }: ActivityTimelineProps) {
       </Text>
 
       <div className={styles.list}>
-        {activities.map((activity, index) => {
+        {stableActivities.map((activity, index) => {
           const Icon = activity.icon;
 
           return (
-            <div key={index} className={styles.item}>
+            <div
+              key={index}
+              className={styles.item}
+              style={activity.__placeholder ? { visibility: "hidden" } : undefined}
+            >
               <div
                 className={`${styles.iconBox} iconWrapper`}
                 style={{
@@ -189,9 +225,7 @@ export function ActivityTimeline({ userRole }: ActivityTimelineProps) {
 
               <div className={styles.textBlock}>
                 <Text className={styles.title}>{activity.title}</Text>
-                <Text className={styles.description}>
-                  {activity.description}
-                </Text>
+                <Text className={styles.description}>{activity.description}</Text>
                 <Text className={styles.time}>{activity.time}</Text>
               </div>
             </div>

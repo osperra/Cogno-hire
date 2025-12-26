@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { AnimatedStats } from "../ui/AnimatedStats";
 import { QuickActions } from "../ui/QuickActions";
 import { ActivityTimeline } from "../ui/ActivityTimeline";
@@ -44,82 +44,341 @@ interface EmployerDashboardProps {
   onNavigate: (page: string) => void;
 }
 
-const mockJobPosts = [
-  {
-    id: 1,
-    title: "Senior Frontend Developer",
-    type: "Full-time",
-    location: "Remote",
-    ctc: "$120k - $150k",
-    experience: "5-7 years",
-    duration: "45 days",
-    difficulty: "Hard",
-    responses: 28,
-  },
-  {
-    id: 2,
-    title: "Product Designer",
-    type: "Full-time",
-    location: "San Francisco, CA",
-    ctc: "$100k - $130k",
-    experience: "3-5 years",
-    duration: "30 days",
-    difficulty: "Medium",
-    responses: 42,
-  },
-  {
-    id: 3,
-    title: "Backend Engineer",
-    type: "Contract",
-    location: "New York, NY",
-    ctc: "$90k - $110k",
-    experience: "4-6 years",
-    duration: "60 days",
-    difficulty: "Hard",
-    responses: 15,
-  },
-];
+type ApiErrorBody = { message?: string };
 
-const mockResponses = [
-  {
-    id: 1,
-    candidate: "Sarah Chen",
-    email: "sarah.chen@email.com",
-    job: "Senior Frontend Developer",
-    interviewStatus: "Completed",
-    hiringStatus: "Under Review",
-    score: 87,
-  },
-  {
-    id: 2,
-    candidate: "Michael Rodriguez",
-    email: "m.rodriguez@email.com",
-    job: "Product Designer",
-    interviewStatus: "Pending",
-    hiringStatus: "Invited",
-    score: null,
-  },
-  {
-    id: 3,
-    candidate: "Jennifer Park",
-    email: "jennifer.p@email.com",
-    job: "Backend Engineer",
-    interviewStatus: "Completed",
-    hiringStatus: "Shortlisted",
-    score: 92,
-  },
-  {
-    id: 4,
-    candidate: "David Kim",
-    email: "david.kim@email.com",
-    job: "Senior Frontend Developer",
-    interviewStatus: "In Progress",
-    hiringStatus: "Invited",
-    score: null,
-  },
-];
+const API_BASE =
+  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_URL?.replace(
+    /\/$/,
+    ""
+  ) || "http://localhost:5000";
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// ✅ safe GET: prevents HTML "Cannot GET..." from being rendered in UI
+async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { ...authHeaders() },
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const raw = await res.text().catch(() => "");
+
+  if (!res.ok) {
+    let msg = `Request failed (${res.status})`;
+
+    if (contentType.includes("application/json")) {
+      try {
+        const json = JSON.parse(raw) as ApiErrorBody;
+        msg = json.message || msg;
+      } catch {
+        // ignore
+      }
+    } else {
+      const low = raw.toLowerCase();
+      if (low.includes("<!doctype") || low.includes("<html")) {
+        msg = `Request failed (${res.status})`;
+      } else if (raw.trim()) {
+        msg = raw;
+      }
+    }
+
+    throw new Error(msg);
+  }
+
+  if (!raw.trim()) return {} as T;
+
+  if (!contentType.includes("application/json")) {
+    throw new Error(`Expected JSON but got "${contentType || "unknown"}"`);
+  }
+
+  return JSON.parse(raw) as T;
+}
+
+async function apiGetFirstOk<T>(paths: string[]): Promise<T> {
+  let lastErr: unknown = null;
+
+  for (const p of paths) {
+    try {
+      return await apiGet<T>(p);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  throw lastErr instanceof Error ? lastErr : new Error("All endpoints failed");
+}
+
+/** UI difficulty values (your UI expects these exact strings) */
+type DifficultyUI = "Easy" | "Medium" | "Hard";
+
+function difficultyDbToUi(value: unknown): DifficultyUI {
+  if (value === 1) return "Easy";
+  if (value === 2) return "Medium";
+  if (value === 3) return "Hard";
+
+  const v = String(value ?? "").trim().toLowerCase();
+  if (v === "easy" || v === "low") return "Easy";
+  if (v === "medium" || v === "mid") return "Medium";
+  if (v === "hard" || v === "high") return "Hard";
+
+  return "Medium";
+}
+
+type UiJobRow = {
+  id: string;
+  title: string;
+  type: string;
+  location: string;
+  ctc: string;
+  experience: string;
+  duration: string;
+  difficulty: DifficultyUI;
+  responses: number;
+};
+
+type HiringStatus =
+  | "Invited"
+  | "Under Review"
+  | "Shortlisted"
+  | "Hired"
+  | "Rejected";
+type InterviewStatus = "Completed" | "Pending" | "In Progress";
+
+type UiResponseRow = {
+  id: string;
+  candidate: string;
+  email: string;
+  job: string;
+  interviewStatus: InterviewStatus;
+  hiringStatus: HiringStatus;
+  score: number | null;
+  candidateId?: string;
+  jobId?: string;
+  applicationId?: string;
+};
+
+function safeInterviewStatus(x: unknown): InterviewStatus {
+  const v = String(x || "").toLowerCase();
+  if (v === "completed") return "Completed";
+  if (v === "in_progress" || v === "in progress") return "In Progress";
+  return "Pending";
+}
+
+function safeHiringStatus(x: unknown): HiringStatus {
+  const v = String(x || "").toLowerCase();
+  if (v === "invited") return "Invited";
+  if (v === "under_review" || v === "under review") return "Under Review";
+  if (v === "shortlisted") return "Shortlisted";
+  if (v === "hired") return "Hired";
+  if (v === "rejected") return "Rejected";
+  return "Under Review";
+}
+
+/** ---- DB Shapes (matches your shared Mongo doc) ---- */
+type SalaryRangeDb = { start?: number; end?: number; currency?: string };
+
+type InterviewSettingsDb = {
+  maxCandidates?: number;
+  interviewDuration?: number;
+  difficultyLevel?: unknown; // "easy" | "medium" | "hard"
+  language?: string;
+};
+
+type JobFromDb = {
+  _id: string;
+  title?: string;
+  location?: string; // "hybrid"
+  workType?: string; // "remote"
+  jobType?: string; // "full-time"
+  salaryRange?: SalaryRangeDb; // {start,end}
+  workExperience?: number; // 1
+  invitedCandidates?: unknown[];
+  interviewSettings?: InterviewSettingsDb;
+  isActive?: boolean;
+};
+
+type PopulatedApplication = {
+  _id: string;
+  overallScore?: number | null;
+  hiringStatus?: unknown;
+  interviewStatus?: unknown;
+
+  candidateId?:
+    | string
+    | {
+        _id: string;
+        name?: string;
+        email?: string;
+      };
+
+  jobId?:
+    | string
+    | {
+        _id: string;
+        title?: string;
+      };
+};
+
+function getCandidate(x: PopulatedApplication["candidateId"]) {
+  if (!x) return { id: "", name: "Unknown", email: "-" };
+  if (typeof x === "string") return { id: x, name: "Unknown", email: "-" };
+  return { id: x._id, name: x.name || "Unknown", email: x.email || "-" };
+}
+
+function getJob(x: PopulatedApplication["jobId"]) {
+  if (!x) return { id: "", title: "Unknown Job" };
+  if (typeof x === "string") return { id: x, title: "Unknown Job" };
+  return { id: x._id, title: x.title || "Unknown Job" };
+}
+
+function titleCase(s: string) {
+  return s
+    .replace(/[-_]/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function salaryToText(sr?: SalaryRangeDb) {
+  if (!sr) return "—";
+  const start = typeof sr.start === "number" ? sr.start : undefined;
+  const end = typeof sr.end === "number" ? sr.end : undefined;
+  const cur = sr.currency ? `${sr.currency}` : "";
+  if (start == null && end == null) return "—";
+  if (start != null && end != null) return `${cur}${start} - ${cur}${end}`;
+  if (start != null) return `${cur}${start}+`;
+  return `${cur}Up to ${end}`;
+}
+
+function experienceToText(n?: number) {
+  if (typeof n !== "number") return "—";
+  return `${n}+`;
+}
+
+function durationToText(s?: InterviewSettingsDb) {
+  if (typeof s?.interviewDuration === "number") return `${s.interviewDuration} min`;
+  return "—";
+}
 
 export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
+  const [jobs, setJobs] = useState<UiJobRow[]>([]);
+  const [responses, setResponses] = useState<UiResponseRow[]>([]);
+
+  const [loadingJobs, setLoadingJobs] = useState(true);
+  const [loadingResponses, setLoadingResponses] = useState(true);
+
+  const [errorJobs, setErrorJobs] = useState("");
+  const [errorResponses, setErrorResponses] = useState("");
+
+  // ---- fetch jobs ----
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        setLoadingJobs(true);
+        setErrorJobs("");
+
+        // ✅ employer-specific first (based on login token)
+        const data = await apiGetFirstOk<JobFromDb[]>([
+          "/api/jobs/me?limit=5",
+          "/api/jobs/me",
+          "/api/jobs?limit=5",
+          "/api/jobs",
+        ]);
+
+        if (!alive) return;
+
+        const mapped: UiJobRow[] = (data || []).slice(0, 5).map((j) => ({
+          id: j._id,
+          title: j.title ?? "Untitled",
+          type: j.jobType ? titleCase(j.jobType) : "—",
+          location: j.location ?? "—",
+          ctc: salaryToText(j.salaryRange),
+          experience: experienceToText(j.workExperience),
+          duration: durationToText(j.interviewSettings),
+          difficulty: difficultyDbToUi(j.interviewSettings?.difficultyLevel),
+          responses: Array.isArray(j.invitedCandidates) ? j.invitedCandidates.length : 0,
+        }));
+
+        setJobs(mapped);
+      } catch (e: unknown) {
+        setErrorJobs(e instanceof Error ? e.message : "Failed to load jobs.");
+      } finally {
+        if (alive) setLoadingJobs(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // ---- fetch recent responses (applications) ----
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        setLoadingResponses(true);
+        setErrorResponses("");
+
+        const data = await apiGetFirstOk<PopulatedApplication[]>([
+          "/api/applications/employer?limit=5",
+          "/api/applications/employer",
+          "/api/employer/applications?limit=5",
+          "/api/employer/applications",
+        ]);
+
+        if (!alive) return;
+
+        const mapped: UiResponseRow[] = (data || []).slice(0, 5).map((a) => {
+          const c = getCandidate(a.candidateId);
+          const j = getJob(a.jobId);
+
+          return {
+            id: a._id,
+            applicationId: a._id,
+            candidateId: c.id,
+            jobId: j.id,
+            candidate: c.name,
+            email: c.email,
+            job: j.title,
+            interviewStatus: safeInterviewStatus(a.interviewStatus),
+            hiringStatus: safeHiringStatus(a.hiringStatus),
+            score: typeof a.overallScore === "number" ? a.overallScore : null,
+          };
+        });
+
+        setResponses(mapped);
+      } catch (e: unknown) {
+        setErrorResponses(e instanceof Error ? e.message : "Failed to load responses.");
+      } finally {
+        if (alive) setLoadingResponses(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // ✅ KPI (derived dynamically, UI unchanged)
+  const kpis = useMemo(() => {
+    const activeJobPosts = jobs.length;
+    const totalResponses = responses.length;
+
+    const pendingReviews = responses.filter((r) => r.hiringStatus === "Under Review").length;
+    const hired = responses.filter((r) => r.hiringStatus === "Hired").length;
+    const rejected = responses.filter((r) => r.hiringStatus === "Rejected").length;
+
+    return { activeJobPosts, totalResponses, pendingReviews, hired, rejected };
+  }, [jobs, responses]);
+
+  // ---- UI styles (unchanged) ----
   const pageContainerStyle: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
@@ -193,31 +452,31 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
         <div style={kpiGridStyle}>
           <AnimatedStats
             title="Active Job Posts"
-            value={12}
+            value={kpis.activeJobPosts}
             icon={Briefcase20Regular}
             color="primary"
           />
           <AnimatedStats
             title="Total Responses"
-            value={156}
+            value={kpis.totalResponses}
             icon={People20Regular}
-            trend={{ value: "12% this week", isPositive: true }}
+            trend={{ value: "Live", isPositive: true }}
           />
           <AnimatedStats
             title="Pending Reviews"
-            value={28}
+            value={kpis.pendingReviews}
             icon={Clock20Regular}
             color="warning"
           />
           <AnimatedStats
             title="Hired"
-            value={45}
+            value={kpis.hired}
             icon={CheckmarkCircle20Regular}
             color="success"
           />
           <AnimatedStats
             title="Rejected"
-            value={83}
+            value={kpis.rejected}
             icon={DismissCircle20Regular}
             color="danger"
           />
@@ -233,6 +492,7 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
         </div>
       </div>
 
+      {/* Recent Job Posts */}
       <Card style={tableCardStyle}>
         <div style={sectionHeaderStyle}>
           <h3 style={sectionTitleStyle}>Recent Job Posts</h3>
@@ -245,6 +505,7 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
             View All
           </Button>
         </div>
+
         <div style={{ overflowX: "auto" }}>
           <Table>
             <TableHeader>
@@ -260,105 +521,113 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                 <TableHead style={{ width: 48 }} />
               </TableRow>
             </TableHeader>
+
             <TableBody>
-              {mockJobPosts.map((job) => (
-                <TableRow
-                  key={job.id}
-                  style={{
-                    cursor: "default",
-                    transition: "background-color 0.15s ease-in-out",
-                  }}
-                  onMouseEnter={(e) => {
-                    (
-                      e.currentTarget as HTMLTableRowElement
-                    ).style.backgroundColor = "#F3F4F6";
-                  }}
-                  onMouseLeave={(e) => {
-                    (
-                      e.currentTarget as HTMLTableRowElement
-                    ).style.backgroundColor = "transparent";
-                  }}
-                >
-                  <TableCell>
-                    <div
-                      style={{
-                        color: "#0B1220",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {job.title}
-                    </div>
-                  </TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>{job.type}</TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>
-                    {job.location}
-                  </TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>{job.ctc}</TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>
-                    {job.experience}
-                  </TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>
-                    {job.duration}
-                  </TableCell>
-                  <TableCell>
-                    <StatusPill
-                      status={
-                        job.difficulty === "Easy"
-                          ? "success"
-                          : job.difficulty === "Medium"
-                          ? "warning"
-                          : "danger"
-                      }
-                      label={job.difficulty}
-                      size="sm"
-                    />
-                  </TableCell>
-                  <TableCell
-                    style={{
-                      color: "#0118D8",
-                      fontWeight: 500,
-                    }}
-                  >
-                    {job.responses}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger>
-                        <Button variant="ghost" style={iconButtonStyle}>
-                          <MoreVerticalRegular
-                            style={{ width: 16, height: 16 }}
-                          />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem>
-                          <Eye20Regular
-                            style={{ width: 14, height: 14, marginRight: 8 }}
-                          />
-                          <span>View Details</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Edit20Regular
-                            style={{ width: 14, height: 14, marginRight: 8 }}
-                          />
-                          <span>Edit Job</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Delete20Regular
-                            style={{ width: 14, height: 14, marginRight: 8 }}
-                          />
-                          <span style={{ color: "#DC2626" }}>Delete</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+              {loadingJobs && (
+                <TableRow>
+                  <TableCell colSpan={9} style={{ color: "#5B6475" }}>
+                    Loading job posts...
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
+
+              {!loadingJobs && errorJobs && (
+                <TableRow>
+                  <TableCell colSpan={9} style={{ color: "#dc2626" }}>
+                    {errorJobs}
+                  </TableCell>
+                </TableRow>
+              )}
+
+              {!loadingJobs && !errorJobs && jobs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={9} style={{ color: "#5B6475" }}>
+                    No job posts found.
+                  </TableCell>
+                </TableRow>
+              )}
+
+              {!loadingJobs &&
+                !errorJobs &&
+                jobs.map((job) => (
+                  <TableRow
+                    key={job.id}
+                    style={{
+                      cursor: "default",
+                      transition: "background-color 0.15s ease-in-out",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                        "#F3F4F6";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                        "transparent";
+                    }}
+                  >
+                    <TableCell>
+                      <div style={{ color: "#0B1220", fontWeight: 500 }}>
+                        {job.title}
+                      </div>
+                    </TableCell>
+                    <TableCell style={{ color: "#5B6475" }}>{job.type}</TableCell>
+                    <TableCell style={{ color: "#5B6475" }}>
+                      {job.location}
+                    </TableCell>
+                    <TableCell style={{ color: "#5B6475" }}>{job.ctc}</TableCell>
+                    <TableCell style={{ color: "#5B6475" }}>
+                      {job.experience}
+                    </TableCell>
+                    <TableCell style={{ color: "#5B6475" }}>
+                      {job.duration}
+                    </TableCell>
+                    <TableCell>
+                      <StatusPill
+                        status={
+                          job.difficulty === "Easy"
+                            ? "success"
+                            : job.difficulty === "Medium"
+                            ? "warning"
+                            : "danger"
+                        }
+                        label={job.difficulty}
+                        size="sm"
+                      />
+                    </TableCell>
+                    <TableCell style={{ color: "#0118D8", fontWeight: 500 }}>
+                      {job.responses}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger>
+                          <Button variant="ghost" style={iconButtonStyle}>
+                            <MoreVerticalRegular style={{ width: 16, height: 16 }} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem>
+                            <Eye20Regular style={{ width: 14, height: 14, marginRight: 8 }} />
+                            <span>View Details</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <Edit20Regular style={{ width: 14, height: 14, marginRight: 8 }} />
+                            <span>Edit Job</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <Delete20Regular style={{ width: 14, height: 14, marginRight: 8 }} />
+                            <span style={{ color: "#DC2626" }}>Delete</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </div>
       </Card>
 
+      {/* Recent Responses */}
       <Card style={tableCardStyle}>
         <div style={sectionHeaderStyle}>
           <h3 style={sectionTitleStyle}>Recent Responses</h3>
@@ -371,6 +640,7 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
             View All
           </Button>
         </div>
+
         <div style={{ overflowX: "auto" }}>
           <Table>
             <TableHeader>
@@ -384,106 +654,119 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                 <TableHead style={{ width: 120 }} />
               </TableRow>
             </TableHeader>
+
             <TableBody>
-              {mockResponses.map((response) => (
-                <TableRow
-                  key={response.id}
-                  style={{
-                    cursor: "default",
-                    transition: "background-color 0.15s ease-in-out",
-                  }}
-                  onMouseEnter={(e) => {
-                    (
-                      e.currentTarget as HTMLTableRowElement
-                    ).style.backgroundColor = "#F3F4F6";
-                  }}
-                  onMouseLeave={(e) => {
-                    (
-                      e.currentTarget as HTMLTableRowElement
-                    ).style.backgroundColor = "transparent";
-                  }}
-                >
-                  <TableCell>
-                    <div
-                      style={{
-                        color: "#0B1220",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {response.candidate}
-                    </div>
+              {loadingResponses && (
+                <TableRow>
+                  <TableCell colSpan={7} style={{ color: "#5B6475" }}>
+                    Loading responses...
                   </TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>
-                    {response.email}
+                </TableRow>
+              )}
+
+              {!loadingResponses && errorResponses && (
+                <TableRow>
+                  <TableCell colSpan={7} style={{ color: "#dc2626" }}>
+                    {errorResponses}
                   </TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>
-                    {response.job}
+                </TableRow>
+              )}
+
+              {!loadingResponses && !errorResponses && responses.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} style={{ color: "#5B6475" }}>
+                    No responses found.
                   </TableCell>
-                  <TableCell>
-                    {response.score != null ? (
-                      <span
+                </TableRow>
+              )}
+
+              {!loadingResponses &&
+                !errorResponses &&
+                responses.map((response) => (
+                  <TableRow
+                    key={response.id}
+                    style={{
+                      cursor: "default",
+                      transition: "background-color 0.15s ease-in-out",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                        "#F3F4F6";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                        "transparent";
+                    }}
+                  >
+                    <TableCell>
+                      <div style={{ color: "#0B1220", fontWeight: 500 }}>
+                        {response.candidate}
+                      </div>
+                    </TableCell>
+                    <TableCell style={{ color: "#5B6475" }}>
+                      {response.email}
+                    </TableCell>
+                    <TableCell style={{ color: "#5B6475" }}>
+                      {response.job}
+                    </TableCell>
+                    <TableCell>
+                      {response.score != null ? (
+                        <span style={{ color: "#0118D8", fontWeight: 500 }}>
+                          {response.score}%
+                        </span>
+                      ) : (
+                        <span style={{ color: "#5B6475" }}>-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <StatusPill
+                        status={
+                          response.interviewStatus === "Completed"
+                            ? "success"
+                            : response.interviewStatus === "In Progress"
+                            ? "warning"
+                            : "info"
+                        }
+                        label={response.interviewStatus}
+                        size="sm"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        defaultValue={response.hiringStatus
+                          .toLowerCase()
+                          .replace(" ", "-")}
+                      >
+                        <SelectTrigger style={{ width: 160, height: 32 }}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="invited">Invited</SelectItem>
+                          <SelectItem value="under-review">Under Review</SelectItem>
+                          <SelectItem value="shortlisted">Shortlisted</SelectItem>
+                          <SelectItem value="hired">Hired</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onNavigate("analytics")}
                         style={{
-                          color: "#0118D8",
+                          paddingInline: 12,
+                          paddingBlock: 6,
+                          borderRadius: 6,
+                          fontSize: 14,
                           fontWeight: 500,
                         }}
                       >
-                        {response.score}%
-                      </span>
-                    ) : (
-                      <span style={{ color: "#5B6475" }}>-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <StatusPill
-                      status={
-                        response.interviewStatus === "Completed"
-                          ? "success"
-                          : response.interviewStatus === "In Progress"
-                          ? "warning"
-                          : "info"
-                      }
-                      label={response.interviewStatus}
-                      size="sm"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      defaultValue={response.hiringStatus
-                        .toLowerCase()
-                        .replace(" ", "-")}
-                    >
-                      <SelectTrigger style={{ width: 160, height: 32 }}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Invited">Invited</SelectItem>
-                        <SelectItem value="Under Review">
-                          Under Review
-                        </SelectItem>
-                        <SelectItem value="Shortlisted">Shortlisted</SelectItem>
-                        <SelectItem value="Hired">Hired</SelectItem>
-                        <SelectItem value="Rejected">Rejected</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onNavigate("analytics")}
-                      style={{
-                        paddingInline: 12,
-                        paddingBlock: 6,
-                        borderRadius: 6,
-                        fontSize: 14,
-                        fontWeight: 500,
-                      }}
-                    >
-                      View Analytics
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        View Analytics
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </div>

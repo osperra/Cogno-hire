@@ -5,10 +5,14 @@ import {
   Mail24Regular,
   QuestionCircle24Regular,
   Dismiss24Regular,
+  DocumentBulletList24Regular,
+  People24Regular,
 } from "@fluentui/react-icons";
 
+type Role = "employer" | "candidate" | "hr";
+
 interface FloatingActionButtonProps {
-  userRole: "employer" | "candidate";
+  userRole: Role;
   onAction?: (action: string) => void;
 }
 
@@ -65,15 +69,9 @@ const useStyles = makeStyles({
     },
   },
 
-  blue: {
-    backgroundColor: "#2563EB",
-  },
-  green: {
-    backgroundColor: "#16A34A",
-  },
-  purple: {
-    backgroundColor: "#7C3AED",
-  },
+  blue: { backgroundColor: "#2563EB" },
+  green: { backgroundColor: "#16A34A" },
+  purple: { backgroundColor: "#7C3AED" },
 
   fabButton: {
     width: "56px",
@@ -92,72 +90,51 @@ const useStyles = makeStyles({
 
   fabClosed: {
     backgroundImage: "linear-gradient(to bottom right,#0118D8,#1B56FD)",
-
-    ":hover": {
-      transform: "scale(1.08)",
-    },
+    ":hover": { transform: "scale(1.08)" },
   },
 
   fabOpen: {
     backgroundColor: "#DC2626",
     transform: "rotate(45deg)",
-
-    ":hover": {
-      backgroundColor: "#B91C1C",
-    },
+    ":hover": { backgroundColor: "#B91C1C" },
   },
 });
 
-export function FloatingActionButton({
-  userRole,
-  onAction,
-}: FloatingActionButtonProps) {
+type ActionItem = {
+  icon: React.ComponentType;
+  label: string;
+  action: string;
+  colorClass: string;
+};
+
+export function FloatingActionButton({ userRole, onAction }: FloatingActionButtonProps) {
   const styles = useStyles();
   const [isOpen, setIsOpen] = useState(false);
 
-  const employerActions = [
-    {
-      icon: Add24Regular,
-      label: "Post Job",
-      action: "create-job",
-      colorClass: styles.blue,
-    },
-    {
-      icon: Mail24Regular,
-      label: "Support",
-      action: "support",
-      colorClass: styles.green,
-    },
-    {
-      icon: QuestionCircle24Regular,
-      label: "Help",
-      action: "help",
-      colorClass: styles.purple,
-    },
+  const employerActions: ActionItem[] = [
+    { icon: Add24Regular, label: "Post Job", action: "create-job", colorClass: styles.blue },
+    { icon: Mail24Regular, label: "Support", action: "support", colorClass: styles.green },
+    { icon: QuestionCircle24Regular, label: "Help", action: "help", colorClass: styles.purple },
   ];
 
-  const candidateActions = [
-    {
-      icon: Add24Regular,
-      label: "Apply",
-      action: "apply",
-      colorClass: styles.blue,
-    },
-    {
-      icon: Mail24Regular,
-      label: "Support",
-      action: "support",
-      colorClass: styles.green,
-    },
-    {
-      icon: QuestionCircle24Regular,
-      label: "Help",
-      action: "help",
-      colorClass: styles.purple,
-    },
+  const candidateActions: ActionItem[] = [
+    { icon: Add24Regular, label: "Apply", action: "apply", colorClass: styles.blue },
+    { icon: Mail24Regular, label: "Support", action: "support", colorClass: styles.green },
+    { icon: QuestionCircle24Regular, label: "Help", action: "help", colorClass: styles.purple },
   ];
 
-  const actions = userRole === "employer" ? employerActions : candidateActions;
+  const hrActions: ActionItem[] = [
+    { icon: People24Regular, label: "Pipeline", action: "hr-pipeline", colorClass: styles.blue },
+    { icon: DocumentBulletList24Regular, label: "Documents", action: "hr-documents", colorClass: styles.purple },
+    { icon: Mail24Regular, label: "Support", action: "support", colorClass: styles.green },
+  ];
+
+  const actions: ActionItem[] =
+    userRole === "employer"
+      ? employerActions
+      : userRole === "hr"
+      ? hrActions
+      : candidateActions;
 
   return (
     <div className={styles.root}>
@@ -185,13 +162,14 @@ export function FloatingActionButton({
       </div>
 
       <button
-        className={`${styles.fabButton} ${
-          isOpen ? styles.fabOpen : styles.fabClosed
-        }`}
+        className={`${styles.fabButton} ${isOpen ? styles.fabOpen : styles.fabClosed}`}
         onClick={() => setIsOpen((prev) => !prev)}
+        type="button"
       >
         {isOpen ? <Dismiss24Regular /> : <Add24Regular />}
       </button>
     </div>
   );
 }
+
+export default FloatingActionButton;

@@ -1,4 +1,5 @@
-import { useState } from "react";
+// client/src/Components/Employer/EmployerJobs.tsx
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -35,85 +36,219 @@ import {
   Delete20Regular,
   Copy20Regular,
 } from "@fluentui/react-icons";
+import { api } from "../../api/http";
 
 interface EmployerJobsProps {
   onNavigate: (page: string, data?: Record<string, unknown>) => void;
 }
 
-const mockJobs = [
-  {
-    id: 1,
-    title: "Senior Frontend Developer",
-    type: "Full-time",
-    location: "Remote",
-    ctc: "$120k - $150k",
-    experience: "5-7 years",
-    duration: "45 days",
-    difficulty: "Hard",
-    status: "Active",
-    responses: 28,
-    datePosted: "Jan 15, 2025",
-  },
-  {
-    id: 2,
-    title: "Product Designer",
-    type: "Full-time",
-    location: "San Francisco, CA",
-    ctc: "$100k - $130k",
-    experience: "3-5 years",
-    duration: "30 days",
-    difficulty: "Medium",
-    status: "Active",
-    responses: 42,
-    datePosted: "Jan 20, 2025",
-  },
-  {
-    id: 3,
-    title: "Backend Engineer",
-    type: "Contract",
-    location: "New York, NY",
-    ctc: "$90k - $110k",
-    experience: "4-6 years",
-    duration: "60 days",
-    difficulty: "Hard",
-    status: "Active",
-    responses: 15,
-    datePosted: "Jan 12, 2025",
-  },
-  {
-    id: 4,
-    title: "DevOps Engineer",
-    type: "Full-time",
-    location: "Remote",
-    ctc: "$110k - $140k",
-    experience: "5-8 years",
-    duration: "90 days",
-    difficulty: "Hard",
-    status: "Draft",
-    responses: 0,
-    datePosted: "Jan 25, 2025",
-  },
-  {
-    id: 5,
-    title: "Junior Frontend Developer",
-    type: "Full-time",
-    location: "Austin, TX",
-    ctc: "$70k - $85k",
-    experience: "1-2 years",
-    duration: "30 days",
-    difficulty: "Easy",
-    status: "Closed",
-    responses: 67,
-    datePosted: "Dec 10, 2024",
-  },
-];
+/** ---- DB Shapes (supports BOTH object + string to be safe) ---- */
+type SalaryRangeDb =
+  | {
+      start?: number;
+      end?: number;
+      currency?: string;
+    }
+  | string;
+
+type InterviewSettingsDb = {
+  interviewDuration?: number;
+  maxCandidates?: number;
+  difficultyLevel?: string; // "easy"
+};
+
+type JobFromDB = {
+  _id: string;
+  title?: string;
+
+  location?: string; // "hybrid"
+  workType?: string; // "remote"
+
+  salaryRange?: SalaryRangeDb; // ✅ your real DB shows object
+  jobType?: string; // "full-time"
+
+  isActive?: boolean;
+  status?: "draft" | "open" | "closed";
+
+  workExperience?: number;
+  invitedCandidates?: unknown[];
+
+  interviewSettings?: InterviewSettingsDb;
+
+  createdAt?: string;
+};
+
+/** ---- UI Types (do NOT change UI) ---- */
+type DifficultyUI = "Easy" | "Medium" | "Hard";
+type StatusUI = "Active" | "Draft" | "Closed";
+
+type JobRowUI = {
+  id: string;
+  title: string;
+  type: string;
+  location: string;
+  ctc: string;
+  experience: string;
+  duration: string;
+  difficulty: DifficultyUI;
+  status: StatusUI;
+  responses: number;
+  datePosted: string;
+};
+
+/** ---- Helpers ---- */
+function formatDate(d?: string) {
+  if (!d) return "-";
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "-";
+  return dt.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
+function titleCase(s: string) {
+  return s
+    .replace(/[-_]/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function normalizeDifficulty(v: unknown): DifficultyUI {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (s === "easy" || s === "low" || s === "1") return "Easy";
+  if (s === "medium" || s === "mid" || s === "2") return "Medium";
+  if (s === "hard" || s === "high" || s === "3") return "Hard";
+  return "Medium";
+}
+
+function mapStatus(j: JobFromDB): StatusUI {
+  if (j.status === "draft") return "Draft";
+  if (j.status === "closed") return "Closed";
+  if (j.status === "open") return "Active";
+
+  if (j.isActive === false) return "Closed";
+  return "Active";
+}
+
+/** ✅ CTC comes from salaryRange.start/end (and supports salaryRange string too) */
+function salaryToText(sr?: SalaryRangeDb) {
+  if (!sr) return "-";
+
+  // if salaryRange ever comes as string from API
+  if (typeof sr === "string") {
+    const t = sr.trim();
+    return t ? t : "-";
+  }
+
+  const start = typeof sr.start === "number" ? sr.start : undefined;
+  const end = typeof sr.end === "number" ? sr.end : undefined;
+  const cur = sr.currency ? `${sr.currency}` : "";
+
+  if (start == null && end == null) return "-";
+  if (start != null && end != null) return `${cur}${start} - ${cur}${end}`;
+  if (start != null) return `${cur}${start}+`;
+  return `${cur}Up to ${end}`;
+}
+
+/** ✅ Location: show DB.location first (hybrid), fallback to workType */
+function pickLocation(j: JobFromDB) {
+  return String(j.location ?? j.workType ?? "-");
+}
+
+/** ✅ Type: show jobType ("full-time") */
+function pickJobType(j: JobFromDB) {
+  return j.jobType ? titleCase(String(j.jobType)) : "-";
+}
+
+function experienceToText(n?: number) {
+  if (typeof n !== "number") return "-";
+  return `${n}+`;
+}
+
+function durationToText(settings?: InterviewSettingsDb) {
+  const mins = settings?.interviewDuration;
+  if (typeof mins === "number") return `${mins} min`;
+  return "-";
+}
+
+function toJobRowUI(j: JobFromDB): JobRowUI {
+  return {
+    id: j._id,
+    title: j.title ?? "Untitled",
+    type: pickJobType(j),
+    location: pickLocation(j),
+    ctc: salaryToText(j.salaryRange),
+    experience: experienceToText(j.workExperience),
+    duration: durationToText(j.interviewSettings),
+    difficulty: normalizeDifficulty(j.interviewSettings?.difficultyLevel),
+    status: mapStatus(j),
+    responses: Array.isArray(j.invitedCandidates) ? j.invitedCandidates.length : 0,
+    datePosted: formatDate(j.createdAt),
+  };
+}
 
 export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
-  const [selectedJobs, setSelectedJobs] = useState<number[]>([]);
+  const [selectedJobs, setSelectedJobs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [jobType, setJobType] = useState("All Types");
   const [locationType, setLocationType] = useState("All Locations");
 
+  const [jobs, setJobs] = useState<JobRowUI[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        setLoading(true);
+
+        let data: JobFromDB[] = [];
+        try {
+          data = await api<JobFromDB[]>("/api/jobs/me");
+        } catch {
+          data = await api<JobFromDB[]>("/api/jobs");
+        }
+
+        if (!alive) return;
+
+        setJobs((data ?? []).map(toJobRowUI));
+      } catch (err) {
+        console.error("LOAD_JOBS_ERROR:", err);
+        if (alive) setJobs([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((j) => {
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch = !q || j.title.toLowerCase().includes(q);
+
+      const matchesType =
+        jobType === "All Types" || j.type.toLowerCase() === jobType.toLowerCase();
+
+      const matchesLoc =
+        locationType === "All Locations" ||
+        j.location.toLowerCase() === locationType.toLowerCase();
+
+      return matchesSearch && matchesType && matchesLoc;
+    });
+  }, [jobs, searchQuery, jobType, locationType]);
+
+  const allChecked =
+    filteredJobs.length > 0 && selectedJobs.length === filteredJobs.length;
+
+  // ✅ keep your styles exactly like your original UI
   const toolbarContainerStyle: React.CSSProperties = {
     display: "flex",
     flexDirection: "row",
@@ -144,22 +279,6 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
     alignItems: "center",
     justifyContent: "center",
   };
-  const menuItemInnerStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  };
-
-  const menuIconStyle: React.CSSProperties = {
-    width: 16,
-    height: 16,
-    flexShrink: 0,
-  };
-
-  const menuLabelStyle: React.CSSProperties = {
-    lineHeight: 1.2,
-    display: "inline-block",
-  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -179,7 +298,7 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                 }}
               />
               <Input
-                placeholder="Search jobs..."
+                placeholder={loading ? "Loading jobs..." : "Search jobs..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ paddingLeft: 32, width: "100%" }}
@@ -277,7 +396,8 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
       <Card
         style={{
           border: "1px solid rgba(2,6,23,0.08)",
-          boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
+          boxShadow:
+            "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
           padding: 0,
         }}
       >
@@ -292,14 +412,12 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
               >
                 <TableHead style={{ width: 40 }}>
                   <Checkbox
-                    checked={selectedJobs.length === mockJobs.length}
-                    onChange={(_, data) => {
-                      if (data?.checked) {
-                        setSelectedJobs(mockJobs.map((job) => job.id));
-                      } else {
-                        setSelectedJobs([]);
-                      }
-                    }}
+                    checked={allChecked}
+                    onChange={(_, data) =>
+                      setSelectedJobs(
+                        data?.checked ? filteredJobs.map((j) => j.id) : []
+                      )
+                    }
                   />
                 </TableHead>
                 <TableHead>Title</TableHead>
@@ -315,23 +433,22 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                 <TableHead style={{ width: 40 }} />
               </TableRow>
             </TableHeader>
+
             <TableBody>
-              {mockJobs.map((job) => (
+              {filteredJobs.map((job) => (
                 <TableRow
                   key={job.id}
                   style={{
                     cursor: "default",
                     transition: "background-color 0.15s ease-in-out",
                   }}
-                  onMouseEnter={(e) => {
-                    (
-                      e.currentTarget as HTMLTableRowElement
-                    ).style.backgroundColor = "#F3F4F6";
+                  onMouseEnter={(ev) => {
+                    (ev.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                      "#F3F4F6";
                   }}
-                  onMouseLeave={(e) => {
-                    (
-                      e.currentTarget as HTMLTableRowElement
-                    ).style.backgroundColor = "transparent";
+                  onMouseLeave={(ev) => {
+                    (ev.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                      "transparent";
                   }}
                 >
                   <TableCell>
@@ -345,22 +462,19 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                           );
                         } else {
                           setSelectedJobs((prev) =>
-                            prev.filter((jobId) => jobId !== job.id)
+                            prev.filter((id) => id !== job.id)
                           );
                         }
                       }}
                     />
                   </TableCell>
+
                   <TableCell>
-                    <div
-                      style={{
-                        color: "#0B1220",
-                        fontWeight: 500,
-                      }}
-                    >
+                    <div style={{ color: "#0B1220", fontWeight: 500 }}>
                       {job.title}
                     </div>
                   </TableCell>
+
                   <TableCell style={{ color: "#5B6475" }}>{job.type}</TableCell>
                   <TableCell style={{ color: "#5B6475" }}>
                     {job.location}
@@ -372,6 +486,7 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                   <TableCell style={{ color: "#5B6475" }}>
                     {job.duration}
                   </TableCell>
+
                   <TableCell>
                     <StatusPill
                       status={
@@ -385,6 +500,7 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                       size="sm"
                     />
                   </TableCell>
+
                   <TableCell>
                     <StatusPill
                       status={
@@ -398,62 +514,50 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                       size="sm"
                     />
                   </TableCell>
-                  <TableCell
-                    style={{
-                      color: "#0118D8",
-                      fontWeight: 500,
-                    }}
-                  >
+
+                  <TableCell style={{ color: "#0118D8", fontWeight: 500 }}>
                     {job.responses}
                   </TableCell>
                   <TableCell style={{ color: "#5B6475" }}>
                     {job.datePosted}
                   </TableCell>
+
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger>
                         <Button
                           variant="ghost"
-                          style={{
-                            ...iconButtonStyle,
-                            borderRadius: 6,
-                          }}
+                          style={{ ...iconButtonStyle, borderRadius: 6 }}
                         >
-                          <MoreVerticalRegular
-                            style={{ width: 16, height: 16 }}
-                          />
+                          <MoreVerticalRegular style={{ width: 16, height: 16 }} />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent>
                         <DropdownMenuItem>
-                          <div style={menuItemInnerStyle}>
-                            <Eye20Regular style={menuIconStyle} />
-                            <span style={menuLabelStyle}>View Details</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Eye20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
+                            <span style={{ lineHeight: 1.2, display: "inline-block" }}>View Details</span>
                           </div>
                         </DropdownMenuItem>
 
                         <DropdownMenuItem>
-                          <div style={menuItemInnerStyle}>
-                            <Edit20Regular style={menuIconStyle} />
-                            <span style={menuLabelStyle}>Edit Job</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Edit20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
+                            <span style={{ lineHeight: 1.2, display: "inline-block" }}>Edit Job</span>
                           </div>
                         </DropdownMenuItem>
 
                         <DropdownMenuItem>
-                          <div style={menuItemInnerStyle}>
-                            <Copy20Regular style={menuIconStyle} />
-                            <span style={menuLabelStyle}>Duplicate</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Copy20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
+                            <span style={{ lineHeight: 1.2, display: "inline-block" }}>Duplicate</span>
                           </div>
                         </DropdownMenuItem>
 
                         <DropdownMenuItem>
-                          <div style={menuItemInnerStyle}>
-                            <Delete20Regular
-                              style={{ ...menuIconStyle}}
-                            />
-                            <span
-                              style={{ ...menuLabelStyle, color: "#DC2626" }}
-                            >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Delete20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
+                            <span style={{ lineHeight: 1.2, display: "inline-block", color: "#DC2626" }}>
                               Delete
                             </span>
                           </div>
@@ -463,6 +567,22 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                   </TableCell>
                 </TableRow>
               ))}
+
+              {!loading && filteredJobs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={12} style={{ padding: 16, color: "#5B6475" }}>
+                    No jobs found.
+                  </TableCell>
+                </TableRow>
+              )}
+
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={12} style={{ padding: 16, color: "#5B6475" }}>
+                    Loading jobs...
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
