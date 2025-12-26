@@ -8,127 +8,153 @@ import {
   Text,
   makeStyles,
   tokens,
+  Spinner,
 } from "@fluentui/react-components";
 
 import {
   Alert20Regular,
   DocumentText20Regular,
   Mail20Regular,
-  PersonAdd20Regular,
+  // PersonAdd20Regular,
   CheckmarkCircle20Regular,
   Clock20Regular,
   Dismiss20Regular,
 } from "@fluentui/react-icons";
 
-type NotificationType =
+type NotificationTypeApi =
+  | "application_created"
+  | "application_status_changed"
+  | "job_created"
+  | "general";
+
+type NotificationFromApi = {
+  _id: string;
+  userId: string;
+  type: NotificationTypeApi;
+  title: string;
+  message: string;
+  link?: string;
+  isRead: boolean;
+  createdAt: string;
+};
+
+type NotificationsResponse = {
+  items: NotificationFromApi[];
+  unreadCount: number;
+};
+
+type NotificationTypeUI =
   | "Application"
   | "Interview"
   | "Invitation"
   | "Profile"
   | "Welcome";
 
-interface NotificationItem {
-  id: number;
-  type: NotificationType;
+type NotificationItemUI = {
+  id: string;
+  type: NotificationTypeUI;
   icon: React.ElementType;
   title: string;
   message: string;
   timestamp: string;
   read: boolean;
   actionLabel?: string;
-}
-
-const mockNotifications: NotificationItem[] = [
-  {
-    id: 1,
-    type: "Application",
-    icon: DocumentText20Regular,
-    title: "Application Submitted",
-    message:
-      "Your application for Senior Frontend Developer at Acme Corporation has been received.",
-    timestamp: "2 hours ago",
-    read: false,
-  },
-  {
-    id: 2,
-    type: "Interview",
-    icon: Alert20Regular,
-    title: "Interview Reminder",
-    message:
-      "You have a pending AI interview for Full Stack Engineer at TechStart Inc.",
-    timestamp: "5 hours ago",
-    read: false,
-    actionLabel: "Start Interview",
-  },
-  {
-    id: 3,
-    type: "Invitation",
-    icon: Mail20Regular,
-    title: "Direct Invitation",
-    message:
-      "Innovation Labs has invited you to apply for their React Developer position.",
-    timestamp: "1 day ago",
-    read: false,
-    actionLabel: "View Job",
-  },
-  {
-    id: 4,
-    type: "Application",
-    icon: CheckmarkCircle20Regular,
-    title: "Application Status Updated",
-    message:
-      "Your application for Frontend Developer has been moved to 'Under Review' stage.",
-    timestamp: "2 days ago",
-    read: true,
-  },
-  {
-    id: 5,
-    type: "Interview",
-    icon: CheckmarkCircle20Regular,
-    title: "Interview Completed",
-    message:
-      "You've completed the interview for React Native Developer at CloudTech. View your results.",
-    timestamp: "3 days ago",
-    read: true,
-    actionLabel: "View Results",
-  },
-  {
-    id: 6,
-    type: "Profile",
-    icon: PersonAdd20Regular,
-    title: "Complete Your Profile",
-    message: "Add your work experience to improve your job matches by 40%.",
-    timestamp: "3 days ago",
-    read: true,
-    actionLabel: "Update Profile",
-  },
-  {
-    id: 7,
-    type: "Application",
-    icon: CheckmarkCircle20Regular,
-    title: "Application Shortlisted",
-    message:
-      "Great news! You've been shortlisted for Lead Frontend Engineer at StartupHub.",
-    timestamp: "1 week ago",
-    read: true,
-  },
-  {
-    id: 8,
-    type: "Welcome",
-    icon: Alert20Regular,
-    title: "Welcome to Cogno!",
-    message:
-      "Start your journey by completing your profile and browsing available positions.",
-    timestamp: "2 weeks ago",
-    read: true,
-    actionLabel: "Get Started",
-  },
-];
+  link?: string;
+};
 
 type TabValue = "all" | "unread" | "applications" | "interviews";
 
+const API_BASE =
+  (import.meta.env?.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ||
+  "http://localhost:5000";
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+type ApiErrorBody = { message?: string };
+
+async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { ...authHeaders() },
+  });
+  const raw = await res.text().catch(() => "");
+
+  if (!res.ok) {
+    try {
+      const j = raw ? (JSON.parse(raw) as ApiErrorBody) : {};
+      throw new Error(j?.message || `Request failed (${res.status})`);
+    } catch {
+      throw new Error(raw || `Request failed (${res.status})`);
+    }
+  }
+
+  return raw ? (JSON.parse(raw) as T) : ({} as T);
+}
+
+async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const raw = await res.text().catch(() => "");
+  if (!res.ok) {
+    try {
+      const j = raw ? (JSON.parse(raw) as ApiErrorBody) : {};
+      throw new Error(j?.message || `Request failed (${res.status})`);
+    } catch {
+      throw new Error(raw || `Request failed (${res.status})`);
+    }
+  }
+
+  return raw ? (JSON.parse(raw) as T) : ({} as T);
+}
+
+function timeAgoFromISO(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+
+  const diffMs = Date.now() - t;
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  return `${day}d ago`;
+}
+
+/**
+ * Map backend types -> UI types + icons.
+ * You can refine this mapping anytime.
+ */
+function mapTypeToUi(t: NotificationTypeApi): {
+  type: NotificationTypeUI;
+  icon: React.ElementType;
+  actionLabel?: string;
+} {
+  switch (t) {
+    case "application_created":
+      return { type: "Application", icon: DocumentText20Regular };
+    case "application_status_changed":
+      return { type: "Application", icon: CheckmarkCircle20Regular, actionLabel: "View Status" };
+    case "job_created":
+      return { type: "Invitation", icon: Mail20Regular, actionLabel: "View Job" };
+    case "general":
+    default:
+      return { type: "Welcome", icon: Alert20Regular };
+  }
+}
+
 const useStyles = makeStyles({
-root: {
+  root: {
     display: "flex",
     flexDirection: "column",
     rowGap: "24px",
@@ -157,52 +183,31 @@ root: {
     columnGap: tokens.spacingHorizontalM,
   },
 
-  headerTitle: {
-    marginBottom: tokens.spacingVerticalXXS,
-  },
+  headerTitle: { marginBottom: tokens.spacingVerticalXXS },
 
   headerSubtitle: {
     color: "#5B6475",
-    display: "block", 
-    marginTop: "4px" 
+    display: "block",
+    marginTop: "4px",
   },
 
   headerActions: {
     display: "flex",
     columnGap: tokens.spacingHorizontalS,
   },
-  Buttons: {
+
+  buttons: {
     ":hover": {
       backgroundColor: "#E9DFC3",
     },
   },
+
   tabsList: {
     backgroundColor: tokens.colorNeutralBackground1,
     borderRadius: "999px",
     padding: "6px 12px",
     border: "1px solid rgba(2,6,23,0.08)",
     display: "inline-flex",
-  },
-
-  tabItem: {
-    padding: "6px 14px",
-    borderRadius: "999px",
-    backgroundColor: "transparent",
-    fontWeight: 500,
-    color: "#0B1220",
-    cursor: "pointer",
-    border: "none",
-    ":hover": {
-      backgroundColor: "rgba(2,6,23,0.04)",
-    },
-  },
-
-  tabItemSelected: {
-    backgroundColor: "white",
-    borderRadius: "999px",
-    boxShadow: "0 0 0 2px #E5E7EB inset",
-    fontWeight: 600,
-    color: "#0B1220",
   },
 
   tabPanels: {
@@ -217,8 +222,7 @@ root: {
     borderRadius: "12px",
     border: "1px solid rgba(2,6,23,0.08)",
     backgroundColor: tokens.colorNeutralBackground1,
-    transition:
-      "box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease",
+    transition: "box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease",
     boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
     ":hover": {
       boxShadow: "0 1px 0 rgba(2,6,23,0.08), 0 8px 24px rgba(2,6,23,0.12)",
@@ -245,30 +249,11 @@ root: {
     flexShrink: 0,
   },
 
-  iconApplication: {
-    backgroundColor: "#eff6ff",
-    color: "#1d4ed8",
-  },
-
-  iconInterview: {
-    backgroundColor: "#f5f3ff",
-    color: "#7c3aed",
-  },
-
-  iconInvitation: {
-    backgroundColor: "#ecfdf3",
-    color: "#15803d",
-  },
-
-  iconProfile: {
-    backgroundColor: "#fff7ed",
-    color: "#ea580c",
-  },
-
-  iconWelcome: {
-    backgroundColor: "#fdf2f8",
-    color: "#db2777",
-  },
+  iconApplication: { backgroundColor: "#eff6ff", color: "#1d4ed8" },
+  iconInterview: { backgroundColor: "#f5f3ff", color: "#7c3aed" },
+  iconInvitation: { backgroundColor: "#ecfdf3", color: "#15803d" },
+  iconProfile: { backgroundColor: "#fff7ed", color: "#ea580c" },
+  iconWelcome: { backgroundColor: "#fdf2f8", color: "#db2777" },
 
   contentColumn: {
     flex: 1,
@@ -297,14 +282,8 @@ root: {
     backgroundColor: "#0118D8",
   },
 
-  titleText: {
-    color: "#0B1220",
-  },
-
-  messageText: {
-    color: "#5B6475",
-    marginBottom: tokens.spacingVerticalXS,
-  },
+  titleText: { color: "#0B1220" },
+  messageText: { color: "#5B6475", marginBottom: tokens.spacingVerticalXS },
 
   metaRow: {
     display: "flex",
@@ -322,7 +301,7 @@ root: {
   },
 
   closeButton: {
-    minWidth: 0,
+    minWidth: "0",
     width: "32px",
     height: "32px",
   },
@@ -354,12 +333,17 @@ root: {
     marginInline: "auto",
     marginTop: tokens.spacingVerticalXS,
   },
+
+  loadingRow: {
+    padding: "14px",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    color: "#5B6475",
+  },
 });
 
-function getIconClass(
-  styles: ReturnType<typeof useStyles>,
-  type: NotificationType
-): string {
+function getIconClass(styles: ReturnType<typeof useStyles>, type: NotificationTypeUI): string {
   switch (type) {
     case "Application":
       return `${styles.iconContainerBase} ${styles.iconApplication}`;
@@ -370,40 +354,142 @@ function getIconClass(
     case "Profile":
       return `${styles.iconContainerBase} ${styles.iconProfile}`;
     case "Welcome":
-      return `${styles.iconContainerBase} ${styles.iconWelcome}`;
     default:
-      return styles.iconContainerBase;
+      return `${styles.iconContainerBase} ${styles.iconWelcome}`;
   }
 }
 
 export const CandidateNotifications: React.FC = () => {
   const styles = useStyles();
+
   const [selectedTab, setSelectedTab] = React.useState<TabValue>("all");
 
-  const unreadCount = mockNotifications.filter((n) => !n.read).length;
-  const applicationCount = mockNotifications.filter(
-    (n) => n.type === "Application"
-  ).length;
-  const interviewCount = mockNotifications.filter(
-    (n) => n.type === "Interview"
-  ).length;
+  const [items, setItems] = React.useState<NotificationItemUI[]>([]);
+  const [unreadCount, setUnreadCount] = React.useState(0);
+
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
+
+  const fetchNotifications = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const data = await apiGet<NotificationsResponse>(
+        "/api/notifications/me?unreadOnly=false&limit=50"
+      );
+
+      const mapped: NotificationItemUI[] = data.items.map((n) => {
+        const mappedType = mapTypeToUi(n.type);
+        return {
+          id: n._id,
+          type: mappedType.type,
+          icon: mappedType.icon,
+          title: n.title,
+          message: n.message,
+          timestamp: timeAgoFromISO(n.createdAt),
+          read: n.isRead,
+          link: n.link,
+          actionLabel: mappedType.actionLabel,
+        };
+      });
+
+      setItems(mapped);
+      setUnreadCount(data.unreadCount);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load notifications.";
+      setError(msg);
+      setItems([]);
+      setUnreadCount(0);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const applicationCount = React.useMemo(
+    () => items.filter((n) => n.type === "Application").length,
+    [items]
+  );
+  const interviewCount = React.useMemo(
+    () => items.filter((n) => n.type === "Interview").length,
+    [items]
+  );
 
   const notificationsForCurrentTab = React.useMemo(() => {
     switch (selectedTab) {
       case "unread":
-        return mockNotifications.filter((n) => !n.read);
+        return items.filter((n) => !n.read);
       case "applications":
-        return mockNotifications.filter((n) => n.type === "Application");
+        return items.filter((n) => n.type === "Application");
       case "interviews":
-        return mockNotifications.filter((n) => n.type === "Interview");
+        return items.filter((n) => n.type === "Interview");
       case "all":
       default:
-        return mockNotifications;
+        return items;
     }
-  }, [selectedTab]);
+  }, [items, selectedTab]);
 
-  const renderList = (items: NotificationItem[]) => {
-    if (items.length === 0) {
+  const markAllRead = async () => {
+    try {
+      await apiPatch<{ modifiedCount: number; message?: string }>("/api/notifications/read-all");
+      setItems((prev) => prev.map((x) => ({ ...x, read: true })));
+      setUnreadCount(0);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to mark all read.";
+      setError(msg);
+    }
+  };
+
+  const dismissOne = async (id: string) => {
+    // optimistic
+    setItems((prev) => prev.map((x) => (x.id === id ? { ...x, read: true } : x)));
+    setUnreadCount((c) => Math.max(0, c - 1));
+
+    try {
+      await apiPatch<{ message?: string }>(`/api/notifications/${id}/read`);
+    } catch (e: unknown) {
+      // revert by refetch (simple + safe)
+      await fetchNotifications();
+      const msg = e instanceof Error ? e.message : "Failed to dismiss.";
+      setError(msg);
+    }
+  };
+
+  const renderList = (list: NotificationItemUI[]) => {
+    if (loading) {
+      return (
+        <div className={styles.loadingRow}>
+          <Spinner size="small" /> Loading notifications...
+        </div>
+      );
+    }
+
+    if (error && list.length === 0) {
+      return (
+        <Card className={styles.emptyCard} appearance="outline">
+          <div className={styles.emptyIconWrapper}>
+            <Alert20Regular style={{ fontSize: 32, color: "#0B1220" }} />
+          </div>
+          <Text as="h3" weight="semibold" size={500} style={{ color: "#0B1220" }}>
+            Failed to load notifications
+          </Text>
+          <Text size={300} className={styles.emptyMuted}>
+            {error}
+          </Text>
+          <div style={{ marginTop: "12px" }}>
+            <Button appearance="primary" onClick={fetchNotifications}>
+              Retry
+            </Button>
+          </div>
+        </Card>
+      );
+    }
+
+    if (list.length === 0) {
       const isApps = selectedTab === "applications";
       const isInterviews = selectedTab === "interviews";
 
@@ -411,19 +497,12 @@ export const CandidateNotifications: React.FC = () => {
         <Card className={styles.emptyCard} appearance="outline">
           <div className={styles.emptyIconWrapper}>
             {isApps ? (
-              <DocumentText20Regular
-                style={{ fontSize: 32, color: "#0B1220" }}
-              />
+              <DocumentText20Regular style={{ fontSize: 32, color: "#0B1220" }} />
             ) : (
               <Alert20Regular style={{ fontSize: 32, color: "#0B1220" }} />
             )}
           </div>
-          <Text
-            as="h3"
-            weight="semibold"
-            size={500}
-            style={{ color: "#0B1220" }}
-          >
+          <Text as="h3" weight="semibold" size={500} style={{ color: "#0B1220" }}>
             {isApps
               ? "Application Notifications"
               : isInterviews
@@ -432,9 +511,9 @@ export const CandidateNotifications: React.FC = () => {
           </Text>
           <Text size={300} className={styles.emptyMuted}>
             {isApps
-              ? "Filter by application-related notifications."
+              ? "No application updates right now."
               : isInterviews
-              ? "Filter by interview-related notifications."
+              ? "No interview updates right now."
               : "You’re all caught up here."}
           </Text>
         </Card>
@@ -443,41 +522,41 @@ export const CandidateNotifications: React.FC = () => {
 
     return (
       <div className={styles.tabPanels}>
-        {items.map((notification) => {
-          const Icon = notification.icon as React.ElementType;
+        {list.map((n) => {
+          const Icon = n.icon;
+
           const cardClasses = [
             styles.notificationCardBase,
-            !notification.read ? styles.notificationCardUnread : "",
+            !n.read ? styles.notificationCardUnread : "",
           ]
             .filter(Boolean)
             .join(" ");
 
           return (
             <Card
-              key={notification.id}
+              key={n.id}
               className={cardClasses}
               appearance="outline"
+              // Optional: click card to open link
+              onClick={() => {
+                if (n.link) window.location.href = n.link;
+              }}
+              style={{ cursor: n.link ? "pointer" : "default" }}
             >
               <div className={styles.notificationRow}>
-                <div className={getIconClass(styles, notification.type)}>
+                <div className={getIconClass(styles, n.type)}>
                   <Icon />
                 </div>
 
                 <div className={styles.contentColumn}>
                   <div className={styles.titleRow}>
                     <div className={styles.titleWithDot}>
-                      <Text
-                        as="h4"
-                        size={300}
-                        weight="semibold"
-                        className={styles.titleText}
-                      >
-                        {notification.title}
+                      <Text as="h4" size={300} weight="semibold" className={styles.titleText}>
+                        {n.title}
                       </Text>
-                      {!notification.read && (
-                        <span className={styles.unreadDot} />
-                      )}
+                      {!n.read && <span className={styles.unreadDot} />}
                     </div>
+
                     <Badge
                       appearance="outline"
                       style={{
@@ -487,26 +566,31 @@ export const CandidateNotifications: React.FC = () => {
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {notification.type}
+                      {n.type}
                     </Badge>
                   </div>
 
                   <Text size={300} className={styles.messageText}>
-                    {notification.message}
+                    {n.message}
                   </Text>
 
                   <div className={styles.metaRow}>
                     <div className={styles.timestamp}>
                       <Clock20Regular style={{ fontSize: 12 }} />
-                      <span>{notification.timestamp}</span>
+                      <span>{n.timestamp}</span>
                     </div>
-                    {notification.actionLabel && (
+
+                    {n.actionLabel && (
                       <Button
                         appearance="subtle"
                         size="small"
                         style={{ color: "#0118D8", height: 32 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (n.link) window.location.href = n.link;
+                        }}
                       >
-                        {notification.actionLabel}
+                        {n.actionLabel}
                       </Button>
                     )}
                   </div>
@@ -518,6 +602,10 @@ export const CandidateNotifications: React.FC = () => {
                   icon={<Dismiss20Regular />}
                   className={styles.closeButton}
                   aria-label="Dismiss notification"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dismissOne(n.id);
+                  }}
                 />
               </div>
             </Card>
@@ -540,21 +628,18 @@ export const CandidateNotifications: React.FC = () => {
           >
             Notifications
           </Text>
-          <Text
-            as="p" 
-            size={300}
-            className={styles.headerSubtitle}
-          >
-            You have {unreadCount} unread notification
-            {unreadCount !== 1 ? "s" : ""}
+
+          <Text as="p" size={300} className={styles.headerSubtitle}>
+            You have {unreadCount} unread notification{unreadCount !== 1 ? "s" : ""}
           </Text>
         </div>
+
         <div className={styles.headerActions}>
-          <Button appearance="outline" size="small" className={styles.Buttons}>
+          <Button appearance="outline" size="small" className={styles.buttons} onClick={markAllRead}>
             Mark All as Read
           </Button>
-          <Button appearance="outline" size="small" className={styles.Buttons}>
-            Settings
+          <Button appearance="outline" size="small" className={styles.buttons} onClick={fetchNotifications}>
+            Refresh
           </Button>
         </div>
       </div>
@@ -566,7 +651,7 @@ export const CandidateNotifications: React.FC = () => {
           className={styles.tabsList}
           appearance="subtle"
         >
-          <Tab value="all">All ({mockNotifications.length})</Tab>
+          <Tab value="all">All ({items.length})</Tab>
           <Tab value="unread">Unread ({unreadCount})</Tab>
           <Tab value="applications">Applications ({applicationCount})</Tab>
           <Tab value="interviews">Interviews ({interviewCount})</Tab>
@@ -577,3 +662,5 @@ export const CandidateNotifications: React.FC = () => {
     </div>
   );
 };
+
+export default CandidateNotifications;
