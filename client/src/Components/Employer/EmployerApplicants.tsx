@@ -134,7 +134,7 @@ function formatDate(d: string) {
 }
 
 function hiringStatusToTabValue(s: HiringStatus) {
-  return s.toLowerCase().replace(" ", "-"); // under-review
+  return s.toLowerCase().replace(" ", "-"); 
 }
 
 function apiHiringToUI(s: HiringStatusApi): HiringStatus {
@@ -297,7 +297,6 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
     setRows((prev) => prev.map((r) => (r.id === applicationId ? { ...r, hiringStatus: newStatus } : r)));
 
     try {
-      // ✅ backend expects `hiringStatus` (UPPERCASE ENUM)
       await apiPatch(`/api/applications/${applicationId}/status`, {
         hiringStatus: uiHiringToApi(newStatus),
       });

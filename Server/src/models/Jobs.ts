@@ -5,13 +5,13 @@ export type JobStatus = "draft" | "open" | "closed";
 export interface SalaryRange {
   start?: number;
   end?: number;
-  currency?: string; // optional if you want
+  currency?: string;
 }
 
 export interface InterviewSettings {
   maxCandidates?: number;
   interviewDuration?: number;
-  difficultyLevel?: string; // "easy" | "medium" | "hard"
+  difficultyLevel?: string;
   language?: string;
 }
 
@@ -22,11 +22,11 @@ export interface JobDoc {
   title: string;
   about?: string;
 
-  location?: string;  // "hybrid"
-  workType?: string;  // "remote"
+  location?: string; 
+  workType?: string; 
 
-  jobType?: string; // "full-time"
-  salaryRange?: SalaryRange; // ✅ FIX (object)
+  jobType?: string; 
+  salaryRange?: SalaryRange; 
 
   isActive?: boolean;
   workExperience?: number;
@@ -71,7 +71,6 @@ const jobSchema = new Schema<JobDoc>(
 
     jobType: { type: String, trim: true },
 
-    // ✅ FIX: salaryRange as object
     salaryRange: { type: salaryRangeSchema },
 
     isActive: { type: Boolean, default: true },

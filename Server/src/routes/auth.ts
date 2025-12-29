@@ -75,7 +75,6 @@ authRouter.post("/login", async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ message: "Invalid credentials" });
 
-    // prevents: Illegal arguments: string, undefined
     if (!user.passwordHash) {
       return res.status(401).json({ message: "Invalid credentials" });
     }

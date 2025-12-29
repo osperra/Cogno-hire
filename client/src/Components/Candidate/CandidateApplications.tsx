@@ -49,7 +49,6 @@ type ApplicationStatus =
 type InterviewStatus = "Not Started" | "In Progress" | "Completed";
 type TabValue = "all" | "pending" | "hired" | "rejected";
 
-// DB enums
 type HiringStatusApi =
   | "PENDING"
   | "INVITED"

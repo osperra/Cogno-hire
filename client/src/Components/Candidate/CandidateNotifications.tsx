@@ -131,10 +131,6 @@ function timeAgoFromISO(iso: string): string {
   return `${day}d ago`;
 }
 
-/**
- * Map backend types -> UI types + icons.
- * You can refine this mapping anytime.
- */
 function mapTypeToUi(t: NotificationTypeApi): {
   type: NotificationTypeUI;
   icon: React.ElementType;
@@ -445,14 +441,12 @@ export const CandidateNotifications: React.FC = () => {
   };
 
   const dismissOne = async (id: string) => {
-    // optimistic
     setItems((prev) => prev.map((x) => (x.id === id ? { ...x, read: true } : x)));
     setUnreadCount((c) => Math.max(0, c - 1));
 
     try {
       await apiPatch<{ message?: string }>(`/api/notifications/${id}/read`);
     } catch (e: unknown) {
-      // revert by refetch (simple + safe)
       await fetchNotifications();
       const msg = e instanceof Error ? e.message : "Failed to dismiss.";
       setError(msg);
@@ -537,7 +531,6 @@ export const CandidateNotifications: React.FC = () => {
               key={n.id}
               className={cardClasses}
               appearance="outline"
-              // Optional: click card to open link
               onClick={() => {
                 if (n.link) window.location.href = n.link;
               }}

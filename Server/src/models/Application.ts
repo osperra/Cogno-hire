@@ -1,4 +1,3 @@
-// server/models/Application.ts
 import { Schema, model, Types } from "mongoose";
 
 export type InterviewStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED";
@@ -55,7 +54,6 @@ const applicationSchema = new Schema<ApplicationDoc>(
   { timestamps: true }
 );
 
-// prevent duplicate apply (same job + same candidate)
 applicationSchema.index({ jobId: 1, candidateId: 1 }, { unique: true });
 
 export const Application = model<ApplicationDoc>("Application", applicationSchema, "applications");

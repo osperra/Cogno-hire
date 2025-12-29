@@ -5,10 +5,7 @@ import { Application } from "../models/Application.js";
 
 export const dashboardRouter = Router();
 
-/**
- * GET /api/dashboard/employer
- * Employer dashboard summary
- */
+
 dashboardRouter.get(
   "/employer",
   requireAuth,
@@ -16,19 +13,16 @@ dashboardRouter.get(
   async (req: AuthedRequest, res) => {
     const employerId = req.user!.id;
 
-    // find employer jobs
     const jobs = await Job.find({ employerId }).sort({ createdAt: -1 }).limit(5);
 
     const jobIds = jobs.map((j) => j._id);
 
-    // recent applications across my jobs
     const apps = await Application.find({ jobId: { $in: jobIds } })
       .sort({ createdAt: -1 })
       .limit(8)
       .populate("candidateId", "name email")
       .populate("jobId", "title");
 
-    // KPI counts
     const [activeJobPosts, totalResponses, pendingReviews, hired, rejected] =
       await Promise.all([
         Job.countDocuments({ employerId }),
@@ -41,7 +35,6 @@ dashboardRouter.get(
         Application.countDocuments({ jobId: { $in: jobIds }, hiringStatus: "REJECTED" }),
       ]);
 
-    // responses count per job
     const responsesAgg = await Application.aggregate([
       { $match: { jobId: { $in: jobIds } } },
       { $group: { _id: "$jobId", count: { $sum: 1 } } },
