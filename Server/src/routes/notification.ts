@@ -1,3 +1,4 @@
+// server/routes/notifications.ts
 import { Router } from "express";
 import { z } from "zod";
 import { Notification } from "../models/Notification.js";
@@ -5,17 +6,24 @@ import { requireAuth, AuthedRequest } from "../middleware/auth.js";
 
 const notificationsRouter = Router();
 
+/**
+ * GET /api/notifications/me?unreadOnly=false&limit=20
+ * returns: { items: Notification[], unreadCount: number }
+ */
 notificationsRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
   const unreadOnly = String(req.query.unreadOnly ?? "false") === "true";
   const limitRaw = Number(req.query.limit ?? 30);
-  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 30;
+  const limit = Number.isFinite(limitRaw)
+    ? Math.min(Math.max(limitRaw, 1), 100)
+    : 30;
 
-  const filter: any = { userId: req.user!.id };
+  const filter: Record<string, unknown> = { userId: req.user!.id };
   if (unreadOnly) filter.isRead = false;
 
   const items = await Notification.find(filter)
     .sort({ isRead: 1, createdAt: -1 })
-    .limit(limit);
+    .limit(limit)
+    .lean();
 
   const unreadCount = await Notification.countDocuments({
     userId: req.user!.id,
@@ -34,7 +42,7 @@ notificationsRouter.post("/", requireAuth, async (req: AuthedRequest, res) => {
     title: z.string().min(1),
     message: z.string().min(1),
     link: z.string().optional(),
-    meta: z.record(z.string(), z.unknown()).optional(), 
+    meta: z.record(z.string(), z.unknown()).optional(),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -72,7 +80,10 @@ notificationsRouter.patch("/read-all", requireAuth, async (req: AuthedRequest, r
     { $set: { isRead: true } }
   );
 
-  return res.json({ message: "All marked read", modifiedCount: result.modifiedCount ?? 0 });
+  return res.json({
+    message: "All marked read",
+    modifiedCount: (result as any).modifiedCount ?? 0,
+  });
 });
 
 notificationsRouter.delete("/:id", requireAuth, async (req: AuthedRequest, res) => {

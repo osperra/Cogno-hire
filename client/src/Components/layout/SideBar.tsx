@@ -1,4 +1,3 @@
-// client/src/Components/layout/SideBar.tsx
 import { useEffect, useMemo, useState, type JSX } from "react";
 import { Text, Badge, makeStyles } from "@fluentui/react-components";
 import {
@@ -149,7 +148,6 @@ function isActive(currentPath: string, item: NavItem) {
   return startsWithPath(currentPath, item.path);
 }
 
-// ✅ stable constants
 const EMPLOYER_NAV: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: <GridRegular />, path: "/app/employer/dashboard" },
   { id: "jobs", label: "Jobs", icon: <Briefcase20Regular />, path: "/app/employer/jobs" },
@@ -215,7 +213,6 @@ async function apiGet<T>(path: string): Promise<T> {
         throw new Error(`Request failed (${res.status})`);
       }
     }
-    // avoid showing HTML in UI
     throw new Error(`Request failed (${res.status})`);
   }
 
@@ -228,7 +225,6 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
   const styles = useStyles();
   const [expanded, setExpanded] = useState(true);
 
-  // ✅ dynamic counts (no UI changes, just data)
   const [counts, setCounts] = useState<SidebarCounts>({});
 
   useEffect(() => {
@@ -236,7 +232,7 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
 
     (async () => {
       try {
-        const data = await apiGet<SidebarCounts>("/api/sidebar/counts"); // ✅ correct endpoint
+        const data = await apiGet<SidebarCounts>("/api/sidebar/counts"); 
         if (!alive) return;
         setCounts(data || {});
       } catch {
@@ -255,14 +251,12 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
     { id: "settings", label: "Settings", icon: <Settings20Regular />, path: "/app/settings" },
   ];
 
-  // ✅ keep same base nav, but inject badge values dynamically
   const navItems = useMemo(() => {
     const base = userRole === "employer" ? EMPLOYER_NAV : CANDIDATE_NAV;
 
     const toBadge = (n?: number) => (n && n > 0 ? String(n) : null);
 
     return base.map((it) => {
-      // preserve existing static badges (like "New")
       if (it.id === "ai") return it;
 
       if (userRole === "employer") {
@@ -274,7 +268,6 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
         return it;
       }
 
-      // candidate
       if (it.id === "jobs") return { ...it, badge: toBadge(counts.candidateJobs) };
       if (it.id === "applications") return { ...it, badge: toBadge(counts.candidateApplications) };
       if (it.id === "notifications") return { ...it, badge: toBadge(counts.candidateNotificationsUnread) };
