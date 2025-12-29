@@ -28,9 +28,9 @@ type JobFromDB = {
   about?: string;
   description?: string;
 
-  location?: string;  // e.g. "hybrid"
-  workType?: string;  // e.g. "remote"
-  jobType?: string;   // e.g. "full-time"
+  location?: string;  
+  workType?: string; 
+  jobType?: string;   
 
   salaryRange?: SalaryRangeDb;
 
@@ -111,16 +111,12 @@ function salaryToText(sr?: SalaryRangeDb): string {
 function toCard(j: JobFromDB): JobCardUI {
   const skills = (j.techStack ?? j.skills ?? []).filter(Boolean);
 
-  // ✅ Location: prefer `location` ("hybrid") over `workType` ("remote")
   const location = (j.location ?? j.workType ?? "-").toString();
 
-  // ✅ Type: keep as jobType but make it readable
   const type = j.jobType ? titleCase(String(j.jobType)) : "-";
 
-  // ✅ CTC: comes from salaryRange in your DB (object {start,end})
   const ctc = salaryToText(j.salaryRange);
 
-  // ✅ Difficulty: comes from interviewSettings.difficultyLevel (your DB)
   const difficulty = normalizeDifficulty(
     j.interviewSettings?.difficultyLevel ?? j.difficultyLevel ?? j.difficulty
   );

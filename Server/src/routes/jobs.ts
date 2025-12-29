@@ -20,7 +20,6 @@ jobsRouter.get(
   }
 );
 
-// ✅ SalaryRange object schema
 const salaryRangeSchema = z
   .object({
     start: z.number().optional(),
@@ -29,7 +28,6 @@ const salaryRangeSchema = z
   })
   .optional();
 
-// Backward support: allow string too (if any old client sends string)
 const salaryRangeInputSchema = z.union([z.string(), salaryRangeSchema]).optional();
 
 jobsRouter.post(
@@ -67,11 +65,10 @@ jobsRouter.post(
       return res.status(400).json({ message: "Invalid input", issues: parsed.error.issues });
     }
 
-    // normalize salaryRange:
     const sr = parsed.data.salaryRange;
     const normalizedSalaryRange =
       typeof sr === "string"
-        ? undefined // if string comes, ignore or parse if you want
+        ? undefined 
         : sr;
 
     const job = await Job.create({

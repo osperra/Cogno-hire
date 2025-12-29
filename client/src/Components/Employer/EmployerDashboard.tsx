@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { AnimatedStats } from "../ui/AnimatedStats";
 import { QuickActions } from "../ui/QuickActions";
-import { ActivityTimeline } from "../ui/ActivityTimeline";
+import { ActivityTimeline, type ActivityItem } from "../ui/ActivityTimeline";
 import { StatusPill } from "../ui/StatusPill";
 
 import { Card } from "../ui/card";
@@ -57,7 +57,6 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// ✅ safe GET: prevents HTML "Cannot GET..." from being rendered in UI
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { ...authHeaders() },
@@ -111,7 +110,6 @@ async function apiGetFirstOk<T>(paths: string[]): Promise<T> {
   throw lastErr instanceof Error ? lastErr : new Error("All endpoints failed");
 }
 
-/** UI difficulty values (your UI expects these exact strings) */
 type DifficultyUI = "Easy" | "Medium" | "Hard";
 
 function difficultyDbToUi(value: unknown): DifficultyUI {
@@ -137,6 +135,9 @@ type UiJobRow = {
   duration: string;
   difficulty: DifficultyUI;
   responses: number;
+
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type HiringStatus =
@@ -158,6 +159,9 @@ type UiResponseRow = {
   candidateId?: string;
   jobId?: string;
   applicationId?: string;
+
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 function safeInterviewStatus(x: unknown): InterviewStatus {
@@ -177,27 +181,29 @@ function safeHiringStatus(x: unknown): HiringStatus {
   return "Under Review";
 }
 
-/** ---- DB Shapes (matches your shared Mongo doc) ---- */
 type SalaryRangeDb = { start?: number; end?: number; currency?: string };
 
 type InterviewSettingsDb = {
   maxCandidates?: number;
   interviewDuration?: number;
-  difficultyLevel?: unknown; // "easy" | "medium" | "hard"
+  difficultyLevel?: unknown; 
   language?: string;
 };
 
 type JobFromDb = {
   _id: string;
   title?: string;
-  location?: string; // "hybrid"
-  workType?: string; // "remote"
-  jobType?: string; // "full-time"
-  salaryRange?: SalaryRangeDb; // {start,end}
-  workExperience?: number; // 1
+  location?: string;
+  workType?: string;
+  jobType?: string;
+  salaryRange?: SalaryRangeDb;
+  workExperience?: number;
   invitedCandidates?: unknown[];
   interviewSettings?: InterviewSettingsDb;
   isActive?: boolean;
+
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type PopulatedApplication = {
@@ -220,6 +226,9 @@ type PopulatedApplication = {
         _id: string;
         title?: string;
       };
+
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 function getCandidate(x: PopulatedApplication["candidateId"]) {
@@ -259,8 +268,45 @@ function experienceToText(n?: number) {
 }
 
 function durationToText(s?: InterviewSettingsDb) {
-  if (typeof s?.interviewDuration === "number") return `${s.interviewDuration} min`;
+  if (typeof s?.interviewDuration === "number")
+    return `${s.interviewDuration} min`;
   return "—";
+}
+
+function useMediaQuery(maxWidth: number) {
+  const [match, setMatch] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia(`(max-width:${maxWidth}px)`).matches
+      : false
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(`(max-width:${maxWidth}px)`);
+    const handler = () => setMatch(mq.matches);
+    handler();
+    mq.addEventListener?.("change", handler);
+    return () => mq.removeEventListener?.("change", handler);
+  }, [maxWidth]);
+
+  return match;
+}
+
+function timeAgo(iso?: string) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "";
+  const diff = Date.now() - t;
+
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "Just now";
+  if (m < 60) return `${m} min ago`;
+
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hr ago`;
+
+  const d = Math.floor(h / 24);
+  return `${d} day${d > 1 ? "s" : ""} ago`;
 }
 
 export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
@@ -273,7 +319,8 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
   const [errorJobs, setErrorJobs] = useState("");
   const [errorResponses, setErrorResponses] = useState("");
 
-  // ---- fetch jobs ----
+  const isNarrow = useMediaQuery(1024);
+
   useEffect(() => {
     let alive = true;
 
@@ -282,7 +329,6 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
         setLoadingJobs(true);
         setErrorJobs("");
 
-        // ✅ employer-specific first (based on login token)
         const data = await apiGetFirstOk<JobFromDb[]>([
           "/api/jobs/me?limit=5",
           "/api/jobs/me",
@@ -301,7 +347,11 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
           experience: experienceToText(j.workExperience),
           duration: durationToText(j.interviewSettings),
           difficulty: difficultyDbToUi(j.interviewSettings?.difficultyLevel),
-          responses: Array.isArray(j.invitedCandidates) ? j.invitedCandidates.length : 0,
+          responses: Array.isArray(j.invitedCandidates)
+            ? j.invitedCandidates.length
+            : 0,
+          createdAt: j.createdAt,
+          updatedAt: j.updatedAt,
         }));
 
         setJobs(mapped);
@@ -317,7 +367,6 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
     };
   }, []);
 
-  // ---- fetch recent responses (applications) ----
   useEffect(() => {
     let alive = true;
 
@@ -350,12 +399,16 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
             interviewStatus: safeInterviewStatus(a.interviewStatus),
             hiringStatus: safeHiringStatus(a.hiringStatus),
             score: typeof a.overallScore === "number" ? a.overallScore : null,
+            createdAt: a.createdAt,
+            updatedAt: a.updatedAt,
           };
         });
 
         setResponses(mapped);
       } catch (e: unknown) {
-        setErrorResponses(e instanceof Error ? e.message : "Failed to load responses.");
+        setErrorResponses(
+          e instanceof Error ? e.message : "Failed to load responses."
+        );
       } finally {
         if (alive) setLoadingResponses(false);
       }
@@ -366,19 +419,91 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
     };
   }, []);
 
-  // ✅ KPI (derived dynamically, UI unchanged)
   const kpis = useMemo(() => {
     const activeJobPosts = jobs.length;
     const totalResponses = responses.length;
 
-    const pendingReviews = responses.filter((r) => r.hiringStatus === "Under Review").length;
+    const pendingReviews = responses.filter(
+      (r) => r.hiringStatus === "Under Review"
+    ).length;
     const hired = responses.filter((r) => r.hiringStatus === "Hired").length;
     const rejected = responses.filter((r) => r.hiringStatus === "Rejected").length;
 
     return { activeJobPosts, totalResponses, pendingReviews, hired, rejected };
   }, [jobs, responses]);
 
-  // ---- UI styles (unchanged) ----
+  const activities = useMemo<ActivityItem[]>(() => {
+    const jobActs: ActivityItem[] = jobs.map((j) => {
+      const ts = j.createdAt || j.updatedAt;
+
+      return {
+        icon: Briefcase20Regular as unknown as ActivityItem["icon"],
+        bg: "rgba(37,99,235,0.12)",
+        color: "#2563EB",
+        title: "Job posted",
+        description: j.title,
+        time: ts ? timeAgo(ts) : "",
+        timeSort: ts ?? 0,
+      };
+    });
+
+    const respActs: ActivityItem[] = responses.map((r) => {
+      const ts = r.createdAt || r.updatedAt;
+
+      const title =
+        r.hiringStatus === "Hired"
+          ? "Candidate hired"
+          : r.hiringStatus === "Rejected"
+          ? "Candidate rejected"
+          : r.hiringStatus === "Under Review"
+          ? "Application under review"
+          : "New response received";
+
+      const bg =
+        r.hiringStatus === "Hired"
+          ? "rgba(22,163,74,0.12)"
+          : r.hiringStatus === "Rejected"
+          ? "rgba(220,38,38,0.12)"
+          : "rgba(249,115,22,0.12)";
+
+      const color =
+        r.hiringStatus === "Hired"
+          ? "#16A34A"
+          : r.hiringStatus === "Rejected"
+          ? "#DC2626"
+          : "#F97316";
+
+      const icon =
+        r.hiringStatus === "Hired"
+          ? (CheckmarkCircle20Regular as unknown as ActivityItem["icon"])
+          : r.hiringStatus === "Rejected"
+          ? (DismissCircle20Regular as unknown as ActivityItem["icon"])
+          : (Clock20Regular as unknown as ActivityItem["icon"]);
+
+      return {
+        icon,
+        bg,
+        color,
+        title,
+        description: `${r.candidate} • ${r.job}`,
+        time: ts ? timeAgo(ts) : "",
+        timeSort: ts ?? 0,
+      };
+    });
+
+    const merged = [...jobActs, ...respActs];
+
+    merged.sort((a, b) => {
+      const ta =
+        typeof a.timeSort === "string" ? new Date(a.timeSort).getTime() : Number(a.timeSort || 0);
+      const tb =
+        typeof b.timeSort === "string" ? new Date(b.timeSort).getTime() : Number(b.timeSort || 0);
+      return tb - ta;
+    });
+
+    return merged.slice(0, 4);
+  }, [jobs, responses]);
+
   const pageContainerStyle: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
@@ -395,20 +520,19 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
 
   const kpiGridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-    gap: 16,
-  };
-
-  const kpiGridResponsiveWrapper: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
+    gridTemplateColumns: isNarrow
+      ? "repeat(2, minmax(0, 1fr))"
+      : "repeat(5, minmax(0, 1fr))",
     gap: 16,
   };
 
   const largeGridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "2fr 1fr",
+    gridTemplateColumns: isNarrow
+      ? "1fr"
+      : "minmax(0, 2fr) minmax(320px, 1fr)",
     gap: 24,
+    alignItems: "start", 
   };
 
   const sectionHeaderStyle: React.CSSProperties = {
@@ -448,51 +572,53 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
 
   return (
     <div style={pageContainerStyle}>
-      <div style={kpiGridResponsiveWrapper}>
-        <div style={kpiGridStyle}>
-          <AnimatedStats
-            title="Active Job Posts"
-            value={kpis.activeJobPosts}
-            icon={Briefcase20Regular}
-            color="primary"
-          />
-          <AnimatedStats
-            title="Total Responses"
-            value={kpis.totalResponses}
-            icon={People20Regular}
-            trend={{ value: "Live", isPositive: true }}
-          />
-          <AnimatedStats
-            title="Pending Reviews"
-            value={kpis.pendingReviews}
-            icon={Clock20Regular}
-            color="warning"
-          />
-          <AnimatedStats
-            title="Hired"
-            value={kpis.hired}
-            icon={CheckmarkCircle20Regular}
-            color="success"
-          />
-          <AnimatedStats
-            title="Rejected"
-            value={kpis.rejected}
-            icon={DismissCircle20Regular}
-            color="danger"
-          />
-        </div>
+      <div style={kpiGridStyle}>
+        <AnimatedStats
+          title="Active Job Posts"
+          value={kpis.activeJobPosts}
+          icon={Briefcase20Regular}
+          color="primary"
+        />
+        <AnimatedStats
+          title="Total Responses"
+          value={kpis.totalResponses}
+          icon={People20Regular}
+          trend={{ value: "Live", isPositive: true }}
+        />
+        <AnimatedStats
+          title="Pending Reviews"
+          value={kpis.pendingReviews}
+          icon={Clock20Regular}
+          color="warning"
+        />
+        <AnimatedStats
+          title="Hired"
+          value={kpis.hired}
+          icon={CheckmarkCircle20Regular}
+          color="success"
+        />
+        <AnimatedStats
+          title="Rejected"
+          value={kpis.rejected}
+          icon={DismissCircle20Regular}
+          color="danger"
+        />
       </div>
 
       <div style={largeGridStyle}>
-        <div>
+        <div style={{ alignSelf: "start" }}>
           <QuickActions userRole="employer" onNavigate={onNavigate} />
         </div>
-        <div>
-          <ActivityTimeline userRole="employer" />
+
+        <div style={{ height: "100%" }}>
+          <ActivityTimeline
+            userRole="employer"
+            loading={loadingJobs || loadingResponses}
+            activities={activities}
+          />
         </div>
       </div>
 
-      {/* Recent Job Posts */}
       <Card style={tableCardStyle}>
         <div style={sectionHeaderStyle}>
           <h3 style={sectionTitleStyle}>Recent Job Posts</h3>
@@ -556,14 +682,14 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                       cursor: "default",
                       transition: "background-color 0.15s ease-in-out",
                     }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                        "#F3F4F6";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                        "transparent";
-                    }}
+                    onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                        "#F3F4F6")
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                        "transparent")
+                    }
                   >
                     <TableCell>
                       <div style={{ color: "#0B1220", fontWeight: 500 }}>
@@ -627,7 +753,6 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
         </div>
       </Card>
 
-      {/* Recent Responses */}
       <Card style={tableCardStyle}>
         <div style={sectionHeaderStyle}>
           <h3 style={sectionTitleStyle}>Recent Responses</h3>
@@ -689,14 +814,14 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                       cursor: "default",
                       transition: "background-color 0.15s ease-in-out",
                     }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                        "#F3F4F6";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                        "transparent";
-                    }}
+                    onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                        "#F3F4F6")
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLTableRowElement).style.backgroundColor =
+                        "transparent")
+                    }
                   >
                     <TableCell>
                       <div style={{ color: "#0B1220", fontWeight: 500 }}>

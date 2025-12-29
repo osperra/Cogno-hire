@@ -15,5 +15,4 @@ const UserSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Force collection "users"
 export const User = mongoose.models.User || mongoose.model("User", UserSchema, "users");

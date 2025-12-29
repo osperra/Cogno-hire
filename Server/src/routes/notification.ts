@@ -34,7 +34,7 @@ notificationsRouter.post("/", requireAuth, async (req: AuthedRequest, res) => {
     title: z.string().min(1),
     message: z.string().min(1),
     link: z.string().optional(),
-    meta: z.record(z.string(), z.unknown()).optional(), // ✅ FIX for Zod v4
+    meta: z.record(z.string(), z.unknown()).optional(), 
   });
 
   const parsed = schema.safeParse(req.body);

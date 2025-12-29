@@ -1,4 +1,3 @@
-// server/routes/applications.ts
 import { Router } from "express";
 import { z } from "zod";
 import { Application } from "../models/Application.js";
@@ -7,10 +6,7 @@ import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth.js";
 
 export const applicationsRouter = Router();
 
-/**
- * Candidate applies to job
- * POST /api/applications/:jobId
- */
+
 applicationsRouter.post(
   "/:jobId",
   requireAuth,
@@ -47,7 +43,6 @@ applicationsRouter.post(
 
       return res.status(201).json(app);
     } catch (e: any) {
-      // prevent duplicate apply (same job + same candidate)
       if (e?.code === 11000) {
         return res.status(409).json({ message: "Already applied for this job" });
       }
@@ -57,10 +52,7 @@ applicationsRouter.post(
   }
 );
 
-/**
- * Candidate - my applications (dynamic + populated)
- * GET /api/applications/me?tab=all|pending|hired|rejected&q=...
- */
+
 applicationsRouter.get(
   "/me",
   requireAuth,
@@ -84,7 +76,7 @@ applicationsRouter.get(
 
     let apps: any[] = await Application.find(match)
       .sort({ createdAt: -1 })
-      .populate("jobId", "title location company") // adjust these fields based on Job schema
+      .populate("jobId", "title location company")
       .lean();
 
     if (q) {
@@ -109,10 +101,7 @@ applicationsRouter.get(
   }
 );
 
-/**
- * Employer/HR - view applicants for my jobs
- * GET /api/applications/employer?jobId=...
- */
+
 applicationsRouter.get(
   "/employer",
   requireAuth,
@@ -123,7 +112,6 @@ applicationsRouter.get(
     const match: any = {};
     if (jobId) match.jobId = jobId;
 
-    // Only applications for jobs created by this employer
     const jobs = await Job.find({ employerId: req.user!.id }).select("_id");
     const jobIds = jobs.map((j) => j._id);
 
@@ -138,16 +126,7 @@ applicationsRouter.get(
   }
 );
 
-/**
- * Employer/HR update statuses
- * PATCH /api/applications/:id/status
- *
- * Body:
- * { hiringStatus?: "PENDING"|"INVITED"|"UNDER_REVIEW"|"SHORTLISTED"|"HIRED"|"REJECTED",
- *   interviewStatus?: "PENDING"|"IN_PROGRESS"|"COMPLETED",
- *   overallScore?: number,
- *   communication?: string }
- */
+
 applicationsRouter.patch(
   "/:id/status",
   requireAuth,

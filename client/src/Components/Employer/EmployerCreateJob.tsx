@@ -1,4 +1,3 @@
-// client/src/Components/Employer/EmployerCreateJob.tsx
 import { useState, type KeyboardEvent } from "react";
 import {
   Badge,
@@ -78,7 +77,6 @@ const useStyles = makeStyles({
   rightActions: { display: "flex", columnGap: "8px" },
 });
 
-// ---- helpers ----
 function wrapAsHtmlParagraph(text: string) {
   const t = text.trim();
   if (!t) return "";
@@ -114,21 +112,17 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // step 1
   const [title, setTitle] = useState("");
   const [jobType, setJobType] = useState<"full-time" | "part-time" | "contract" | "internship">("full-time");
   const [location, setLocation] = useState("");
-  const [workType, setWorkType] = useState<"remote" | "hybrid" | "on-site">("remote"); // ✅ user provided via dropdown
+  const [workType, setWorkType] = useState<"remote" | "hybrid" | "on-site">("remote"); 
   const [workExperienceText, setWorkExperienceText] = useState("");
   const [salaryRangeText, setSalaryRangeText] = useState("");
   const [description, setDescription] = useState("");
 
-  // step 2
-  const [selectedSkills, setSelectedSkills] = useState<string[]>(["React", "TypeScript"]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState("");
 
-  // step 3 (✅ user inputs; no manual/hardcode)
   const [maxCandidatesText, setMaxCandidatesText] = useState("1");
   const [interviewDurationText, setInterviewDurationText] = useState("10");
   const [difficultyLevel, setDifficultyLevel] = useState<"easy" | "medium" | "hard">("easy");
@@ -192,14 +186,13 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
       title: title.trim(),
       about: wrapAsHtmlParagraph(description),
       location: location.trim(),
-      workType, // ✅ from user
+      workType, 
       salaryRange: { start: salaryRange.start, end: salaryRange.end },
       jobType,
       isActive: true,
       workExperience,
       techStack: selectedSkills,
 
-      // ✅ NOT manual now — all user-controlled
       interviewSettings: {
         maxCandidates,
         interviewDuration,
@@ -410,7 +403,6 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
                 <div className={styles.sectionSubtitle}>Configure how the AI will conduct interviews for this role.</div>
               </div>
 
-              {/* ✅ User provides duration + difficulty now */}
               <div className={styles.formGridTwo}>
                 <div className={styles.formRow}>
                   <label className={styles.label}>

@@ -1,4 +1,3 @@
-// client/src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import type { ReactNode } from "react";
 
@@ -25,12 +24,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public */}
         <Route path="/" element={<LandingPage onGetStarted={() => (window.location.href = "/login")} onOpenDesignSystem={() => (window.location.href = "/design-system")} />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* Protected */}
         <Route element={<AppShell />}>
           <Route path="/app/*" element={<AppLayout />} />
         </Route>

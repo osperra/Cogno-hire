@@ -1,4 +1,3 @@
-// client/src/Components/Employer/EmployerJobs.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
@@ -42,7 +41,6 @@ interface EmployerJobsProps {
   onNavigate: (page: string, data?: Record<string, unknown>) => void;
 }
 
-/** ---- DB Shapes (supports BOTH object + string to be safe) ---- */
 type SalaryRangeDb =
   | {
       start?: number;
@@ -54,18 +52,18 @@ type SalaryRangeDb =
 type InterviewSettingsDb = {
   interviewDuration?: number;
   maxCandidates?: number;
-  difficultyLevel?: string; // "easy"
+  difficultyLevel?: string; 
 };
 
 type JobFromDB = {
   _id: string;
   title?: string;
 
-  location?: string; // "hybrid"
-  workType?: string; // "remote"
+  location?: string;
+  workType?: string; 
 
-  salaryRange?: SalaryRangeDb; // ✅ your real DB shows object
-  jobType?: string; // "full-time"
+  salaryRange?: SalaryRangeDb; 
+  jobType?: string;
 
   isActive?: boolean;
   status?: "draft" | "open" | "closed";
@@ -78,7 +76,6 @@ type JobFromDB = {
   createdAt?: string;
 };
 
-/** ---- UI Types (do NOT change UI) ---- */
 type DifficultyUI = "Easy" | "Medium" | "Hard";
 type StatusUI = "Active" | "Draft" | "Closed";
 
@@ -96,7 +93,6 @@ type JobRowUI = {
   datePosted: string;
 };
 
-/** ---- Helpers ---- */
 function formatDate(d?: string) {
   if (!d) return "-";
   const dt = new Date(d);
@@ -133,11 +129,9 @@ function mapStatus(j: JobFromDB): StatusUI {
   return "Active";
 }
 
-/** ✅ CTC comes from salaryRange.start/end (and supports salaryRange string too) */
 function salaryToText(sr?: SalaryRangeDb) {
   if (!sr) return "-";
 
-  // if salaryRange ever comes as string from API
   if (typeof sr === "string") {
     const t = sr.trim();
     return t ? t : "-";
@@ -153,12 +147,10 @@ function salaryToText(sr?: SalaryRangeDb) {
   return `${cur}Up to ${end}`;
 }
 
-/** ✅ Location: show DB.location first (hybrid), fallback to workType */
 function pickLocation(j: JobFromDB) {
   return String(j.location ?? j.workType ?? "-");
 }
 
-/** ✅ Type: show jobType ("full-time") */
 function pickJobType(j: JobFromDB) {
   return j.jobType ? titleCase(String(j.jobType)) : "-";
 }
@@ -248,7 +240,6 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
   const allChecked =
     filteredJobs.length > 0 && selectedJobs.length === filteredJobs.length;
 
-  // ✅ keep your styles exactly like your original UI
   const toolbarContainerStyle: React.CSSProperties = {
     display: "flex",
     flexDirection: "row",

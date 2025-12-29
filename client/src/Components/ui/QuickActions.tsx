@@ -31,7 +31,10 @@ const useStyles = makeStyles({
     boxShadow: "0 18px 40px rgba(15,23,42,0.04)",
     backgroundColor: "#FFFFFF",
     padding: 0,
-    height:"80%",
+
+    height: "80%",
+    display: "flex",
+    flexDirection: "column",
   },
 
   header: {
@@ -54,6 +57,7 @@ const useStyles = makeStyles({
     backgroundColor: "#FFFFFF",
     ...shorthands.borderRadius("0 0 16px 16px"),
 
+    flex: 1, 
     "@media (max-width: 480px)": {
       padding: "12px 14px 14px 14px",
     },
