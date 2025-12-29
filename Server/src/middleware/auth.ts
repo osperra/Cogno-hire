@@ -2,9 +2,12 @@ import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 
 export type AuthedUser = { id: string; role: string };
+
 export interface AuthedRequest extends Request {
   user?: AuthedUser;
 }
+
+type JwtWithRole = jwt.JwtPayload & { role?: unknown };
 
 function getJwtSecret() {
   const s = process.env.JWT_SECRET;
@@ -21,9 +24,11 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
   if (!token) return res.status(401).json({ message: "Missing auth token" });
 
   try {
-    const payload = jwt.verify(token, secret) as jwt.JwtPayload;
-    const userId = payload.sub;
-    const role = String((payload as any).role ?? "");
+    const payload = jwt.verify(token, secret) as JwtWithRole;
+
+    const userId = payload.sub; 
+    const role = typeof payload.role === "string" ? payload.role : "";
+
     if (!userId) return res.status(401).json({ message: "Invalid token" });
 
     req.user = { id: String(userId), role };

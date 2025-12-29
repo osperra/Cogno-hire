@@ -32,6 +32,8 @@ import { ActivityTimeline } from "../ui/ActivityTimeline";
 import { FeatureHighlight } from "../ui/FeatureHighlight";
 import { StatusPill } from "../ui/StatusPill";
 
+import { api } from "../../api/http";
+
 interface CandidateHomeProps {
   onNavigate: (page: string, data?: Record<string, unknown>) => void;
 }
@@ -116,6 +118,93 @@ const mockRecommended: RecommendedJob[] = [
 ];
 
 type TabValue = "recommended" | "invited";
+
+
+type JsonObject = Record<string, unknown>;
+
+function isRecord(v: unknown): v is JsonObject {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function getString(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+function getPath(obj: unknown, path: string[]): unknown {
+  let cur: unknown = obj;
+  for (const key of path) {
+    if (!isRecord(cur)) return undefined;
+    cur = cur[key];
+  }
+  return cur;
+}
+
+function pickNameFromMe(me: unknown): string {
+  const direct =
+    getString(getPath(me, ["name"])) ||
+    getString(getPath(me, ["fullName"])) ||
+    getString(getPath(me, ["username"])) ||
+    getString(getPath(me, ["displayName"])) ||
+    getString(getPath(me, ["email"]));
+
+  if (direct) return direct;
+
+  const nested =
+    getString(getPath(me, ["user", "name"])) ||
+    getString(getPath(me, ["user", "fullName"])) ||
+    getString(getPath(me, ["user", "username"])) ||
+    getString(getPath(me, ["user", "displayName"])) ||
+    getString(getPath(me, ["user", "email"])) ||
+    getString(getPath(me, ["data", "name"])) ||
+    getString(getPath(me, ["data", "fullName"])) ||
+    getString(getPath(me, ["data", "username"])) ||
+    getString(getPath(me, ["data", "user", "name"])) ||
+    getString(getPath(me, ["profile", "name"])) ||
+    getString(getPath(me, ["profile", "fullName"]));
+
+  return nested;
+}
+
+function getToken(): string | null {
+  return localStorage.getItem("token") || sessionStorage.getItem("token");
+}
+
+function parseJwtPayload(token: string): JsonObject | null {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+
+    const parsed: unknown = JSON.parse(jsonPayload);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function pickNameFromToken(): string {
+  const token = getToken();
+  if (!token) return "";
+
+  const payload = parseJwtPayload(token);
+  if (!payload) return "";
+
+  return (
+    getString(payload["name"]) ||
+    getString(payload["fullName"]) ||
+    getString(payload["username"]) ||
+    getString(payload["email"]) ||
+    getString(payload["sub"])
+  );
+}
+
 
 const useStyles = makeStyles({
   root: {
@@ -513,10 +602,47 @@ const useStyles = makeStyles({
   },
 });
 
+
 export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
   const styles = useStyles();
   const profileCompletion = 75;
+
   const [selectedTab, setSelectedTab] = React.useState<TabValue>("recommended");
+
+  const [displayName, setDisplayName] = React.useState<string>("");
+
+  React.useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const me = await api<unknown>("/me", {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+          headers: {
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        });
+
+
+        const nameFromApi = pickNameFromMe(me);
+        const nameFromToken = pickNameFromToken();
+
+        const finalName = nameFromApi || nameFromToken;
+
+        if (alive) setDisplayName(finalName);
+      } catch  {
+        const tokenName = pickNameFromToken();
+        if (alive) setDisplayName(tokenName);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
     <div className={styles.root}>
@@ -524,13 +650,8 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
         <div className={styles.welcomeAccent} />
         <div className={styles.welcomeContent}>
           <div className={styles.welcomeText}>
-            <Text
-              as="h2"
-              weight="semibold"
-              size={600}
-              style={{ color: "#0B1220" }}
-            >
-              Welcome back, John! 👋
+            <Text as="h2" weight="semibold" size={600} style={{ color: "#0B1220" }}>
+              Welcome back, {displayName || "User"}! 👋
             </Text>
 
             <Text size={300} style={{ color: "#5B6475" }}>
@@ -562,12 +683,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
       <Card className={styles.profileCard} appearance="outline">
         <div className={styles.profileHeader}>
           <div className={styles.profileHeaderText}>
-            <Text
-              as="h3"
-              weight="semibold"
-              size={500}
-              style={{ color: "#0B1220" }}
-            >
+            <Text as="h3" weight="semibold" size={500} style={{ color: "#0B1220" }}>
               Complete Your Profile
             </Text>
             <Text size={300} style={{ color: "#5B6475" }}>
@@ -595,18 +711,10 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
             </div>
 
             <div className={styles.profileTaskContent}>
-              <Text
-                weight="semibold"
-                size={300}
-                style={{ color: "#0B1220", marginBottom: 2 }}
-              >
+              <Text weight="semibold" size={300} style={{ color: "#0B1220", marginBottom: 2 }}>
                 Add work experience
               </Text>
-              <Button
-                appearance="transparent"
-                size="small"
-                className={styles.linkButton}
-              >
+              <Button appearance="transparent" size="small" className={styles.linkButton}>
                 Add now →
               </Button>
             </div>
@@ -618,18 +726,10 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
             </div>
 
             <div className={styles.profileTaskContent}>
-              <Text
-                weight="semibold"
-                size={300}
-                style={{ color: "#0B1220", marginBottom: 2 }}
-              >
+              <Text weight="semibold" size={300} style={{ color: "#0B1220", marginBottom: 2 }}>
                 Upload your resume
               </Text>
-              <Button
-                appearance="transparent"
-                size="small"
-                className={styles.linkButton}
-              >
+              <Button appearance="transparent" size="small" className={styles.linkButton}>
                 Upload →
               </Button>
             </div>
@@ -641,18 +741,10 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
             </div>
 
             <div className={styles.profileTaskContent}>
-              <Text
-                weight="semibold"
-                size={300}
-                style={{ color: "#0B1220", marginBottom: 2 }}
-              >
+              <Text weight="semibold" size={300} style={{ color: "#0B1220", marginBottom: 2 }}>
                 Add skills & certifications
               </Text>
-              <Button
-                appearance="transparent"
-                size="small"
-                className={styles.linkButton}
-              >
+              <Button appearance="transparent" size="small" className={styles.linkButton}>
                 Add now →
               </Button>
             </div>
@@ -661,24 +753,9 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
       </Card>
 
       <div className={styles.statsGrid}>
-        <AnimatedStats
-          title="Total Applications"
-          value={12}
-          icon={DocumentText20Regular}
-          color="primary"
-        />
-        <AnimatedStats
-          title="Pending Interviews"
-          value={3}
-          icon={Clock20Regular}
-          color="warning"
-        />
-        <AnimatedStats
-          title="Offers Received"
-          value={1}
-          icon={CheckmarkCircle20Regular}
-          color="success"
-        />
+        <AnimatedStats title="Total Applications" value={12} icon={DocumentText20Regular} color="primary" />
+        <AnimatedStats title="Pending Interviews" value={3} icon={Clock20Regular} color="warning" />
+        <AnimatedStats title="Offers Received" value={1} icon={CheckmarkCircle20Regular} color="success" />
       </div>
 
       <div className={styles.mainGrid}>
@@ -726,11 +803,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
 
                     <div className={styles.jobHeaderRight}>
                       <div className={styles.jobMatchContainer}>
-                        <Text
-                          weight="semibold"
-                          size={500}
-                          style={{ color: "#16A34A" }}
-                        >
+                        <Text weight="semibold" size={500} style={{ color: "#16A34A" }}>
                           {job.match}%
                         </Text>
                         <Text size={200} style={{ color: "#5B6475" }}>
@@ -738,10 +811,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                         </Text>
                       </div>
 
-                      <Button
-                        appearance="primary"
-                        style={{ backgroundColor: "#0118D8", border: "none" }}
-                      >
+                      <Button appearance="primary" style={{ backgroundColor: "#0118D8", border: "none" }}>
                         View Details
                       </Button>
                     </div>
@@ -761,16 +831,9 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
             <div className={styles.tabPanels}>
               <Card className={styles.invitedCard} appearance="outline">
                 <div className={styles.invitedIconWrapper}>
-                  <Briefcase20Regular
-                    style={{ fontSize: 32, color: "#0B1220" }}
-                  />
+                  <Briefcase20Regular style={{ fontSize: 32, color: "#0B1220" }} />
                 </div>
-                <Text
-                  as="h3"
-                  weight="semibold"
-                  size={300}
-                  style={{ color: "#020202ff", marginBottom: 4 }}
-                >
+                <Text as="h3" weight="semibold" size={300} style={{ color: "#020202ff", marginBottom: 4 }}>
                   No Direct Invitations Yet
                 </Text>
                 <Text
@@ -783,14 +846,9 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                     display: "block",
                   }}
                 >
-                  When employers specifically invite you to apply for their open
-                  positions, they'll appear here.
+                  When employers specifically invite you to apply for their open positions, they'll appear here.
                 </Text>
-                <Button
-                  appearance="outline"
-                  onClick={() => onNavigate("jobs")}
-                  className={styles.browseAllJobsButton}
-                >
+                <Button appearance="outline" onClick={() => onNavigate("jobs")} className={styles.browseAllJobsButton}>
                   Browse All Jobs
                 </Button>
               </Card>
@@ -800,19 +858,10 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
 
         <Card className={styles.applicationsCard} appearance="outline">
           <div className={styles.applicationsHeader}>
-            <Text
-              as="h3"
-              weight="semibold"
-              size={500}
-              style={{ color: "#0B1220" }}
-            >
+            <Text as="h3" weight="semibold" size={500} style={{ color: "#0B1220" }}>
               Recent Applications
             </Text>
-            <Button
-              appearance="subtle"
-              size="small"
-              onClick={() => onNavigate("applications")}
-            >
+            <Button appearance="subtle" size="small" onClick={() => onNavigate("applications")}>
               <h4>View All</h4>
             </Button>
           </div>
@@ -836,9 +885,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                     <TableCell>
                       <span className={styles.mobileLabel}>Company</span>
                       <div className={styles.companyCell}>
-                        <div className={styles.companyLogo}>
-                          {app.companyLogo}
-                        </div>
+                        <div className={styles.companyLogo}>{app.companyLogo}</div>
                         <Text weight="semibold" style={{ color: "#0B1220" }}>
                           {app.company}
                         </Text>
@@ -852,9 +899,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
 
                     <TableCell>
                       <span className={styles.mobileLabel}>Applied Date</span>
-                      <Text style={{ color: "#5B6475" }}>
-                        {app.appliedDate}
-                      </Text>
+                      <Text style={{ color: "#5B6475" }}>{app.appliedDate}</Text>
                     </TableCell>
 
                     <TableCell className={styles.statusCell}>
@@ -890,11 +935,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                           size="small"
                           appearance="primary"
                           style={{ backgroundColor: "#0118D8", border: "none" }}
-                          onClick={() =>
-                            onNavigate("interview-room", {
-                              applicationId: app.id,
-                            })
-                          }
+                          onClick={() => onNavigate("interview-room", { applicationId: app.id })}
                         >
                           <PlayRegular className={styles.iconInline} />
                           Start Interview
@@ -903,13 +944,9 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                         <Button
                           size="small"
                           appearance="outline"
-                          onClick={() =>
-                            onNavigate("results", { applicationId: app.id })
-                          }
+                          onClick={() => onNavigate("results", { applicationId: app.id })}
                         >
-                          <DataHistogram20Regular
-                            className={styles.iconInline}
-                          />
+                          <DataHistogram20Regular className={styles.iconInline} />
                           View Results
                         </Button>
                       )}
