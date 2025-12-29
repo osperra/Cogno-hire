@@ -12,13 +12,11 @@ sidebarRouter.get("/counts", requireAuth, async (req: AuthedRequest, res) => {
     const role = req.user!.role;
     const userId = req.user!.id;
 
-    // ✅ cast once (safe even if already ObjectId-ish)
     const userObjectId = mongoose.Types.ObjectId.isValid(userId)
       ? new mongoose.Types.ObjectId(userId)
       : null;
 
     if (role === "employer" || role === "hr") {
-      // ✅ try both (string + ObjectId) to avoid schema mismatch pain
       const employerMatch = userObjectId
         ? { $in: [userId, userObjectId] }
         : userId;

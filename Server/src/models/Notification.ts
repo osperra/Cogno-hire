@@ -1,3 +1,4 @@
+// server/models/Notification.ts
 import { Schema, model, Types } from "mongoose";
 
 export type NotificationType =
@@ -37,4 +38,8 @@ const notificationSchema = new Schema<NotificationDoc>(
   { timestamps: true }
 );
 
-export const Notification = model<NotificationDoc>("Notification", notificationSchema, "notifications");
+export const Notification = model<NotificationDoc>(
+  "Notification",
+  notificationSchema,
+  "notifications"
+);
