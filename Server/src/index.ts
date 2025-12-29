@@ -7,6 +7,8 @@ import authRouter from "./routes/auth.js";
 import { jobsRouter } from "./routes/jobs.js";
 import { applicationsRouter } from "./routes/applications.js";
 import notificationsRouter from "./routes/notification.js";
+import meRoutes from "./routes/me";
+
 
 dotenv.config();
 
@@ -20,6 +22,8 @@ app.use(
 );
 
 app.use(express.json());
+app.use(meRoutes);
+
 
 app.get("/", (_req, res) => res.json({ ok: true, name: "CognoHire API" }));
 
