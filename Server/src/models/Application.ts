@@ -56,4 +56,5 @@ const applicationSchema = new Schema<ApplicationDoc>(
 
 applicationSchema.index({ jobId: 1, candidateId: 1 }, { unique: true });
 
-export const Application = model<ApplicationDoc>("Application", applicationSchema, "applications");
+export const Application =
+  model<ApplicationDoc>("Application", applicationSchema, "applications");
