@@ -33,6 +33,7 @@ import {
 } from "@fluentui/react-icons";
 
 import { StatusPill } from "../ui/StatusPill";
+import { api } from "../../api/http";
 
 interface CandidateApplicationsProps {
   onNavigate: (page: string, data?: Record<string, unknown>) => void;
@@ -89,32 +90,12 @@ type ApplicationUI = {
   score: number | null;
 };
 
-const API_BASE =
-  (import.meta.env?.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ||
-  "http://localhost:5000";
-
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-type ApiErrorBody = { message?: string };
-
-async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { headers: { ...authHeaders() } });
-  const raw = await res.text().catch(() => "");
-
-  if (!res.ok) {
-    try {
-      const j = raw ? (JSON.parse(raw) as ApiErrorBody) : {};
-      throw new Error(j?.message || `Request failed (${res.status})`);
-    } catch {
-      throw new Error(raw || `Request failed (${res.status})`);
-    }
-  }
-
-  return raw ? (JSON.parse(raw) as T) : ({} as T);
-}
+type CandidateCountsResponse = {
+  all: number;
+  pending: number;
+  hired: number;
+  rejected: number;
+};
 
 function formatDate(d: string) {
   const date = new Date(d);
@@ -362,7 +343,9 @@ const useStyles = makeStyles({
   },
 });
 
-export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ onNavigate }) => {
+export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({
+  onNavigate,
+}) => {
   const styles = useStyles();
 
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -372,6 +355,13 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
 
+  const [counts, setCounts] = React.useState<CandidateCountsResponse>({
+    all: 0,
+    pending: 0,
+    hired: 0,
+    rejected: 0,
+  });
+
   const getStatusType = (status: ApplicationStatus) => {
     if (status === "Hired") return "success";
     if (status === "Rejected") return "danger";
@@ -380,6 +370,30 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
     if (status === "Interview In Progress") return "warning";
     return "pending";
   };
+
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const c = await api<CandidateCountsResponse>(
+          "/api/applications/candidate/counts"
+        );
+        if (!alive) return;
+        setCounts({
+          all: c?.all ?? 0,
+          pending: c?.pending ?? 0,
+          hired: c?.hired ?? 0,
+          rejected: c?.rejected ?? 0,
+        });
+      } catch {
+        if (!alive) return;
+        setCounts({ all: 0, pending: 0, hired: 0, rejected: 0 });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     let alive = true;
@@ -393,12 +407,15 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
         qs.set("tab", selectedTab);
         if (searchQuery.trim()) qs.set("q", searchQuery.trim());
 
-        const data = await apiGet<ApplicationFromApi[]>(`/api/applications/me?${qs.toString()}`);
+        const data = await api<ApplicationFromApi[]>(
+          `/api/applications/me?${qs.toString()}`
+        );
         if (!alive) return;
 
-        setApps(data.map(toUI));
+        setApps((data ?? []).map(toUI));
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : "Failed to load applications.";
+        const msg =
+          e instanceof Error ? e.message : "Failed to load applications.";
         if (alive) {
           setError(msg);
           setApps([]);
@@ -413,20 +430,15 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
     };
   }, [selectedTab, searchQuery]);
 
-  const pendingCount = React.useMemo(
-    () => apps.filter((a) => a.status.includes("Pending") || a.status.includes("In Progress")).length,
-    [apps]
-  );
-  const hiredCount = React.useMemo(() => apps.filter((a) => a.status === "Hired").length, [apps]);
-  const rejectedCount = React.useMemo(() => apps.filter((a) => a.status === "Rejected").length, [apps]);
-
   return (
     <div className={styles.root}>
       <Card className={styles.searchCard} appearance="outline">
         <div className={styles.searchInputWrapper}>
           <Input
             className={styles.searchInput}
-            contentBefore={<Search20Regular style={{ color: "#5B6475", fontSize: 16 }} />}
+            contentBefore={
+              <Search20Regular style={{ color: "#5B6475", fontSize: 16 }} />
+            }
             placeholder="Search by title, company, or status..."
             value={searchQuery}
             onChange={(_, data) => setSearchQuery(data.value)}
@@ -441,20 +453,48 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
           className={styles.tabsList}
           appearance="subtle"
         >
-          <Tab value="all" className={selectedTab === "all" ? `${styles.tabItem} ${styles.tabItemSelected}` : styles.tabItem}>
-            All Applications ({apps.length})
+          <Tab
+            value="all"
+            className={
+              selectedTab === "all"
+                ? `${styles.tabItem} ${styles.tabItemSelected}`
+                : styles.tabItem
+            }
+          >
+            All Applications ({counts.all})
           </Tab>
 
-          <Tab value="pending" className={selectedTab === "pending" ? `${styles.tabItem} ${styles.tabItemSelected}` : styles.tabItem}>
-            Pending ({pendingCount})
+          <Tab
+            value="pending"
+            className={
+              selectedTab === "pending"
+                ? `${styles.tabItem} ${styles.tabItemSelected}`
+                : styles.tabItem
+            }
+          >
+            Pending ({counts.pending})
           </Tab>
 
-          <Tab value="hired" className={selectedTab === "hired" ? `${styles.tabItem} ${styles.tabItemSelected}` : styles.tabItem}>
-            Hired ({hiredCount})
+          <Tab
+            value="hired"
+            className={
+              selectedTab === "hired"
+                ? `${styles.tabItem} ${styles.tabItemSelected}`
+                : styles.tabItem
+            }
+          >
+            Hired ({counts.hired})
           </Tab>
 
-          <Tab value="rejected" className={selectedTab === "rejected" ? `${styles.tabItem} ${styles.tabItemSelected}` : styles.tabItem}>
-            Rejected ({rejectedCount})
+          <Tab
+            value="rejected"
+            className={
+              selectedTab === "rejected"
+                ? `${styles.tabItem} ${styles.tabItemSelected}`
+                : styles.tabItem
+            }
+          >
+            Rejected ({counts.rejected})
           </Tab>
         </TabList>
 
@@ -467,7 +507,9 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
                 </div>
               )}
 
-              {!loading && error && <div style={{ padding: "14px", color: "#dc2626" }}>{error}</div>}
+              {!loading && error && (
+                <div style={{ padding: "14px", color: "#dc2626" }}>{error}</div>
+              )}
 
               <Table style={{ minWidth: "1120px" }}>
                 <TableHeader>
@@ -487,12 +529,18 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
                     <TableRow key={app.id} className={styles.tableRowHover}>
                       <TableCell>
                         <div className={styles.companyCell}>
-                          <div className={styles.companyLogo}>{app.companyLogo}</div>
+                          <div className={styles.companyLogo}>
+                            {app.companyLogo}
+                          </div>
                           <div>
                             <Text weight="semibold" style={{ color: "#0B1220" }}>
                               {app.title}
                             </Text>
-                            <Text size={200} className={styles.statusText} style={{ marginTop: 2, display: "block" }}>
+                            <Text
+                              size={200}
+                              className={styles.statusText}
+                              style={{ marginTop: 2, display: "block" }}
+                            >
                               {app.company}
                             </Text>
                           </div>
@@ -504,12 +552,18 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
                       </TableCell>
 
                       <TableCell>
-                        <Text className={styles.statusText}>{app.appliedDate}</Text>
+                        <Text className={styles.statusText}>
+                          {app.appliedDate}
+                        </Text>
                       </TableCell>
 
                       <TableCell>
                         <div className={styles.pillWrapper}>
-                          <StatusPill status={getStatusType(app.status)} label={app.status} size="sm" />
+                          <StatusPill
+                            status={getStatusType(app.status)}
+                            label={app.status}
+                            size="sm"
+                          />
                         </div>
                       </TableCell>
 
@@ -544,7 +598,11 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
                             appearance="primary"
                             className={styles.primaryActionButton}
                             style={{ backgroundColor: "#0118D8", border: "none" }}
-                            onClick={() => onNavigate("interview-room", { applicationId: app.id })}
+                            onClick={() =>
+                              onNavigate("interview-room", {
+                                applicationId: app.id,
+                              })
+                            }
                           >
                             <Play20Regular style={{ marginRight: 6 }} />
                             Start Interview
@@ -554,8 +612,13 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
                             size="small"
                             appearance="outline"
                             className={styles.warningActionButton}
-                            style={{ color: "#F59E0B", borderColor: "#F59E0B" }}
-                            onClick={() => onNavigate("interview", { applicationId: app.id })}
+                            style={{
+                              color: "#F59E0B",
+                              borderColor: "#F59E0B",
+                            }}
+                            onClick={() =>
+                              onNavigate("interview", { applicationId: app.id })
+                            }
                           >
                             <Play20Regular style={{ marginRight: 6 }} />
                             Continue
@@ -563,22 +626,53 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
                         ) : (
                           <Menu>
                             <MenuTrigger disableButtonEnhancement>
-                              <button type="button" className={styles.menuTriggerButton}>
+                              <button
+                                type="button"
+                                className={styles.menuTriggerButton}
+                              >
                                 <MoreVertical20Regular />
                               </button>
                             </MenuTrigger>
                             <MenuPopover>
                               <MenuList>
-                                <MenuItem icon={<DataHistogram20Regular />} onClick={() => onNavigate("results", { applicationId: app.id })}>
+                                <MenuItem
+                                  icon={<DataHistogram20Regular />}
+                                  onClick={() =>
+                                    onNavigate("results", {
+                                      applicationId: app.id,
+                                    })
+                                  }
+                                >
                                   View Results
                                 </MenuItem>
-                                <MenuItem icon={<Eye20Regular />} onClick={() => onNavigate("job-details", { applicationId: app.id })}>
+                                <MenuItem
+                                  icon={<Eye20Regular />}
+                                  onClick={() =>
+                                    onNavigate("job-details", {
+                                      applicationId: app.id,
+                                    })
+                                  }
+                                >
                                   View Job
                                 </MenuItem>
-                                <MenuItem icon={<Chat20Regular />} onClick={() => onNavigate("contact-employer", { applicationId: app.id })}>
+                                <MenuItem
+                                  icon={<Chat20Regular />}
+                                  onClick={() =>
+                                    onNavigate("contact-employer", {
+                                      applicationId: app.id,
+                                    })
+                                  }
+                                >
                                   Contact Employer
                                 </MenuItem>
-                                <MenuItem icon={<Open20Regular />} onClick={() => onNavigate("company-profile", { applicationId: app.id })}>
+                                <MenuItem
+                                  icon={<Open20Regular />}
+                                  onClick={() =>
+                                    onNavigate("company-profile", {
+                                      applicationId: app.id,
+                                    })
+                                  }
+                                >
                                   Company Profile
                                 </MenuItem>
                               </MenuList>
@@ -596,11 +690,17 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
                   <div className={styles.emptyIconWrapper}>
                     <Search20Regular style={{ fontSize: 32, color: "#0B1220" }} />
                   </div>
-                  <Text as="h3" weight="semibold" size={500} style={{ color: "#0B1220" }}>
+                  <Text
+                    as="h3"
+                    weight="semibold"
+                    size={500}
+                    style={{ color: "#0B1220" }}
+                  >
                     No Applications Found
                   </Text>
                   <Text size={300} className={styles.emptyTextMuted}>
-                    Try adjusting your filters or search query to find what you're looking for.
+                    Try adjusting your filters or search query to find what
+                    you&apos;re looking for.
                   </Text>
                 </Card>
               )}
@@ -611,3 +711,5 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({ on
     </div>
   );
 };
+
+export default CandidateApplications;
