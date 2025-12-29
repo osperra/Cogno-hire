@@ -1,5 +1,5 @@
 // client/src/Components/layout/SideBar.tsx
-import { useMemo, useState, type JSX } from "react";
+import { useEffect, useMemo, useState, type JSX } from "react";
 import { Text, Badge, makeStyles } from "@fluentui/react-components";
 import {
   GridRegular,
@@ -32,7 +32,13 @@ const useStyles = makeStyles({
   },
   rootExpanded: { width: "248px" },
   rootCollapsed: { width: "72px", alignItems: "center" },
-  header: { height: "64px", display: "flex", alignItems: "center", paddingInline: "24px", borderBottom: "1px solid rgba(2,6,23,0.08)" },
+  header: {
+    height: "64px",
+    display: "flex",
+    alignItems: "center",
+    paddingInline: "24px",
+    borderBottom: "1px solid rgba(2,6,23,0.08)",
+  },
   logoRow: { display: "flex", alignItems: "center", columnGap: "8px" },
   logoBox: {
     width: "32px",
@@ -165,16 +171,116 @@ const CANDIDATE_NAV: NavItem[] = [
   { id: "notifications", label: "Notifications", icon: <Alert24Regular />, path: "/app/candidate/notifications" },
 ];
 
+type ApiErrorBody = { message?: string };
+
+type EmployerCounts = {
+  employerJobs: number;
+  employerApplicants: number;
+  employerDocuments: number;
+  employerReviews: number;
+  employerOnboarding: number;
+};
+
+type CandidateCounts = {
+  candidateJobs: number;
+  candidateApplications: number;
+  candidateNotificationsUnread: number;
+};
+
+type SidebarCounts = Partial<EmployerCounts & CandidateCounts>;
+
+const API_BASE =
+  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_URL?.replace(/\/$/, "") ||
+  "http://localhost:5000";
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { ...authHeaders() },
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const raw = await res.text().catch(() => "");
+
+  if (!res.ok) {
+    if (contentType.includes("application/json")) {
+      try {
+        const json = JSON.parse(raw) as ApiErrorBody;
+        throw new Error(json.message || `Request failed (${res.status})`);
+      } catch {
+        throw new Error(`Request failed (${res.status})`);
+      }
+    }
+    // avoid showing HTML in UI
+    throw new Error(`Request failed (${res.status})`);
+  }
+
+  if (!raw.trim()) return {} as T;
+  if (!contentType.includes("application/json")) throw new Error("Expected JSON from server");
+  return JSON.parse(raw) as T;
+}
+
 export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
   const styles = useStyles();
   const [expanded, setExpanded] = useState(true);
+
+  // ✅ dynamic counts (no UI changes, just data)
+  const [counts, setCounts] = useState<SidebarCounts>({});
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const data = await apiGet<SidebarCounts>("/api/sidebar/counts"); // ✅ correct endpoint
+        if (!alive) return;
+        setCounts(data || {});
+      } catch {
+        if (!alive) return;
+        setCounts({});
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const bottomNav: NavItem[] = [
     { id: "analytics", label: "Analytics", icon: <ArrowTrendingRegular />, path: userRole === "candidate" ? "/app/candidate/analytics" : "/app/employer/analytics" },
     { id: "settings", label: "Settings", icon: <Settings20Regular />, path: "/app/settings" },
   ];
 
-  const navItems = useMemo(() => (userRole === "employer" ? EMPLOYER_NAV : CANDIDATE_NAV), [userRole]);
+  // ✅ keep same base nav, but inject badge values dynamically
+  const navItems = useMemo(() => {
+    const base = userRole === "employer" ? EMPLOYER_NAV : CANDIDATE_NAV;
+
+    const toBadge = (n?: number) => (n && n > 0 ? String(n) : null);
+
+    return base.map((it) => {
+      // preserve existing static badges (like "New")
+      if (it.id === "ai") return it;
+
+      if (userRole === "employer") {
+        if (it.id === "jobs") return { ...it, badge: toBadge(counts.employerJobs) };
+        if (it.id === "applicants") return { ...it, badge: toBadge(counts.employerApplicants) };
+        if (it.id === "documents") return { ...it, badge: toBadge(counts.employerDocuments) };
+        if (it.id === "reviews") return { ...it, badge: toBadge(counts.employerReviews) };
+        if (it.id === "onboarding") return { ...it, badge: toBadge(counts.employerOnboarding) };
+        return it;
+      }
+
+      // candidate
+      if (it.id === "jobs") return { ...it, badge: toBadge(counts.candidateJobs) };
+      if (it.id === "applications") return { ...it, badge: toBadge(counts.candidateApplications) };
+      if (it.id === "notifications") return { ...it, badge: toBadge(counts.candidateNotificationsUnread) };
+      return it;
+    });
+  }, [userRole, counts]);
 
   const renderNavItem = (item: NavItem) => {
     const active = isActive(currentPage, item);

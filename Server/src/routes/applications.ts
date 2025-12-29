@@ -7,97 +7,58 @@ import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth.js";
 export const applicationsRouter = Router();
 
 
-applicationsRouter.post(
-  "/:jobId",
-  requireAuth,
-  requireRole(["candidate"]),
-  async (req: AuthedRequest, res) => {
-    const schema = z.object({
-      coverLetter: z.string().optional(),
-      resumeUrl: z.string().optional(),
-    });
-
-    const parsed = schema.safeParse(req.body);
-    if (!parsed.success) {
-      return res
-        .status(400)
-        .json({ message: "Invalid input", issues: parsed.error.issues });
-    }
-
-    const job = await Job.findById(req.params.jobId);
-    if (!job) return res.status(404).json({ message: "Job not found" });
-
-    try {
-      const app = await Application.create({
-        jobId: job._id,
-        candidateId: req.user!.id,
-
-        interviewStatus: "PENDING",
-        hiringStatus: "PENDING",
-        overallScore: 0,
-        communication: "AVERAGE",
-
-        coverLetter: parsed.data.coverLetter,
-        resumeUrl: parsed.data.resumeUrl,
-      });
-
-      return res.status(201).json(app);
-    } catch (e: any) {
-      if (e?.code === 11000) {
-        return res.status(409).json({ message: "Already applied for this job" });
-      }
-      console.error("APPLY_ERROR:", e);
-      return res.status(500).json({ message: "Server error" });
-    }
-  }
-);
-
+async function getEmployerJobIds(employerId: string) {
+  const jobs = await Job.find({ employerId }).select("_id").lean();
+  return jobs.map((j) => j._id);
+}
 
 applicationsRouter.get(
-  "/me",
+  "/employer/counts",
   requireAuth,
-  requireRole(["candidate"]),
+  requireRole(["employer", "hr"]),
   async (req: AuthedRequest, res) => {
-    const tab = typeof req.query.tab === "string" ? req.query.tab : "all";
-    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    try {
+      const jobIds = await getEmployerJobIds(req.user!.id);
 
-    const match: any = { candidateId: req.user!.id };
+      if (!jobIds.length) {
+        return res.json({
+          all: 0,
+          invited: 0,
+          underReview: 0,
+          shortlisted: 0,
+          hired: 0,
+          rejected: 0,
+        });
+      }
 
-    if (tab === "pending") {
-      match.$or = [
-        { interviewStatus: { $in: ["PENDING", "IN_PROGRESS"] } },
-        { hiringStatus: { $in: ["PENDING", "INVITED", "UNDER_REVIEW", "SHORTLISTED"] } },
-      ];
-    } else if (tab === "hired") {
-      match.hiringStatus = "HIRED";
-    } else if (tab === "rejected") {
-      match.hiringStatus = "REJECTED";
-    }
+      const match = { jobId: { $in: jobIds } };
 
-    let apps: any[] = await Application.find(match)
-      .sort({ createdAt: -1 })
-      .populate("jobId", "title location company")
-      .lean();
+      const grouped = await Application.aggregate([
+        { $match: match },
+        { $group: { _id: "$hiringStatus", count: { $sum: 1 } } },
+      ]);
 
-    if (q) {
-      const qq = q.toLowerCase();
-      apps = apps.filter((a) => {
-        const job = a.jobId || {};
-        const title = String(job.title || "").toLowerCase();
-        const company = String(job.company || "").toLowerCase();
-        const hiring = String(a.hiringStatus || "").toLowerCase();
-        const interview = String(a.interviewStatus || "").toLowerCase();
+      const map: Record<string, number> = {};
+      for (const g of grouped) map[String(g._id)] = Number(g.count) || 0;
 
-        return (
-          title.includes(qq) ||
-          company.includes(qq) ||
-          hiring.includes(qq) ||
-          interview.includes(qq)
-        );
+      const invited = map["INVITED"] || 0;
+      const underReview = map["UNDER_REVIEW"] || 0;
+      const shortlisted = map["SHORTLISTED"] || 0;
+      const hired = map["HIRED"] || 0;
+      const rejected = map["REJECTED"] || 0;
+
+      return res.json({
+        all: invited + underReview + shortlisted + hired + rejected + (map["PENDING"] || 0),
+        invited,
+        underReview,
+        shortlisted,
+        hired,
+        rejected,
       });
+    } catch (e) {
+      console.error("EMPLOYER_COUNTS_ERROR:", e);
+      return res.status(500).json({ message: "Server error" });
     }
-
-    res.json(apps);
   }
 );
 
@@ -107,22 +68,62 @@ applicationsRouter.get(
   requireAuth,
   requireRole(["employer", "hr"]),
   async (req: AuthedRequest, res) => {
-    const jobId = typeof req.query.jobId === "string" ? req.query.jobId : undefined;
+    try {
+      const tab = typeof req.query.tab === "string" ? req.query.tab : "all";
+      const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+      const jobTitle = typeof req.query.jobTitle === "string" ? req.query.jobTitle.trim() : "";
+      const interviewStatus =
+        typeof req.query.interviewStatus === "string" ? req.query.interviewStatus.trim() : "";
+      const limit = Math.min(
+        Math.max(parseInt(String(req.query.limit || "200"), 10) || 200, 1),
+        500
+      );
 
-    const match: any = {};
-    if (jobId) match.jobId = jobId;
+      const jobIds = await getEmployerJobIds(req.user!.id);
+      if (!jobIds.length) return res.json([]);
 
-    const jobs = await Job.find({ employerId: req.user!.id }).select("_id");
-    const jobIds = jobs.map((j) => j._id);
+      const match: Record<string, any> = { jobId: { $in: jobIds } };
 
-    match.jobId = match.jobId ? match.jobId : { $in: jobIds };
+      if (tab === "invited") match.hiringStatus = "INVITED";
+      else if (tab === "under-review") match.hiringStatus = "UNDER_REVIEW";
+      else if (tab === "shortlisted") match.hiringStatus = "SHORTLISTED";
+      else if (tab === "hired") match.hiringStatus = "HIRED";
+      else if (tab === "rejected") match.hiringStatus = "REJECTED";
 
-    const apps = await Application.find(match)
-      .sort({ createdAt: -1 })
-      .populate("candidateId", "name email")
-      .populate("jobId", "title company location");
+      if (interviewStatus && ["PENDING", "IN_PROGRESS", "COMPLETED"].includes(interviewStatus)) {
+        match.interviewStatus = interviewStatus;
+      }
 
-    res.json(apps);
+      let query = Application.find(match)
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .populate("candidateId", "name email")
+        .populate("jobId", "title company location");
+
+      let apps = await query.lean();
+
+      if (jobTitle) {
+        const jt = jobTitle.toLowerCase();
+        apps = apps.filter((a: any) => String(a?.jobId?.title || "").toLowerCase() === jt);
+      }
+
+      if (q) {
+        const qq = q.toLowerCase();
+        apps = apps.filter((a: any) => {
+          const c = a.candidateId || {};
+          const j = a.jobId || {};
+          const name = String(c.name || "").toLowerCase();
+          const email = String(c.email || "").toLowerCase();
+          const title = String(j.title || "").toLowerCase();
+          return name.includes(qq) || email.includes(qq) || title.includes(qq);
+        });
+      }
+
+      return res.json(apps);
+    } catch (e) {
+      console.error("EMPLOYER_APPS_ERROR:", e);
+      return res.status(500).json({ message: "Server error" });
+    }
   }
 );
 
@@ -143,9 +144,7 @@ applicationsRouter.patch(
 
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
-      return res
-        .status(400)
-        .json({ message: "Invalid input", issues: parsed.error.issues });
+      return res.status(400).json({ message: "Invalid input", issues: parsed.error.issues });
     }
 
     const updated = await Application.findByIdAndUpdate(

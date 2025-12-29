@@ -40,52 +40,65 @@ interface EmployerApplicantsProps {
 type ApiErrorBody = { message?: string };
 
 const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_URL?.replace(/\/$/, "") ||
-  "http://localhost:5000";
+  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_URL?.replace(
+    /\/$/,
+    ""
+  ) || "http://localhost:5000";
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem("token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { headers: { ...authHeaders() } });
+async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: { ...(init?.headers || {}), ...authHeaders() },
+  });
 
-  const text = await res.text().catch(() => "");
+  const contentType = res.headers.get("content-type") || "";
+  const raw = await res.text().catch(() => "");
+
   if (!res.ok) {
-    try {
-      const json = JSON.parse(text) as ApiErrorBody;
-      throw new Error(json.message || `Request failed (${res.status})`);
-    } catch {
-      throw new Error(text || `Request failed (${res.status})`);
+    let msg = `Request failed (${res.status})`;
+    if (contentType.includes("application/json")) {
+      try {
+        const json = JSON.parse(raw) as ApiErrorBody;
+        msg = json.message || msg;
+      } catch {
+        // ignore
+      }
+    } else if (raw.trim()) {
+      msg = `Request failed (${res.status})`;
     }
+    throw new Error(msg);
   }
-  return text ? (JSON.parse(text) as T) : ({} as T);
+
+  if (!raw.trim()) return {} as T;
+  if (!contentType.includes("application/json")) {
+    throw new Error(`Expected JSON but got "${contentType || "unknown"}"`);
+  }
+  return JSON.parse(raw) as T;
 }
 
 async function apiPatch<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  return apiJson<T>(path, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-
-  const text = await res.text().catch(() => "");
-  if (!res.ok) {
-    try {
-      const json = JSON.parse(text) as ApiErrorBody;
-      throw new Error(json.message || `Request failed (${res.status})`);
-    } catch {
-      throw new Error(text || `Request failed (${res.status})`);
-    }
-  }
-  return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
 type HiringStatus = "Invited" | "Under Review" | "Shortlisted" | "Hired" | "Rejected";
 type InterviewStatus = "Completed" | "Pending" | "In Progress";
 
-type HiringStatusApi = "PENDING" | "INVITED" | "UNDER_REVIEW" | "SHORTLISTED" | "HIRED" | "REJECTED";
+type HiringStatusApi =
+  | "PENDING"
+  | "INVITED"
+  | "UNDER_REVIEW"
+  | "SHORTLISTED"
+  | "HIRED"
+  | "REJECTED";
 type InterviewStatusApi = "PENDING" | "IN_PROGRESS" | "COMPLETED";
 
 type PopulatedApplication = {
@@ -127,14 +140,32 @@ type UiApplicantRow = {
   hiringStatus: HiringStatus;
 };
 
+type TabCounts = {
+  all: number;
+  invited: number;
+  underReview: number;
+  shortlisted: number;
+  hired: number;
+  rejected: number;
+};
+
 function formatDate(d: string) {
   const date = new Date(d);
   if (Number.isNaN(date.getTime())) return d;
-  return date.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" });
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
 }
 
 function hiringStatusToTabValue(s: HiringStatus) {
-  return s.toLowerCase().replace(" ", "-"); 
+  return s.toLowerCase().replace(" ", "-");
+}
+
+function tabToApiTab(tab: string) {
+  if (tab === "All") return "all";
+  return tab;
 }
 
 function apiHiringToUI(s: HiringStatusApi): HiringStatus {
@@ -182,6 +213,14 @@ function apiInterviewToUI(s: InterviewStatusApi): InterviewStatus {
   }
 }
 
+function interviewFilterToApi(v: string): InterviewStatusApi | undefined {
+  if (v === "All Status") return undefined;
+  if (v === "Completed") return "COMPLETED";
+  if (v === "Pending") return "PENDING";
+  if (v === "In-progress") return "IN_PROGRESS";
+  return undefined;
+}
+
 function getCandidate(x: PopulatedApplication["candidateId"]) {
   if (typeof x === "string") return { id: x, name: "Unknown", email: "-" };
   return { id: x._id, name: x.name, email: x.email };
@@ -190,6 +229,25 @@ function getCandidate(x: PopulatedApplication["candidateId"]) {
 function getJob(x: PopulatedApplication["jobId"]) {
   if (typeof x === "string") return { id: x, title: "Unknown Job" };
   return { id: x._id, title: x.title };
+}
+
+function computeCountsFromRows(rows: UiApplicantRow[]): TabCounts {
+  const c: TabCounts = {
+    all: rows.length,
+    invited: 0,
+    underReview: 0,
+    shortlisted: 0,
+    hired: 0,
+    rejected: 0,
+  };
+  for (const r of rows) {
+    if (r.hiringStatus === "Invited") c.invited += 1;
+    else if (r.hiringStatus === "Under Review") c.underReview += 1;
+    else if (r.hiringStatus === "Shortlisted") c.shortlisted += 1;
+    else if (r.hiringStatus === "Hired") c.hired += 1;
+    else if (r.hiringStatus === "Rejected") c.rejected += 1;
+  }
+  return c;
 }
 
 export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
@@ -203,6 +261,31 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
 
+  const [tabCounts, setTabCounts] = useState<TabCounts>({
+    all: 0,
+    invited: 0,
+    underReview: 0,
+    shortlisted: 0,
+    hired: 0,
+    rejected: 0,
+  });
+
+  // options shown in Job dropdown
+  const jobOptions = useMemo(() => {
+    const set = new Set<string>();
+    rows.forEach((r) => set.add(r.job));
+    return ["All Jobs", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [rows]);
+
+  async function loadCountsSafe(fallbackRows?: UiApplicantRow[]) {
+    try {
+      const c = await apiJson<TabCounts>("/api/applications/employer/counts");
+      setTabCounts(c);
+    } catch {
+      if (fallbackRows) setTabCounts(computeCountsFromRows(fallbackRows));
+    }
+  }
+
   useEffect(() => {
     let alive = true;
 
@@ -211,11 +294,25 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
         setLoading(true);
         setError("");
 
-        const data = await apiGet<PopulatedApplication[]>("/api/applications/employer");
+        const params = new URLSearchParams();
+        params.set("tab", tabToApiTab(selectedTab));
+        params.set("limit", "200");
+
+        const q = searchQuery.trim();
+        if (q) params.set("q", q);
+
+        if (jobFilter !== "All Jobs") params.set("jobTitle", jobFilter);
+
+        const apiInterview = interviewFilterToApi(interviewFilter);
+        if (apiInterview) params.set("interviewStatus", apiInterview);
+
+        const data = await apiJson<PopulatedApplication[]>(
+          `/api/applications/employer?${params.toString()}`
+        );
 
         if (!alive) return;
 
-        const mapped: UiApplicantRow[] = data.map((a) => {
+        const mapped: UiApplicantRow[] = (data || []).map((a) => {
           const c = getCandidate(a.candidateId);
           const j = getJob(a.jobId);
 
@@ -234,8 +331,11 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
         });
 
         setRows(mapped);
+
+        await loadCountsSafe(mapped);
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : "Failed to load applicants. Please try again.";
+        const msg =
+          e instanceof Error ? e.message : "Failed to load applicants. Please try again.";
         setError(msg);
       } finally {
         if (alive) setLoading(false);
@@ -245,61 +345,21 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
     return () => {
       alive = false;
     };
-  }, []);
-
-  const jobOptions = useMemo(() => {
-    const set = new Set<string>();
-    rows.forEach((r) => set.add(r.job));
-    return ["All Jobs", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
-  }, [rows]);
-
-  const filteredApplicants = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-
-    return rows.filter((r) => {
-      if (selectedTab !== "All") {
-        if (hiringStatusToTabValue(r.hiringStatus) !== selectedTab) return false;
-      }
-
-      if (jobFilter !== "All Jobs" && r.job !== jobFilter) return false;
-
-      if (interviewFilter !== "All Status") {
-        if (interviewFilter === "In-progress") {
-          if (r.interviewStatus !== "In Progress") return false;
-        } else {
-          if (r.interviewStatus !== (interviewFilter as InterviewStatus)) return false;
-        }
-      }
-
-      if (!q) return true;
-      return (
-        r.candidate.toLowerCase().includes(q) ||
-        r.email.toLowerCase().includes(q) ||
-        r.job.toLowerCase().includes(q)
-      );
-    });
-  }, [rows, searchQuery, selectedTab, jobFilter, interviewFilter]);
-
-  const tabCounts = useMemo(() => {
-    const counts = { all: rows.length, invited: 0, underReview: 0, shortlisted: 0, hired: 0, rejected: 0 };
-    rows.forEach((r) => {
-      if (r.hiringStatus === "Invited") counts.invited += 1;
-      else if (r.hiringStatus === "Under Review") counts.underReview += 1;
-      else if (r.hiringStatus === "Shortlisted") counts.shortlisted += 1;
-      else if (r.hiringStatus === "Hired") counts.hired += 1;
-      else if (r.hiringStatus === "Rejected") counts.rejected += 1;
-    });
-    return counts;
-  }, [rows]);
+  }, [selectedTab, searchQuery, jobFilter, interviewFilter]);
 
   async function updateHiringStatus(applicationId: string, newStatus: HiringStatus) {
-    // optimistic UI
-    setRows((prev) => prev.map((r) => (r.id === applicationId ? { ...r, hiringStatus: newStatus } : r)));
+    setRows((prev) =>
+      prev.map((r) => (r.id === applicationId ? { ...r, hiringStatus: newStatus } : r))
+    );
 
     try {
       await apiPatch(`/api/applications/${applicationId}/status`, {
         hiringStatus: uiHiringToApi(newStatus),
       });
+
+      await loadCountsSafe(
+        rows.map((r) => (r.id === applicationId ? { ...r, hiringStatus: newStatus } : r))
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to update status";
       setError(msg);
@@ -430,11 +490,21 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
         </TabsList>
 
         <TabsContent value={selectedTab} style={tabsContentWrapperStyle}>
-          <Card style={{ border: "1px solid rgba(2,6,23,0.08)", boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)" }}>
+          <Card
+            style={{
+              border: "1px solid rgba(2,6,23,0.08)",
+              boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
+            }}
+          >
             <div style={{ overflowX: "auto" }}>
               <Table>
                 <TableHeader>
-                  <TableRow style={{ background: "linear-gradient(to right, rgba(1,24,216,0.06), rgba(27,86,253,0.06))" }}>
+                  <TableRow
+                    style={{
+                      background:
+                        "linear-gradient(to right, rgba(1,24,216,0.06), rgba(27,86,253,0.06))",
+                    }}
+                  >
                     <TableHead>Candidate</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Job Role</TableHead>
@@ -463,7 +533,7 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
                     </TableRow>
                   )}
 
-                  {!loading && !error && filteredApplicants.length === 0 && (
+                  {!loading && !error && rows.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={8} style={{ color: "#5B6475", padding: 16 }}>
                         No applicants found.
@@ -473,7 +543,7 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
 
                   {!loading &&
                     !error &&
-                    filteredApplicants.map((a) => (
+                    rows.map((a) => (
                       <TableRow key={a.id}>
                         <TableCell>
                           <div style={{ color: "#0B1220", fontWeight: 500 }}>{a.candidate}</div>
@@ -492,7 +562,13 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
 
                         <TableCell>
                           <StatusPill
-                            status={a.interviewStatus === "Completed" ? "success" : a.interviewStatus === "In Progress" ? "warning" : "info"}
+                            status={
+                              a.interviewStatus === "Completed"
+                                ? "success"
+                                : a.interviewStatus === "In Progress"
+                                ? "warning"
+                                : "info"
+                            }
                             label={a.interviewStatus}
                             size="sm"
                           />
@@ -551,7 +627,10 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
                             <DropdownMenuContent>
                               <DropdownMenuItem
                                 onClick={() =>
-                                  onNavigate("analytics", { candidateId: a.candidateId, applicationId: a.id })
+                                  onNavigate("analytics", {
+                                    candidateId: a.candidateId,
+                                    applicationId: a.id,
+                                  })
                                 }
                               >
                                 <span style={{ display: "flex", alignItems: "center" }}>
@@ -560,7 +639,9 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
                                 </span>
                               </DropdownMenuItem>
 
-                              <DropdownMenuItem onClick={() => onNavigate("candidate", { candidateId: a.candidateId })}>
+                              <DropdownMenuItem
+                                onClick={() => onNavigate("candidate", { candidateId: a.candidateId })}
+                              >
                                 <span style={{ display: "flex", alignItems: "center" }}>
                                   <ContactCard20Regular style={{ marginRight: 8 }} />
                                   <span>View Candidate</span>
