@@ -1,3 +1,4 @@
+// Server/src/models/companyProfile.ts
 import { Schema, model, Types } from "mongoose";
 
 export interface CompanyProfileDoc {
@@ -28,6 +29,12 @@ export interface CompanyProfileDoc {
   culture?: string;
   benefits?: string;
 
+  // ✅ GridFS logo fields
+  logoGridFsId?: Types.ObjectId;
+  logoMimeType?: string;
+  logoOriginalName?: string;
+
+  // Optional: still allow direct URL (if you want)
   logoUrl?: string;
 
   createdAt: Date;
@@ -68,6 +75,12 @@ const companyProfileSchema = new Schema<CompanyProfileDoc>(
     culture: { type: String },
     benefits: { type: String },
 
+    // ✅ GridFS logo
+    logoGridFsId: { type: Schema.Types.ObjectId },
+    logoMimeType: { type: String },
+    logoOriginalName: { type: String },
+
+    // optional fallback url
     logoUrl: { type: String, trim: true },
   },
   { timestamps: true }

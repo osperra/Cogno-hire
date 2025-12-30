@@ -1,3 +1,4 @@
+// Server/src/index.ts
 import express, { type Request, type Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -13,8 +14,6 @@ import candidateDashboardRoutes from "./routes/candidateDashboard";
 import { sidebarRouter } from "./routes/sidebar.js";
 import { companyProfileRouter } from "./routes/companyProfile.js";
 
-import { documentsRouter } from "./routes/documents.js";
-
 dotenv.config();
 
 const app = express();
@@ -28,6 +27,7 @@ app.use(
 
 app.use(express.json());
 
+// keep this only if you still store other files on disk (documents, resumes, etc.)
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.use(meRoutes);
@@ -43,8 +43,6 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/sidebar", sidebarRouter);
 
 app.use("/api/company-profile", companyProfileRouter);
-
-app.use("/api/documents", documentsRouter);
 
 const port = Number(process.env.PORT || 5000);
 
