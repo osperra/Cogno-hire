@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import * as React from "react";
 import {
   Card,
@@ -505,7 +506,7 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
             difficulty={job.difficulty}
             skills={job.skills}
             match={job.match}
-            onApply={() => onNavigate("applications", { jobId: job.id })}
+            onApply={() => onNavigate("apply", { jobId: job.id })}
             onViewDetails={() => onNavigate("job-details", { jobId: job.id })}
           />
         ))}

@@ -1,15 +1,124 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { z } from "zod";
+import multer, { type FileFilterCallback } from "multer";
+import path from "path";
+import fs from "fs";
 import { Application } from "../models/Application.js";
 import { Job } from "../models/Jobs.js";
-import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth.js";
+import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
 
 export const applicationsRouter = Router();
+
 
 async function getEmployerJobIds(employerId: string) {
   const jobs = await Job.find({ employerId }).select("_id").lean();
   return jobs.map((j) => j._id);
 }
+
+const RESUME_DIR = path.join(process.cwd(), "uploads", "resumes");
+fs.mkdirSync(RESUME_DIR, { recursive: true });
+
+const resumeStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, RESUME_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const safeExt = ext || ".pdf";
+    const name = `resume_${Date.now()}_${Math.random().toString(16).slice(2)}${safeExt}`;
+    cb(null, name);
+  },
+});
+
+function resumeFileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCallback) {
+  const allowed = new Set<string>([
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ]);
+
+  const ok = allowed.has(file.mimetype);
+
+  if (!ok) {
+    cb(new Error("Only PDF/DOC/DOCX allowed"));
+    return;
+  }
+
+  cb(null, true);
+}
+
+const uploadResume = multer({
+  storage: resumeStorage,
+  fileFilter: resumeFileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+type MulterAuthedRequest = Request & {
+  user?: AuthedRequest["user"];
+  file?: Express.Multer.File;
+};
+
+applicationsRouter.post(
+  "/upload-resume",
+  requireAuth,
+  requireRole(["candidate"]),
+  uploadResume.single("resume"),
+  async (req: MulterAuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.file) return res.status(400).json({ message: "Resume file is required" });
+
+    const resumeUrl = `/uploads/resumes/${req.file.filename}`;
+    return res.json({ resumeUrl });
+  }
+);
+
+
+applicationsRouter.post(
+  "/",
+  requireAuth,
+  requireRole(["candidate"]),
+  async (req: AuthedRequest, res) => {
+    try {
+      const schema = z.object({
+        jobId: z.string().min(1),
+        coverLetter: z.string().optional(),
+        resumeUrl: z.string().optional(),
+      });
+
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid input", issues: parsed.error.issues });
+      }
+
+      const job = await Job.findById(parsed.data.jobId).select("_id").lean();
+      if (!job) return res.status(404).json({ message: "Job not found" });
+
+      const exists = await Application.findOne({
+        jobId: parsed.data.jobId,
+        candidateId: req.user!.id,
+      })
+        .select("_id")
+        .lean();
+
+      if (exists) {
+        return res.status(409).json({ message: "You already applied for this job." });
+      }
+
+      const created = await Application.create({
+        jobId: parsed.data.jobId,
+        candidateId: req.user!.id,
+        coverLetter: parsed.data.coverLetter?.trim() || undefined,
+        resumeUrl: parsed.data.resumeUrl?.trim() || undefined,
+      });
+
+      return res.status(201).json({
+        message: "Applied successfully",
+        applicationId: created._id,
+      });
+    } catch (e) {
+      console.error("APPLY_ERROR:", e);
+      return res.status(500).json({ message: "Server error" });
+    }
+  }
+);
 
 
 applicationsRouter.get(
@@ -29,10 +138,7 @@ applicationsRouter.get(
 
       const tab = parsed.data.tab ?? "all";
       const q = (parsed.data.q ?? "").trim().toLowerCase();
-      const limit = Math.min(
-        Math.max(parseInt(parsed.data.limit ?? "200", 10) || 200, 1),
-        500
-      );
+      const limit = Math.min(Math.max(parseInt(parsed.data.limit ?? "200", 10) || 200, 1), 500);
 
       const match: Record<string, unknown> = { candidateId: req.user!.id };
 
@@ -49,8 +155,8 @@ applicationsRouter.get(
         .lean();
 
       if (q) {
-        apps = apps.filter((a: any) => {
-          const j = a.jobId || {};
+        apps = apps.filter((a) => {
+          const j = (a as unknown as { jobId?: Record<string, unknown> }).jobId || {};
           const title = String(j.title || "").toLowerCase();
           const company = String(j.companyName || j.company || "").toLowerCase();
           const location = String(j.location || "").toLowerCase();
@@ -66,7 +172,6 @@ applicationsRouter.get(
   }
 );
 
-
 applicationsRouter.get(
   "/employer/counts",
   requireAuth,
@@ -76,14 +181,7 @@ applicationsRouter.get(
       const jobIds = await getEmployerJobIds(req.user!.id);
 
       if (!jobIds.length) {
-        return res.json({
-          all: 0,
-          invited: 0,
-          underReview: 0,
-          shortlisted: 0,
-          hired: 0,
-          rejected: 0,
-        });
+        return res.json({ all: 0, invited: 0, underReview: 0, shortlisted: 0, hired: 0, rejected: 0 });
       }
 
       const match = { jobId: { $in: jobIds } };
@@ -117,7 +215,6 @@ applicationsRouter.get(
   }
 );
 
-
 applicationsRouter.get(
   "/employer",
   requireAuth,
@@ -127,14 +224,13 @@ applicationsRouter.get(
       const tab = typeof req.query.tab === "string" ? req.query.tab : "all";
       const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
       const jobTitle = typeof req.query.jobTitle === "string" ? req.query.jobTitle.trim() : "";
-      const interviewStatus =
-        typeof req.query.interviewStatus === "string" ? req.query.interviewStatus.trim() : "";
+      const interviewStatus = typeof req.query.interviewStatus === "string" ? req.query.interviewStatus.trim() : "";
       const limit = Math.min(Math.max(parseInt(String(req.query.limit || "200"), 10) || 200, 1), 500);
 
       const jobIds = await getEmployerJobIds(req.user!.id);
       if (!jobIds.length) return res.json([]);
 
-      const match: Record<string, any> = { jobId: { $in: jobIds } };
+      const match: Record<string, unknown> = { jobId: { $in: jobIds } };
 
       if (tab === "invited") match.hiringStatus = "INVITED";
       else if (tab === "under-review") match.hiringStatus = "UNDER_REVIEW";
@@ -155,7 +251,7 @@ applicationsRouter.get(
 
       if (jobTitle) {
         const jt = jobTitle.toLowerCase();
-        apps = apps.filter((a: any) => String(a?.jobId?.title || "").toLowerCase() === jt);
+        apps = apps.filter((a) => String((a as any)?.jobId?.title || "").toLowerCase() === jt);
       }
 
       if (q) {
@@ -178,14 +274,15 @@ applicationsRouter.get(
   }
 );
 
-
 applicationsRouter.patch(
   "/:id/status",
   requireAuth,
   requireRole(["employer", "hr"]),
   async (req: AuthedRequest, res) => {
     const schema = z.object({
-      hiringStatus: z.enum(["PENDING", "INVITED", "UNDER_REVIEW", "SHORTLISTED", "HIRED", "REJECTED"]).optional(),
+      hiringStatus: z
+        .enum(["PENDING", "INVITED", "UNDER_REVIEW", "SHORTLISTED", "HIRED", "REJECTED"])
+        .optional(),
       interviewStatus: z.enum(["PENDING", "IN_PROGRESS", "COMPLETED"]).optional(),
       overallScore: z.number().optional(),
       communication: z.string().optional(),
