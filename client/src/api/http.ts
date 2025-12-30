@@ -1,5 +1,6 @@
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL?.toString().trim() || "http://localhost:5000";
+// client/src/api/http.ts
+const RAW_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:5000";
+export const API_BASE = RAW_BASE.replace(/\/+$/, "");
 
 type ApiErrorShape = { message?: string };
 
@@ -7,69 +8,42 @@ function isApiErrorShape(v: unknown): v is ApiErrorShape {
   return typeof v === "object" && v !== null && "message" in v;
 }
 
-function getToken(): string | null {
-  return localStorage.getItem("token") || sessionStorage.getItem("token");
-}
-
-function joinUrl(base: string, path: string): string {
+function buildUrl(path: string) {
   if (/^https?:\/\//i.test(path)) return path;
-  const b = base.replace(/\/+$/, "");
-  const p = path.startsWith("/") ? path : `/${path}`;
-  return `${b}${p}`;
+  if (!path.startsWith("/")) path = `/${path}`;
+  return `${API_BASE}${path}`;
 }
 
-export class ApiError extends Error {
-  status: number;
-  url: string;
-  response: { data: unknown; text: string };
+export async function api<T>(
+  path: string,
+  init: RequestInit = {}
+): Promise<T> {
+  const url = buildUrl(path);
 
-  constructor(args: { message: string; status: number; url: string; data: unknown; text: string }) {
-    super(args.message);
-    this.name = "ApiError";
-    this.status = args.status;
-    this.url = args.url;
-    this.response = { data: args.data, text: args.text };
+  const token = localStorage.getItem("token");
+  const headers = new Headers(init.headers ?? {});
+
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  // ✅ only set JSON header if body is NOT FormData
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (!isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
-}
-
-export async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  const url = joinUrl(API_BASE, path);
-
-  const isFormData =
-    typeof FormData !== "undefined" && opts.body instanceof FormData;
-
-  const headers: Record<string, string> = {};
-
-  if (!isFormData) headers["Content-Type"] = "application/json";
-  if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(url, {
-    ...opts,
-    credentials: opts.credentials ?? "include",
-    headers: {
-      ...headers,
-      ...(opts.headers as Record<string, string> | undefined),
-    },
+    ...init,
+    headers,
   });
 
+  // handle empty responses
   const text = await res.text();
-  let json: unknown = null;
-
-  try {
-    json = text ? (JSON.parse(text) as unknown) : null;
-  } catch {
-    // non-json
-  }
+  const data = text ? JSON.parse(text) : null;
 
   if (!res.ok) {
-    const msg =
-      isApiErrorShape(json) && typeof json.message === "string"
-        ? json.message
-        : text || `Request failed: ${res.status}`;
-
-    throw new ApiError({ message: msg, status: res.status, url, data: json, text });
+    if (isApiErrorShape(data)) throw new Error(data.message || "Request failed");
+    throw new Error("Request failed");
   }
 
-  return json as T;
+  return data as T;
 }

@@ -38,6 +38,10 @@ type CompanyProfileDto = {
   facebook?: string;
   culture?: string;
   benefits?: string;
+
+  // IMPORTANT:
+  // If you store logo in GridFS, set this to something like:
+  // /api/company-profile/logo/me
   logoUrl?: string;
 };
 
@@ -45,7 +49,8 @@ const COMPANY_PROFILE_API = "/api/company-profile/me";
 const COMPANY_LOGO_UPLOAD_API = "/api/company-profile/logo";
 
 const API_BASE =
-  import.meta.env.VITE_API_BASE_URL?.toString().trim() || "http://localhost:5000";
+  import.meta.env.VITE_API_BASE_URL?.toString().trim() ||
+  "http://localhost:5000";
 
 const useStyles = makeStyles({
   root: {
@@ -215,9 +220,6 @@ const useStyles = makeStyles({
     color: "#15803D",
     fontSize: "0.85rem",
   },
-
-  previewTitle: { fontSize: "14px", fontWeight: 600, marginBottom: "6px" },
-  previewText: { fontSize: "12px", color: "#374151", whiteSpace: "pre-wrap" },
 });
 
 const emptyProfile: CompanyProfileDto = {
@@ -242,12 +244,39 @@ const emptyProfile: CompanyProfileDto = {
   logoUrl: "",
 };
 
-function normalizeLogoSrc(logoUrl?: string): string | undefined {
-  const v = (logoUrl ?? "").trim();
+// If logoUrl is absolute -> use it.
+// If startsWith("/") -> prefix API_BASE.
+// BUT for protected logo endpoints, we will NOT use it directly in <img>
+// We will fetch it as blob with Authorization and use object URL.
+function toAbsoluteUrl(url?: string): string | undefined {
+  const v = (url ?? "").trim();
   if (!v) return undefined;
-  if (/^https?:\/\//i.test(v)) return v; // already absolute
-  if (v.startsWith("/")) return `${API_BASE}${v}`; // ✅ prefix backend base
+  if (/^https?:\/\//i.test(v)) return v;
+  if (v.startsWith("/")) return `${API_BASE}${v}`;
   return v;
+}
+
+async function fetchLogoBlobUrl(logoUrl: string): Promise<string> {
+  const abs = toAbsoluteUrl(logoUrl);
+  if (!abs) throw new Error("No logo url");
+
+  const token =
+    localStorage.getItem("token") ||
+    localStorage.getItem("access_token") ||
+    "";
+
+  const res = await fetch(abs, {
+    method: "GET",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Logo fetch failed: ${res.status} ${text || ""}`.trim());
+  }
+
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
 
 export function CompanyProfile() {
@@ -263,8 +292,66 @@ export function CompanyProfile() {
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
-  const isValid = useMemo(() => Boolean(form.companyName?.trim()), [form.companyName]);
-  const logoSrc = useMemo(() => normalizeLogoSrc(form.logoUrl), [form.logoUrl]);
+  // ✅ This is the key: we store a blob URL for protected images
+  const [logoBlobUrl, setLogoBlobUrl] = useState<string | null>(null);
+
+  const isValid = useMemo(
+    () => Boolean(form.companyName?.trim()),
+    [form.companyName]
+  );
+
+  // If you typed an external public image URL, we can show it directly.
+  const directLogoUrl = useMemo(() => {
+    const v = (form.logoUrl ?? "").trim();
+    if (!v) return undefined;
+    if (/^https?:\/\//i.test(v)) return v;
+    // if it is your API path, we won't use it directly in <img>
+    return undefined;
+  }, [form.logoUrl]);
+
+  // ✅ When logoUrl is an API route (protected), fetch it as blob with auth
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      // cleanup old blob url
+      if (logoBlobUrl) {
+        URL.revokeObjectURL(logoBlobUrl);
+        setLogoBlobUrl(null);
+      }
+
+      const v = (form.logoUrl ?? "").trim();
+      if (!v) return;
+
+      // If it's a backend route like "/api/company-profile/logo/me"
+      // we must fetch with Authorization and use blob url.
+      const isBackendProtected =
+        v.startsWith("/api/") || v.startsWith("/company-profile") || v.startsWith("/uploads") || v.startsWith("/");
+
+      // external absolute url -> do nothing (use directLogoUrl)
+      if (/^https?:\/\//i.test(v)) return;
+
+      if (!isBackendProtected) return;
+
+      try {
+        const blobUrl = await fetchLogoBlobUrl(v);
+        if (!alive) {
+          URL.revokeObjectURL(blobUrl);
+          return;
+        }
+        setLogoBlobUrl(blobUrl);
+      } catch (e) {
+        if (!alive) return;
+        setLogoBlobUrl(null);
+        setError(e instanceof Error ? e.message : "Logo failed to load");
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.logoUrl]);
 
   useEffect(() => {
     let alive = true;
@@ -284,7 +371,9 @@ export function CompanyProfile() {
         }));
       } catch (e) {
         if (!alive) return;
-        setError(e instanceof Error ? e.message : "Failed to load company profile");
+        setError(
+          e instanceof Error ? e.message : "Failed to load company profile"
+        );
       } finally {
         if (alive) setLoading(false);
       }
@@ -295,7 +384,10 @@ export function CompanyProfile() {
     };
   }, []);
 
-  const onChange = <K extends keyof CompanyProfileDto>(key: K, value: CompanyProfileDto[K]) => {
+  const onChange = <K extends keyof CompanyProfileDto>(
+    key: K,
+    value: CompanyProfileDto[K]
+  ) => {
     setSavedMsg(null);
     setForm((p) => ({ ...p, [key]: value }));
   };
@@ -319,6 +411,8 @@ export function CompanyProfile() {
       const fd = new FormData();
       fd.append("logo", file);
 
+      // server should return logoUrl as "/api/company-profile/logo/me"
+      // OR "/api/company-profile/logo/<profileId>" etc
       const resp = await api<{ logoUrl: string }>(COMPANY_LOGO_UPLOAD_API, {
         method: "POST",
         body: fd,
@@ -360,7 +454,9 @@ export function CompanyProfile() {
 
       setSavedMsg("Saved successfully");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save company profile");
+      setError(
+        e instanceof Error ? e.message : "Failed to save company profile"
+      );
     } finally {
       setSaving(false);
     }
@@ -371,7 +467,8 @@ export function CompanyProfile() {
     if (!w) return;
 
     const safe = (s?: string) => (s ?? "").toString();
-    const logo = normalizeLogoSrc(form.logoUrl);
+    // prefer blob url if available, else external direct url
+    const logo = logoBlobUrl || directLogoUrl || "";
 
     w.document.write(`
       <!doctype html>
@@ -450,6 +547,9 @@ export function CompanyProfile() {
     w.document.close();
   };
 
+  // ✅ choose what to show in <img>
+  const logoToShow = logoBlobUrl || directLogoUrl;
+
   return (
     <div className={styles.root}>
       <div className={styles.topBar}>
@@ -471,23 +571,32 @@ export function CompanyProfile() {
             <Label className={styles.fieldLabel}>Company Logo</Label>
             <div className={styles.logoRow}>
               <div className={styles.logoDropZone}>
-                {logoSrc ? (
+                {logoToShow ? (
                   <img
-                    src={logoSrc}
+                    src={logoToShow}
                     alt="Company logo"
                     className={styles.logoImg}
                     onError={() => {
-                      onChange("logoUrl", "");
-                      setError("Logo failed to load (bad URL or server not serving /uploads)");
+                      // don't clear logoUrl here (it might be correct but token/session issue)
+                      setError("Logo failed to load");
                     }}
                   />
                 ) : (
-                  <CloudArrowUp20Regular style={{ fontSize: 22, color: "#5B6475" }} />
+                  <CloudArrowUp20Regular
+                    style={{ fontSize: 22, color: "#5B6475" }}
+                  />
                 )}
               </div>
 
               <div className={styles.logoInfo}>
-                <div style={{ display: "flex", columnGap: "8px", flexWrap: "wrap", rowGap: "8px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    columnGap: "8px",
+                    flexWrap: "wrap",
+                    rowGap: "8px",
+                  }}
+                >
                   <input
                     ref={fileRef}
                     type="file"
@@ -511,14 +620,15 @@ export function CompanyProfile() {
                   </Button>
 
                   <Input
-                    placeholder="Logo URL (optional)"
+                    placeholder="Logo URL (external https://...)"
                     value={form.logoUrl ?? ""}
                     onChange={(_, d) => onChange("logoUrl", d.value)}
                   />
                 </div>
 
                 <span className={styles.helperText}>
-                  Recommended size: 200x200px. Max file size: 2MB. Supports JPG, PNG, WEBP.
+                  Recommended size: 200x200px. Max file size: 2MB. Supports JPG,
+                  PNG, WEBP.
                 </span>
               </div>
             </div>
@@ -557,7 +667,9 @@ export function CompanyProfile() {
                 id="company-size"
                 value={form.companySize ?? ""}
                 placeholder="Select size"
-                onOptionSelect={(_, d) => onChange("companySize", String(d.optionValue ?? ""))}
+                onOptionSelect={(_, d) =>
+                  onChange("companySize", String(d.optionValue ?? ""))
+                }
               >
                 <Option value="1-10 employees">1-10 employees</Option>
                 <Option value="11-50 employees">11-50 employees</Option>
@@ -576,7 +688,9 @@ export function CompanyProfile() {
                 id="industry"
                 value={form.industry ?? ""}
                 placeholder="Select industry"
-                onOptionSelect={(_, d) => onChange("industry", String(d.optionValue ?? ""))}
+                onOptionSelect={(_, d) =>
+                  onChange("industry", String(d.optionValue ?? ""))
+                }
               >
                 <Option value="Technology">Technology</Option>
                 <Option value="Finance">Finance</Option>
@@ -599,7 +713,9 @@ export function CompanyProfile() {
                 type="number"
                 placeholder="e.g. 2015"
                 value={form.foundedYear?.toString() ?? ""}
-                onChange={(_, d) => onChange("foundedYear", d.value ? Number(d.value) : undefined)}
+                onChange={(_, d) =>
+                  onChange("foundedYear", d.value ? Number(d.value) : undefined)
+                }
               />
             </div>
 
@@ -721,10 +837,26 @@ export function CompanyProfile() {
           <div className={styles.socialSection}>
             <Label className={styles.fieldLabel}>Social Media Links</Label>
             <div className={styles.socialList}>
-              <Input placeholder="LinkedIn URL" value={form.linkedin ?? ""} onChange={(_, d) => onChange("linkedin", d.value)} />
-              <Input placeholder="Twitter URL" value={form.twitter ?? ""} onChange={(_, d) => onChange("twitter", d.value)} />
-              <Input placeholder="GitHub URL" value={form.github ?? ""} onChange={(_, d) => onChange("github", d.value)} />
-              <Input placeholder="Facebook URL" value={form.facebook ?? ""} onChange={(_, d) => onChange("facebook", d.value)} />
+              <Input
+                placeholder="LinkedIn URL"
+                value={form.linkedin ?? ""}
+                onChange={(_, d) => onChange("linkedin", d.value)}
+              />
+              <Input
+                placeholder="Twitter URL"
+                value={form.twitter ?? ""}
+                onChange={(_, d) => onChange("twitter", d.value)}
+              />
+              <Input
+                placeholder="GitHub URL"
+                value={form.github ?? ""}
+                onChange={(_, d) => onChange("github", d.value)}
+              />
+              <Input
+                placeholder="Facebook URL"
+                value={form.facebook ?? ""}
+                onChange={(_, d) => onChange("facebook", d.value)}
+              />
             </div>
           </div>
         </div>
