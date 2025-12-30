@@ -13,7 +13,6 @@ function getToken(): string | null {
 
 function joinUrl(base: string, path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
-
   const b = base.replace(/\/+$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${b}${p}`;
@@ -37,13 +36,20 @@ export async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const token = getToken();
   const url = joinUrl(API_BASE, path);
 
+  const isFormData =
+    typeof FormData !== "undefined" && opts.body instanceof FormData;
+
+  const headers: Record<string, string> = {};
+
+  if (!isFormData) headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(url, {
     ...opts,
     credentials: opts.credentials ?? "include",
     headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(opts.headers || {}),
+      ...headers,
+      ...(opts.headers as Record<string, string> | undefined),
     },
   });
 
@@ -53,7 +59,7 @@ export async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
   try {
     json = text ? (JSON.parse(text) as unknown) : null;
   } catch {
-    // backend returned non-json
+    // non-json
   }
 
   if (!res.ok) {
@@ -62,13 +68,7 @@ export async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
         ? json.message
         : text || `Request failed: ${res.status}`;
 
-    throw new ApiError({
-      message: msg,
-      status: res.status,
-      url,
-      data: json,
-      text,
-    });
+    throw new ApiError({ message: msg, status: res.status, url, data: json, text });
   }
 
   return json as T;

@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Card,
@@ -8,16 +9,46 @@ import {
   Option,
   makeStyles,
   shorthands,
+  Spinner,
 } from "@fluentui/react-components";
-
 import {
   CloudArrowUp20Regular,
   Link20Regular,
   Save20Regular,
+  Eye20Regular,
 } from "@fluentui/react-icons";
+import { api } from "../../api/http";
+
+type CompanyProfileDto = {
+  companyName: string;
+  tagline?: string;
+  website?: string;
+  industry?: string;
+  companySize?: string;
+  foundedYear?: number;
+  headquarters?: string;
+  description?: string;
+  mission?: string;
+  values?: string;
+  contactEmail?: string;
+  phone?: string;
+  linkedin?: string;
+  twitter?: string;
+  github?: string;
+  facebook?: string;
+  culture?: string;
+  benefits?: string;
+  logoUrl?: string;
+};
+
+const COMPANY_PROFILE_API = "/api/company-profile/me";
+const COMPANY_LOGO_UPLOAD_API = "/api/company-profile/logo";
+
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL?.toString().trim() || "http://localhost:5000";
 
 const useStyles = makeStyles({
- root: {
+  root: {
     display: "flex",
     flexDirection: "column",
     rowGap: "24px",
@@ -29,7 +60,6 @@ const useStyles = makeStyles({
     paddingBottom: "24px",
     maxWidth: "2000px",
     margin: "0 auto",
-
     "@media (max-width: 768px)": {
       paddingLeft: "12px",
       paddingRight: "12px",
@@ -95,6 +125,14 @@ const useStyles = makeStyles({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    overflow: "hidden",
+  },
+
+  logoImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
   },
 
   logoInfo: {
@@ -114,9 +152,7 @@ const useStyles = makeStyles({
     },
   },
 
-  websiteWrapper: {
-    position: "relative",
-  },
+  websiteWrapper: { position: "relative" },
 
   websiteIcon: {
     position: "absolute",
@@ -127,9 +163,7 @@ const useStyles = makeStyles({
     pointerEvents: "none",
   },
 
-  websiteInput: {
-    paddingLeft: "32px",
-  },
+  websiteInput: { paddingLeft: "32px" },
 
   socialSection: {
     ...shorthands.borderTop("1px", "solid", "rgba(2,6,23,0.08)"),
@@ -143,40 +177,292 @@ const useStyles = makeStyles({
     rowGap: "8px",
   },
 
-  textarea: {
-    resize: "vertical",
-  },
+  textarea: { resize: "vertical" },
 
   footerRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     marginTop: "8px",
+    flexWrap: "wrap",
+    rowGap: "10px",
   },
 
-  footerRightButtons: {
-    display: "flex",
-    columnGap: "8px",
-  },
+  footerRightButtons: { display: "flex", columnGap: "8px" },
 
   primaryButton: {
     backgroundColor: "#0118D8",
     color: "#FFFFFF",
-    ":hover": {
-      backgroundColor: "#1B56FD",
-      color: "#FFFFFF",
-    },
+    ":hover": { backgroundColor: "#1B56FD", color: "#FFFFFF" },
   },
 
-  outlineButton: {
+  topBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    columnGap: "12px",
+    marginBottom: "10px",
+    flexWrap: "wrap",
+    rowGap: "8px",
   },
+
+  errorText: {
+    color: "#B91C1C",
+    fontSize: "0.85rem",
+  },
+
+  successText: {
+    color: "#15803D",
+    fontSize: "0.85rem",
+  },
+
+  previewTitle: { fontSize: "14px", fontWeight: 600, marginBottom: "6px" },
+  previewText: { fontSize: "12px", color: "#374151", whiteSpace: "pre-wrap" },
 });
+
+const emptyProfile: CompanyProfileDto = {
+  companyName: "",
+  tagline: "",
+  website: "",
+  industry: "",
+  companySize: "",
+  foundedYear: undefined,
+  headquarters: "",
+  description: "",
+  mission: "",
+  values: "",
+  contactEmail: "",
+  phone: "",
+  linkedin: "",
+  twitter: "",
+  github: "",
+  facebook: "",
+  culture: "",
+  benefits: "",
+  logoUrl: "",
+};
+
+function normalizeLogoSrc(logoUrl?: string): string | undefined {
+  const v = (logoUrl ?? "").trim();
+  if (!v) return undefined;
+  if (/^https?:\/\//i.test(v)) return v; // already absolute
+  if (v.startsWith("/")) return `${API_BASE}${v}`; // ✅ prefix backend base
+  return v;
+}
 
 export function CompanyProfile() {
   const styles = useStyles();
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const [form, setForm] = useState<CompanyProfileDto>(emptyProfile);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const [error, setError] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+
+  const isValid = useMemo(() => Boolean(form.companyName?.trim()), [form.companyName]);
+  const logoSrc = useMemo(() => normalizeLogoSrc(form.logoUrl), [form.logoUrl]);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const data = await api<CompanyProfileDto | null>(COMPANY_PROFILE_API);
+
+        if (!alive) return;
+        setForm((prev) => ({
+          ...prev,
+          ...(data ?? {}),
+          companyName: (data?.companyName ?? "").toString(),
+        }));
+      } catch (e) {
+        if (!alive) return;
+        setError(e instanceof Error ? e.message : "Failed to load company profile");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const onChange = <K extends keyof CompanyProfileDto>(key: K, value: CompanyProfileDto[K]) => {
+    setSavedMsg(null);
+    setForm((p) => ({ ...p, [key]: value }));
+  };
+
+  const uploadLogo = async (file: File) => {
+    setError(null);
+    setSavedMsg(null);
+
+    const okTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (!okTypes.includes(file.type)) {
+      setError("Only PNG/JPG/WEBP allowed");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Max file size is 2MB");
+      return;
+    }
+
+    try {
+      setUploadingLogo(true);
+      const fd = new FormData();
+      fd.append("logo", file);
+
+      const resp = await api<{ logoUrl: string }>(COMPANY_LOGO_UPLOAD_API, {
+        method: "POST",
+        body: fd,
+      });
+
+      onChange("logoUrl", resp.logoUrl);
+      setSavedMsg("Logo uploaded");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to upload logo");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const save = async () => {
+    setError(null);
+    setSavedMsg(null);
+
+    if (!isValid) {
+      setError("Company Name is required");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const payload: CompanyProfileDto = {
+        ...form,
+        companyName: form.companyName.trim(),
+        website: form.website?.trim() || undefined,
+        contactEmail: form.contactEmail?.trim() || undefined,
+        logoUrl: form.logoUrl?.trim() || undefined,
+      };
+
+      await api(COMPANY_PROFILE_API, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+
+      setSavedMsg("Saved successfully");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save company profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openPreview = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+
+    const safe = (s?: string) => (s ?? "").toString();
+    const logo = normalizeLogoSrc(form.logoUrl);
+
+    w.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>Company Profile Preview</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; background: #f7f7fb; }
+            .card { background: #fff; border-radius: 14px; padding: 20px; max-width: 900px; margin: 0 auto; box-shadow: 0 8px 24px rgba(15,23,42,0.08); }
+            .row { display:flex; gap:16px; align-items:center; }
+            .logo { width:80px; height:80px; border-radius:12px; background:#f3f4f6; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+            .logo img { width:100%; height:100%; object-fit:cover; }
+            h1 { margin:0; font-size: 22px; }
+            .muted { color:#6b7280; margin-top: 4px; }
+            .sec { margin-top: 16px; padding-top: 16px; border-top:1px solid #e5e7eb; }
+            .kv { margin: 6px 0; color:#111827; }
+            .k { color:#6b7280; display:inline-block; min-width: 150px; }
+            pre { white-space: pre-wrap; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="row">
+              <div class="logo">
+                ${
+                  logo
+                    ? `<img src="${logo}" alt="logo" />`
+                    : `<span style="color:#6b7280;">No Logo</span>`
+                }
+              </div>
+              <div>
+                <h1>${safe(form.companyName) || "Company"}</h1>
+                <div class="muted">${safe(form.tagline)}</div>
+                <div class="muted">${safe(form.website)}</div>
+              </div>
+            </div>
+
+            <div class="sec">
+              <div class="kv"><span class="k">Industry:</span> ${safe(form.industry)}</div>
+              <div class="kv"><span class="k">Company Size:</span> ${safe(form.companySize)}</div>
+              <div class="kv"><span class="k">Founded Year:</span> ${safe(form.foundedYear?.toString())}</div>
+              <div class="kv"><span class="k">Headquarters:</span> ${safe(form.headquarters)}</div>
+            </div>
+
+            <div class="sec">
+              <h3>About</h3>
+              <pre>${safe(form.description)}</pre>
+            </div>
+
+            <div class="sec">
+              <h3>Mission</h3>
+              <pre>${safe(form.mission)}</pre>
+              <h3>Values</h3>
+              <pre>${safe(form.values)}</pre>
+            </div>
+
+            <div class="sec">
+              <h3>Culture & Benefits</h3>
+              <pre>${safe(form.culture)}</pre>
+              <pre>${safe(form.benefits)}</pre>
+            </div>
+
+            <div class="sec">
+              <h3>Contact</h3>
+              <div class="kv"><span class="k">Email:</span> ${safe(form.contactEmail)}</div>
+              <div class="kv"><span class="k">Phone:</span> ${safe(form.phone)}</div>
+              <div class="kv"><span class="k">LinkedIn:</span> ${safe(form.linkedin)}</div>
+              <div class="kv"><span class="k">GitHub:</span> ${safe(form.github)}</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    w.document.close();
+  };
 
   return (
     <div className={styles.root}>
+      <div className={styles.topBar}>
+        <div>
+          {loading ? null : error ? (
+            <div className={styles.errorText}>{error}</div>
+          ) : savedMsg ? (
+            <div className={styles.successText}>{savedMsg}</div>
+          ) : null}
+        </div>
+        {loading ? <Spinner size="small" /> : null}
+      </div>
+
       <Card className={styles.sectionCard}>
         <h3 className={styles.sectionTitle}>Company Information</h3>
 
@@ -185,20 +471,54 @@ export function CompanyProfile() {
             <Label className={styles.fieldLabel}>Company Logo</Label>
             <div className={styles.logoRow}>
               <div className={styles.logoDropZone}>
-                <CloudArrowUp20Regular style={{ fontSize: 22, color: "#5B6475" }} />
+                {logoSrc ? (
+                  <img
+                    src={logoSrc}
+                    alt="Company logo"
+                    className={styles.logoImg}
+                    onError={() => {
+                      onChange("logoUrl", "");
+                      setError("Logo failed to load (bad URL or server not serving /uploads)");
+                    }}
+                  />
+                ) : (
+                  <CloudArrowUp20Regular style={{ fontSize: 22, color: "#5B6475" }} />
+                )}
               </div>
+
               <div className={styles.logoInfo}>
-                <div style={{ display: "flex", columnGap: "8px" }}>
+                <div style={{ display: "flex", columnGap: "8px", flexWrap: "wrap", rowGap: "8px" }}>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadLogo(f);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+
                   <Button
                     appearance="outline"
                     size="small"
                     icon={<CloudArrowUp20Regular />}
+                    disabled={uploadingLogo || loading}
+                    onClick={() => fileRef.current?.click()}
                   >
-                    Upload Logo
+                    {uploadingLogo ? "Uploading..." : "Upload Logo"}
                   </Button>
+
+                  <Input
+                    placeholder="Logo URL (optional)"
+                    value={form.logoUrl ?? ""}
+                    onChange={(_, d) => onChange("logoUrl", d.value)}
+                  />
                 </div>
+
                 <span className={styles.helperText}>
-                  Recommended size: 200x200px. Max file size: 2MB. Supports JPG, PNG.
+                  Recommended size: 200x200px. Max file size: 2MB. Supports JPG, PNG, WEBP.
                 </span>
               </div>
             </div>
@@ -211,7 +531,8 @@ export function CompanyProfile() {
             <Input
               id="company-name"
               placeholder="e.g. Acme Corporation"
-              defaultValue="Acme Corporation"
+              value={form.companyName}
+              onChange={(_, d) => onChange("companyName", d.value)}
             />
           </div>
 
@@ -222,44 +543,48 @@ export function CompanyProfile() {
             <Input
               id="tagline"
               placeholder="e.g. Building the future of technology"
+              value={form.tagline ?? ""}
+              onChange={(_, d) => onChange("tagline", d.value)}
             />
           </div>
 
           <div className={styles.twoColumnGrid}>
             <div className={styles.fieldGroup}>
               <Label htmlFor="company-size" className={styles.fieldLabel}>
-                Company Size *
+                Company Size
               </Label>
               <Dropdown
                 id="company-size"
-                defaultValue="51-200 employees"
+                value={form.companySize ?? ""}
                 placeholder="Select size"
+                onOptionSelect={(_, d) => onChange("companySize", String(d.optionValue ?? ""))}
               >
-                <Option value="1-10">1-10 employees</Option>
-                <Option value="11-50">11-50 employees</Option>
-                <Option value="51-200">51-200 employees</Option>
-                <Option value="201-500">201-500 employees</Option>
-                <Option value="501-1000">501-1000 employees</Option>
-                <Option value="1000+">1000+ employees</Option>
+                <Option value="1-10 employees">1-10 employees</Option>
+                <Option value="11-50 employees">11-50 employees</Option>
+                <Option value="51-200 employees">51-200 employees</Option>
+                <Option value="201-500 employees">201-500 employees</Option>
+                <Option value="501-1000 employees">501-1000 employees</Option>
+                <Option value="1000+ employees">1000+ employees</Option>
               </Dropdown>
             </div>
 
             <div className={styles.fieldGroup}>
               <Label htmlFor="industry" className={styles.fieldLabel}>
-                Industry *
+                Industry
               </Label>
               <Dropdown
                 id="industry"
-                defaultValue="Technology"
+                value={form.industry ?? ""}
                 placeholder="Select industry"
+                onOptionSelect={(_, d) => onChange("industry", String(d.optionValue ?? ""))}
               >
-                <Option value="technology">Technology</Option>
-                <Option value="finance">Finance</Option>
-                <Option value="healthcare">Healthcare</Option>
-                <Option value="education">Education</Option>
-                <Option value="retail">Retail</Option>
-                <Option value="manufacturing">Manufacturing</Option>
-                <Option value="other">Other</Option>
+                <Option value="Technology">Technology</Option>
+                <Option value="Finance">Finance</Option>
+                <Option value="Healthcare">Healthcare</Option>
+                <Option value="Education">Education</Option>
+                <Option value="Retail">Retail</Option>
+                <Option value="Manufacturing">Manufacturing</Option>
+                <Option value="Other">Other</Option>
               </Dropdown>
             </div>
           </div>
@@ -273,6 +598,8 @@ export function CompanyProfile() {
                 id="founded"
                 type="number"
                 placeholder="e.g. 2015"
+                value={form.foundedYear?.toString() ?? ""}
+                onChange={(_, d) => onChange("foundedYear", d.value ? Number(d.value) : undefined)}
               />
             </div>
 
@@ -283,6 +610,8 @@ export function CompanyProfile() {
               <Input
                 id="headquarters"
                 placeholder="e.g. San Francisco, CA"
+                value={form.headquarters ?? ""}
+                onChange={(_, d) => onChange("headquarters", d.value)}
               />
             </div>
           </div>
@@ -295,14 +624,15 @@ export function CompanyProfile() {
         <div className={styles.sectionBody}>
           <div className={styles.fieldGroup}>
             <Label htmlFor="about" className={styles.fieldLabel}>
-              Company Description *
+              Company Description
             </Label>
             <Textarea
               id="about"
               placeholder="Tell candidates about your company, mission, values, and culture..."
               rows={8}
               className={styles.textarea}
-              defaultValue="Acme Corporation is a leading technology company focused on building innovative solutions that empower businesses worldwide. Founded in 2015, we've grown to a team of over 150 talented individuals passionate about making a difference through technology."
+              value={form.description ?? ""}
+              onChange={(_, d) => onChange("description", d.value)}
             />
             <span className={styles.helperText}>
               This will be displayed on your company profile and job postings.
@@ -318,6 +648,8 @@ export function CompanyProfile() {
               placeholder="What drives your company?"
               rows={3}
               className={styles.textarea}
+              value={form.mission ?? ""}
+              onChange={(_, d) => onChange("mission", d.value)}
             />
           </div>
 
@@ -327,9 +659,11 @@ export function CompanyProfile() {
             </Label>
             <Textarea
               id="values"
-              placeholder="What are your core values? (e.g. Innovation, Integrity, Collaboration)"
+              placeholder="What are your core values?"
               rows={3}
               className={styles.textarea}
+              value={form.values ?? ""}
+              onChange={(_, d) => onChange("values", d.value)}
             />
           </div>
         </div>
@@ -341,7 +675,7 @@ export function CompanyProfile() {
         <div className={styles.sectionBody}>
           <div className={styles.fieldGroup}>
             <Label htmlFor="website" className={styles.fieldLabel}>
-              Website *
+              Website
             </Label>
             <div className={styles.websiteWrapper}>
               <span className={styles.websiteIcon}>
@@ -351,7 +685,8 @@ export function CompanyProfile() {
                 id="website"
                 type="url"
                 placeholder="https://www.example.com"
-                defaultValue="https://www.acmecorp.com"
+                value={form.website ?? ""}
+                onChange={(_, d) => onChange("website", d.value)}
                 className={styles.websiteInput}
               />
             </div>
@@ -359,13 +694,14 @@ export function CompanyProfile() {
 
           <div className={styles.fieldGroup}>
             <Label htmlFor="email" className={styles.fieldLabel}>
-              Contact Email *
+              Contact Email
             </Label>
             <Input
               id="email"
               type="email"
               placeholder="contact@company.com"
-              defaultValue="careers@acmecorp.com"
+              value={form.contactEmail ?? ""}
+              onChange={(_, d) => onChange("contactEmail", d.value)}
             />
           </div>
 
@@ -377,19 +713,18 @@ export function CompanyProfile() {
               id="phone"
               type="tel"
               placeholder="+1 (555) 123-4567"
+              value={form.phone ?? ""}
+              onChange={(_, d) => onChange("phone", d.value)}
             />
           </div>
 
           <div className={styles.socialSection}>
             <Label className={styles.fieldLabel}>Social Media Links</Label>
             <div className={styles.socialList}>
-              <Input
-                placeholder="LinkedIn URL"
-                defaultValue="https://linkedin.com/company/acmecorp"
-              />
-              <Input placeholder="Twitter URL" />
-              <Input placeholder="GitHub URL" />
-              <Input placeholder="Facebook URL" />
+              <Input placeholder="LinkedIn URL" value={form.linkedin ?? ""} onChange={(_, d) => onChange("linkedin", d.value)} />
+              <Input placeholder="Twitter URL" value={form.twitter ?? ""} onChange={(_, d) => onChange("twitter", d.value)} />
+              <Input placeholder="GitHub URL" value={form.github ?? ""} onChange={(_, d) => onChange("github", d.value)} />
+              <Input placeholder="Facebook URL" value={form.facebook ?? ""} onChange={(_, d) => onChange("facebook", d.value)} />
             </div>
           </div>
         </div>
@@ -408,6 +743,8 @@ export function CompanyProfile() {
               placeholder="Describe your work environment and culture..."
               rows={4}
               className={styles.textarea}
+              value={form.culture ?? ""}
+              onChange={(_, d) => onChange("culture", d.value)}
             />
           </div>
 
@@ -420,25 +757,40 @@ export function CompanyProfile() {
               placeholder="List benefits like health insurance, remote work, learning budget, etc."
               rows={6}
               className={styles.textarea}
+              value={form.benefits ?? ""}
+              onChange={(_, d) => onChange("benefits", d.value)}
             />
           </div>
         </div>
       </Card>
 
       <div className={styles.footerRow}>
-        <Button appearance="outline" className={styles.outlineButton}>
+        <Button
+          appearance="outline"
+          disabled={loading}
+          icon={<Eye20Regular />}
+          onClick={openPreview}
+        >
           Preview Profile
         </Button>
+
         <div className={styles.footerRightButtons}>
-          <Button appearance="outline" className={styles.outlineButton}>
+          <Button
+            appearance="outline"
+            onClick={() => window.location.reload()}
+            disabled={saving || uploadingLogo}
+          >
             Cancel
           </Button>
+
           <Button
             appearance="primary"
             className={styles.primaryButton}
             icon={<Save20Regular />}
+            onClick={save}
+            disabled={saving || uploadingLogo || loading || !isValid}
           >
-            Save Changes
+            {saving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </div>

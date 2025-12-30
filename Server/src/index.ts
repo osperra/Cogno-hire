@@ -1,6 +1,7 @@
-import express from "express";
+import express, { type Request, type Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
 import { connectDB } from "./config/db.js";
 
 import authRouter from "./routes/auth.js";
@@ -9,7 +10,8 @@ import { applicationsRouter } from "./routes/applications.js";
 import notificationsRouter from "./routes/notification.js";
 import meRoutes from "./routes/me";
 import candidateDashboardRoutes from "./routes/candidateDashboard";
-
+import { sidebarRouter } from "./routes/sidebar.js";
+import { companyProfileRouter } from "./routes/companyProfile.js";
 
 dotenv.config();
 
@@ -23,21 +25,22 @@ app.use(
 );
 
 app.use(express.json());
-app.use(meRoutes);
 
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+app.use(meRoutes);
 app.use(candidateDashboardRoutes);
 
-app.get("/health", (_, res) => res.json({ ok: true }));
-
-app.get("/", (_req, res) => res.json({ ok: true, name: "CognoHire API" }));
+app.get("/health", (_: Request, res: Response) => res.json({ ok: true }));
+app.get("/", (_req: Request, res: Response) => res.json({ ok: true, name: "CognoHire API" }));
 
 app.use("/api/auth", authRouter);
 app.use("/api/jobs", jobsRouter);
 app.use("/api/applications", applicationsRouter);
 app.use("/api/notifications", notificationsRouter);
-import { sidebarRouter } from "./routes/sidebar.js";
 app.use("/api/sidebar", sidebarRouter);
 
+app.use("/api/company-profile", companyProfileRouter);
 
 const port = Number(process.env.PORT || 5000);
 
