@@ -36,7 +36,13 @@ export interface CompanyProfileDoc {
 
 const companyProfileSchema = new Schema<CompanyProfileDoc>(
   {
-    employerId: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true, index: true },
+    employerId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true,
+      index: true,
+    },
 
     companyName: { type: String, required: true, trim: true },
     tagline: { type: String, trim: true },
@@ -67,4 +73,8 @@ const companyProfileSchema = new Schema<CompanyProfileDoc>(
   { timestamps: true }
 );
 
-export const CompanyProfile = model<CompanyProfileDoc>("CompanyProfile", companyProfileSchema, "company_profiles");
+export const CompanyProfile = model<CompanyProfileDoc>(
+  "CompanyProfile",
+  companyProfileSchema,
+  "company_profiles"
+);
