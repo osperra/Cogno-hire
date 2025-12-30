@@ -19,14 +19,17 @@ export interface JobDoc {
   _id: Types.ObjectId;
   employerId: Types.ObjectId;
 
+  company?: string;
+  companyName?: string;
+
   title: string;
   about?: string;
 
-  location?: string; 
-  workType?: string; 
+  location?: string;
+  workType?: string;
 
-  jobType?: string; 
-  salaryRange?: SalaryRange; 
+  jobType?: string;
+  salaryRange?: SalaryRange;
 
   isActive?: boolean;
   workExperience?: number;
@@ -62,6 +65,10 @@ const interviewSettingsSchema = new Schema<InterviewSettings>(
 const jobSchema = new Schema<JobDoc>(
   {
     employerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+
+    // ✅ add these
+    company: { type: String, trim: true },
+    companyName: { type: String, trim: true },
 
     title: { type: String, required: true, trim: true },
     about: { type: String },
