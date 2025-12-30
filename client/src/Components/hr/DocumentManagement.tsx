@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Card,
@@ -24,6 +24,7 @@ import {
   makeStyles,
   shorthands,
   tokens,
+  Spinner,
 } from "@fluentui/react-components";
 
 import {
@@ -43,76 +44,26 @@ import {
 } from "@fluentui/react-icons";
 
 import { StatusPill, type StatusType } from "../ui/StatusPill";
+import { api } from "../../api/http";
 
-const mockDocuments = [
-  {
-    id: 1,
-    name: "Resume_JohnDoe.pdf",
-    type: "Resume",
-    uploadedBy: "John Doe",
-    uploadDate: "Jan 15, 2025",
-    size: "2.4 MB",
-    status: "Verified",
-    category: "Application",
-  },
-  {
-    id: 2,
-    name: "Bachelor_Degree_Certificate.pdf",
-    type: "Education",
-    uploadedBy: "John Doe",
-    uploadDate: "Jan 15, 2025",
-    size: "1.8 MB",
-    status: "Verified",
-    category: "Education",
-  },
-  {
-    id: 3,
-    name: "Previous_Employment_Letter.pdf",
-    type: "Experience",
-    uploadedBy: "John Doe",
-    uploadDate: "Jan 16, 2025",
-    size: "856 KB",
-    status: "Pending",
-    category: "Experience",
-  },
-  {
-    id: 4,
-    name: "ID_Proof_Passport.jpg",
-    type: "Identification",
-    uploadedBy: "John Doe",
-    uploadDate: "Jan 16, 2025",
-    size: "3.2 MB",
-    status: "Verified",
-    category: "Identification",
-  },
-  {
-    id: 5,
-    name: "Background_Check_Report.pdf",
-    type: "Background Check",
-    uploadedBy: "HR Team",
-    uploadDate: "Jan 18, 2025",
-    size: "4.1 MB",
-    status: "Completed",
-    category: "Verification",
-  },
-  {
-    id: 6,
-    name: "Offer_Letter_Signed.pdf",
-    type: "Offer Letter",
-    uploadedBy: "HR Team",
-    uploadDate: "Jan 20, 2025",
-    size: "512 KB",
-    status: "Signed",
-    category: "Onboarding",
-  },
-];
+type DocTab = "all" | "application" | "verification" | "onboarding" | "employee";
+type DocStatus = "PENDING" | "VERIFIED" | "COMPLETED" | "SIGNED";
 
-type DocTab =
-  | "all"
-  | "application"
-  | "verification"
-  | "onboarding"
-  | "employee";
+type DocRow = {
+  _id: string;
+  name: string;
+  type: string;
+  category: string;
+  status: DocStatus;
+  fileUrl: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+
+  uploadedByUserId?: { name?: string; email?: string };
+};
+
+type Stats = { total: number; verified: number; pending: number; requiresAction: number };
 
 const useStyles = makeStyles({
   root: {
@@ -127,7 +78,6 @@ const useStyles = makeStyles({
     paddingBottom: "24px",
     maxWidth: "2000px",
     margin: "0 auto",
-
     "@media (max-width: 768px)": {
       paddingLeft: "12px",
       paddingRight: "12px",
@@ -143,31 +93,13 @@ const useStyles = makeStyles({
     columnGap: "12px",
     flexWrap: "wrap",
   },
-
-  headerTitleBlock: {
-    display: "flex",
-    flexDirection: "column",
-    rowGap: "4px",
-  },
-
-  headerTitle: {
-    fontSize: "1.1rem",
-    fontWeight: 600,
-    color: "#0B1220",
-  },
-
-  headerSubtitle: {
-    fontSize: "0.85rem",
-    color: "#5B6475",
-  },
-
+  headerTitleBlock: { display: "flex", flexDirection: "column", rowGap: "4px" },
+  headerTitle: { fontSize: "1.1rem", fontWeight: 600, color: "#0B1220" },
+  headerSubtitle: { fontSize: "0.85rem", color: "#5B6475" },
   primaryButton: {
     backgroundColor: "#0118D8",
     color: "#FFFFFF",
-    ":hover": {
-      backgroundColor: "#1B56FD",
-      color: "#FFFFFF",
-    },
+    ":hover": { backgroundColor: "#1B56FD", color: "#FFFFFF" },
   },
 
   statsGrid: {
@@ -175,12 +107,8 @@ const useStyles = makeStyles({
     gridTemplateColumns: "repeat(1,minmax(0,1fr))",
     rowGap: "12px",
     columnGap: "12px",
-
-    "@media (min-width: 768px)": {
-      gridTemplateColumns: "repeat(4,minmax(0,1fr))",
-    },
+    "@media (min-width: 768px)": { gridTemplateColumns: "repeat(4,minmax(0,1fr))" },
   },
-
   statCard: {
     ...shorthands.borderRadius("12px"),
     ...shorthands.border("1px", "solid", "rgba(2,6,23,0.08)"),
@@ -188,27 +116,9 @@ const useStyles = makeStyles({
     padding: "16px 18px",
     backgroundColor: "#FFFFFF",
   },
-
-  statLabel: {
-    fontSize: "0.8rem",
-    color: "#5B6475",
-    marginBottom: "4px",
-  },
-
-  statValue: {
-    fontSize: "2rem",
-    fontWeight: 600,
-    color: "#0B1220",
-  },
-
-  statIconBox: {
-    width: "48px",
-    height: "48px",
-    borderRadius: "12px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  statLabel: { fontSize: "0.8rem", color: "#5B6475", marginBottom: "4px" },
+  statValue: { fontSize: "2rem", fontWeight: 600, color: "#0B1220" },
+  statIconBox: { width: "48px", height: "48px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center" },
 
   toolbarCard: {
     ...shorthands.borderRadius("999px"),
@@ -217,32 +127,10 @@ const useStyles = makeStyles({
     padding: "10px 16px",
     backgroundColor: "#FFFFFF",
   },
+  toolbarRow: { display: "flex", alignItems: "center", columnGap: "12px", rowGap: "8px", flexWrap: "wrap" },
 
-  toolbarRow: {
-    display: "flex",
-    alignItems: "center",
-    columnGap: "12px",
-    rowGap: "8px",
-    flexWrap: "wrap",
-  },
-
-  searchWrapper: {
-    position: "relative",
-    flex: 1,
-    minWidth: "260px",
-    maxWidth: "100%",
-  },
-
-  searchIcon: {
-    position: "absolute",
-    left: "14px",
-    top: "50%",
-    transform: "translateY(-50%)",
-    color: "#5B6475",
-    pointerEvents: "none",
-    zIndex: "10",
-  },
-
+  searchWrapper: { position: "relative", flex: 1, minWidth: "260px", maxWidth: "100%" },
+  searchIcon: { position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#5B6475", pointerEvents: "none", zIndex: 10 },
   searchInput: {
     width: "100%",
     height: "44px",
@@ -252,10 +140,7 @@ const useStyles = makeStyles({
     backgroundColor: "#FFFFFF",
     ...shorthands.borderRadius("9px"),
     ...shorthands.border("1px", "solid", "rgba(2,6,23,0.16)"),
-
-    "::placeholder": {
-      color: "#9CA3AF",
-    },
+    "::placeholder": { color: "#9CA3AF" },
   },
 
   filterButton: {
@@ -275,12 +160,7 @@ const useStyles = makeStyles({
     borderRadius: "9999px",
     marginTop: "8px",
   },
-
-  tabList: {
-    columnGap: "12px",
-    rowGap: "6px",
-    flexWrap: "wrap",
-  },
+  tabList: { columnGap: "12px", rowGap: "6px", flexWrap: "wrap" },
 
   tableCard: {
     ...shorthands.borderRadius("18px"),
@@ -290,71 +170,22 @@ const useStyles = makeStyles({
     overflow: "hidden",
     backgroundColor: "#FFFFFF",
   },
-
-  tableWrapper: {
-    overflowX: "auto",
-    backgroundColor: "#FFFFFF",
-  },
-
-  table: {
-    width: "100%",
-    minWidth: "980px",
-  },
-
-  tableHeaderRow: {
-    background: "#F5F7FF",
-  },
-
-  tableHeaderCell: {
-    fontSize: "0.8rem",
-    color: "#4B5563",
-    fontWeight: 600,
-    padding: "12px 20px",
-  },
-
+  tableWrapper: { overflowX: "auto", backgroundColor: "#FFFFFF" },
+  table: { width: "100%", minWidth: "980px" },
+  tableHeaderRow: { background: "#F5F7FF" },
+  tableHeaderCell: { fontSize: "0.8rem", color: "#4B5563", fontWeight: 600, padding: "12px 20px" },
   tableRow: {
     height: "60px",
     backgroundColor: "#FFFFFF",
-    ":not(:last-child)": {
-      borderBottom: "1px solid #F3F4F6",
-    },
-    ":hover": {
-      backgroundColor: "#F9FAFF",
-    },
+    ":not(:last-child)": { borderBottom: "1px solid #F3F4F6" },
+    ":hover": { backgroundColor: "#F9FAFF" },
   },
+  tableCell: { padding: "12px 20px", fontSize: "0.85rem", color: "#4B5563" },
 
-  tableCell: {
-    padding: "12px 20px",
-    fontSize: "0.85rem",
-    color: "#4B5563",
-  },
-
-  docNameCell: {
-    padding: "12px 20px",
-  },
-
-  docNameRow: {
-    display: "flex",
-    alignItems: "center",
-    columnGap: "12px",
-  },
-
-  docIconBox: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "10px",
-    backgroundColor: "#EEF2FF",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-
-  docNameText: {
-    color: "#0B1220",
-    fontSize: "0.9rem",
-    fontWeight: 500,
-  },
+  docNameCell: { padding: "12px 20px" },
+  docNameRow: { display: "flex", alignItems: "center", columnGap: "12px" },
+  docIconBox: { width: "40px", height: "40px", borderRadius: "10px", backgroundColor: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  docNameText: { color: "#0B1220", fontSize: "0.9rem", fontWeight: 500 },
 
   categoryBadge: {
     ...shorthands.borderRadius("999px"),
@@ -373,10 +204,7 @@ const useStyles = makeStyles({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-
-    ":hover": {
-      backgroundColor: "#F3F4F6",
-    },
+    ":hover": { backgroundColor: "#F3F4F6" },
   },
 
   uploadCard: {
@@ -388,12 +216,8 @@ const useStyles = makeStyles({
     backgroundColor: "#FFFDFB",
     transitionProperty: "border-color",
     transitionDuration: "150ms",
-
-    ":hover": {
-      ...shorthands.border("2px", "dashed", "#0118D8"),
-    },
+    ":hover": { ...shorthands.border("2px", "dashed", "#0118D8") },
   },
-
   uploadIconCircle: {
     width: "64px",
     height: "64px",
@@ -404,20 +228,8 @@ const useStyles = makeStyles({
     justifyContent: "center",
     margin: "0 auto 16px",
   },
-
-  uploadTitle: {
-    fontSize: "1rem",
-    fontWeight: 600,
-    color: "#0B1220",
-    marginBottom: "4px",
-  },
-
-  uploadSubtitle: {
-    fontSize: "0.85rem",
-    color: "#5B6475",
-    marginBottom: "12px",
-  },
-
+  uploadTitle: { fontSize: "1rem", fontWeight: 600, color: "#0B1220", marginBottom: "4px" },
+  uploadSubtitle: { fontSize: "0.85rem", color: "#5B6475", marginBottom: "12px" },
   uploadButton: {
     backgroundColor: "#0118D8",
     color: "#FFFFFF",
@@ -426,20 +238,34 @@ const useStyles = makeStyles({
     justifyContent: "center",
     paddingInline: "16px",
     marginInline: "auto",
-    ":hover": {
-      backgroundColor: "#1B56FD",
-      color: "#FFFFFF",
-    },
+    ":hover": { backgroundColor: "#1B56FD", color: "#FFFFFF" },
   },
 });
 
-const mapStatusToPill = (status: string): StatusType => {
+function bytesToSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "-";
+  const kb = 1024;
+  const mb = kb * 1024;
+  const gb = mb * 1024;
+  if (bytes >= gb) return `${(bytes / gb).toFixed(1)} GB`;
+  if (bytes >= mb) return `${(bytes / mb).toFixed(1)} MB`;
+  if (bytes >= kb) return `${(bytes / kb).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
+
+function dateText(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" });
+}
+
+const mapStatusToPill = (status: DocStatus): StatusType => {
   switch (status) {
-    case "Verified":
-    case "Completed":
-    case "Signed":
+    case "VERIFIED":
+    case "COMPLETED":
+    case "SIGNED":
       return "success";
-    case "Pending":
+    case "PENDING":
       return "warning";
     default:
       return "neutral";
@@ -448,143 +274,243 @@ const mapStatusToPill = (status: string): StatusType => {
 
 export function DocumentManagement() {
   const styles = useStyles();
+
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<TabValue>("all" as DocTab);
 
-  const filteredDocs = useMemo(() => {
-    const lower = search.toLowerCase();
+  const [typeFilter, setTypeFilter] = useState("all-types");
+  const [statusFilter, setStatusFilter] = useState("all-status");
+  const [dateFilter, setDateFilter] = useState("any-date");
 
-    let docs = mockDocuments;
+  const [docs, setDocs] = useState<DocRow[]>([]);
+  const [stats, setStats] = useState<Stats>({ total: 0, verified: 0, pending: 0, requiresAction: 0 });
 
-    if (activeTab !== "all") {
-      if (activeTab === "application") {
-        docs = docs.filter((d) => d.category === "Application");
-      } else if (activeTab === "verification") {
-        docs = docs.filter((d) => d.category === "Verification");
-      } else if (activeTab === "onboarding") {
-        docs = docs.filter((d) => d.category === "Onboarding");
-      } else if (activeTab === "employee") {
-        docs = [];
-      }
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  const typeOptions = useMemo(() => {
+    const set = new Set<string>();
+    docs.forEach((d) => set.add(d.type));
+    return ["all-types", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [docs]);
+
+  const tabCounts = useMemo(() => {
+    const c = { all: 0, application: 0, verification: 0, onboarding: 0, employee: 0 } as Record<DocTab, number>;
+    for (const d of docs) {
+      c.all += 1;
+      const cat = String(d.category || "").toLowerCase();
+      if (cat === "application") c.application += 1;
+      else if (cat === "verification") c.verification += 1;
+      else if (cat === "onboarding") c.onboarding += 1;
+      else if (cat === "employee") c.employee += 1;
+    }
+    return c;
+  }, [docs]);
+
+  const buildQuery = () => {
+    const params = new URLSearchParams();
+    params.set("tab", String(activeTab));
+
+    const q = search.trim();
+    if (q) params.set("q", q);
+
+    if (typeFilter !== "all-types") params.set("type", typeFilter);
+
+    if (statusFilter !== "all-status") {
+      const map: Record<string, DocStatus> = {
+        pending: "PENDING",
+        verified: "VERIFIED",
+        completed: "COMPLETED",
+        signed: "SIGNED",
+      };
+      const s = map[statusFilter];
+      if (s) params.set("status", s);
     }
 
-    if (!lower.trim()) return docs;
+    if (dateFilter === "7-days") params.set("days", "7");
+    if (dateFilter === "30-days") params.set("days", "30");
 
-    return docs.filter((d) => {
-      const concat =
-        `${d.name} ${d.type} ${d.category} ${d.uploadedBy}`.toLowerCase();
-      return concat.includes(lower);
-    });
-  }, [search, activeTab]);
+    params.set("limit", "500");
+    return `/api/documents?${params.toString()}`;
+  };
 
-  const totalDocs = 248;
-  const verified = 186;
-  const pending = 42;
-  const requiresAction = 20;
+  const load = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const [rows, st] = await Promise.all([
+        api<DocRow[]>(buildQuery()),
+        api<Stats>("/api/documents/stats"),
+      ]);
+      setDocs(rows ?? []);
+      setStats(st ?? { total: 0, verified: 0, pending: 0, requiresAction: 0 });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load documents");
+      setDocs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, search, typeFilter, statusFilter, dateFilter]);
+
+  const filteredDocs = useMemo(() => docs, [docs]);
+
+  const openFilePicker = () => fileRef.current?.click();
+
+  const uploadFile = async (file: File) => {
+    setError("");
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+
+      const ext = (file.name.split(".").pop() ?? "").toLowerCase();
+      const isImg = ["jpg", "jpeg", "png"].includes(ext);
+      const isResume = file.name.toLowerCase().includes("resume") || ext === "pdf";
+
+      fd.append("type", isResume ? "Resume" : isImg ? "Identification" : "Document");
+      fd.append("category", isResume ? "Application" : "Verification");
+      fd.append("status", "PENDING");
+
+      await api("/api/documents/upload", { method: "POST", body: fd });
+
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const viewDoc = (d: DocRow) => window.open(d.fileUrl, "_blank", "noopener,noreferrer");
+
+  const downloadDoc = async (d: DocRow) => {
+
+    const a = document.createElement("a");
+    a.href = d.fileUrl;
+    a.download = d.name || "document";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const verifyDoc = async (d: DocRow) => {
+    setError("");
+    try {
+      const updated = await api<DocRow>(`/api/documents/${d._id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "VERIFIED" }),
+      });
+
+      setDocs((prev) => prev.map((x) => (x._id === d._id ? { ...x, status: updated.status } : x)));
+      const st = await api<Stats>("/api/documents/stats");
+      setStats(st);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Verify failed");
+    }
+  };
+
+  const deleteDoc = async (d: DocRow) => {
+    setError("");
+    try {
+      await api(`/api/documents/${d._id}`, { method: "DELETE" });
+      setDocs((prev) => prev.filter((x) => x._id !== d._id));
+      const st = await api<Stats>("/api/documents/stats");
+      setStats(st);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+    }
+  };
 
   return (
     <div className={styles.root}>
+      <input
+        ref={fileRef}
+        type="file"
+        style={{ display: "none" }}
+        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          void uploadFile(f);
+          e.currentTarget.value = "";
+        }}
+      />
+
       <div className={styles.headerRow}>
         <div className={styles.headerTitleBlock}>
           <span className={styles.headerTitle}>Document Management</span>
           <span className={styles.headerSubtitle}>
             Manage candidate documents, certificates, and verification records
           </span>
+          {error ? (
+            <span style={{ color: tokens.colorPaletteRedForeground1, fontSize: 13, marginTop: 6 }}>{error}</span>
+          ) : null}
         </div>
 
         <Button
           appearance="primary"
           className={styles.primaryButton}
-          icon={<CloudArrowUp20Regular />}
+          icon={uploading ? <Spinner size="tiny" /> : <CloudArrowUp20Regular />}
+          onClick={openFilePicker}
+          disabled={uploading}
         >
-          Upload Document
+          {uploading ? "Uploading..." : "Upload Document"}
         </Button>
       </div>
 
       <div className={styles.statsGrid}>
         <Card className={styles.statCard}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div className={styles.statLabel}>Total Documents</div>
-              <div className={styles.statValue}>{totalDocs}</div>
+              <div className={styles.statValue}>{loading ? "…" : stats.total}</div>
             </div>
-            <div
-              className={styles.statIconBox}
-              style={{ backgroundColor: "#EFF6FF" }}
-            >
-              <DocumentText20Regular
-                style={{ color: "#0118D8", fontSize: 24 }}
-              />
+            <div className={styles.statIconBox} style={{ backgroundColor: "#EFF6FF" }}>
+              <DocumentText20Regular style={{ color: "#0118D8", fontSize: 24 }} />
             </div>
           </div>
         </Card>
 
         <Card className={styles.statCard}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div className={styles.statLabel}>Verified</div>
-              <div className={styles.statValue}>{verified}</div>
+              <div className={styles.statValue}>{loading ? "…" : stats.verified}</div>
             </div>
-            <div
-              className={styles.statIconBox}
-              style={{ backgroundColor: "#ECFDF5" }}
-            >
-              <CheckmarkCircle20Regular
-                style={{ color: "#16A34A", fontSize: 24 }}
-              />
+            <div className={styles.statIconBox} style={{ backgroundColor: "#ECFDF5" }}>
+              <CheckmarkCircle20Regular style={{ color: "#16A34A", fontSize: 24 }} />
             </div>
           </div>
         </Card>
 
         <Card className={styles.statCard}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div className={styles.statLabel}>Pending Review</div>
-              <div className={styles.statValue}>{pending}</div>
+              <div className={styles.statValue}>{loading ? "…" : stats.pending}</div>
             </div>
-            <div
-              className={styles.statIconBox}
-              style={{ backgroundColor: "#FFFBEB" }}
-            >
+            <div className={styles.statIconBox} style={{ backgroundColor: "#FFFBEB" }}>
               <Clock20Regular style={{ color: "#D97706", fontSize: 24 }} />
             </div>
           </div>
         </Card>
 
         <Card className={styles.statCard}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div className={styles.statLabel}>Requires Action</div>
-              <div className={styles.statValue}>{requiresAction}</div>
+              <div className={styles.statValue}>{loading ? "…" : stats.requiresAction}</div>
             </div>
-            <div
-              className={styles.statIconBox}
-              style={{ backgroundColor: "#FEF2F2" }}
-            >
+            <div className={styles.statIconBox} style={{ backgroundColor: "#FEF2F2" }}>
               <Warning20Regular style={{ color: "#DC2626", fontSize: 24 }} />
             </div>
           </div>
@@ -605,25 +531,46 @@ export function DocumentManagement() {
             />
           </div>
 
-          <Dropdown className={styles.filterButton} defaultValue="all-types">
-            <Option value="all-types">All Types</Option>
-            <Option value="application">Application</Option>
-            <Option value="education">Education</Option>
-            <Option value="experience">Experience</Option>
+          <Dropdown
+            className={styles.filterButton}
+            value={typeFilter}
+            selectedOptions={[typeFilter]}
+            onOptionSelect={(_, data) => setTypeFilter(String(data.optionValue))}
+          >
+            {typeOptions.map((t) => (
+              <Option key={t} value={t}>
+                {t === "all-types" ? "All Types" : t}
+              </Option>
+            ))}
           </Dropdown>
 
-          <Dropdown className={styles.filterButton} defaultValue="all-status">
+          <Dropdown
+            className={styles.filterButton}
+            value={statusFilter}
+            selectedOptions={[statusFilter]}
+            onOptionSelect={(_, data) => setStatusFilter(String(data.optionValue))}
+          >
             <Option value="all-status">All Status</Option>
-            <Option value="verified">Verified</Option>
             <Option value="pending">Pending</Option>
+            <Option value="verified">Verified</Option>
             <Option value="completed">Completed</Option>
+            <Option value="signed">Signed</Option>
           </Dropdown>
 
-          <Dropdown className={styles.filterButton} defaultValue="any-date">
+          <Dropdown
+            className={styles.filterButton}
+            value={dateFilter}
+            selectedOptions={[dateFilter]}
+            onOptionSelect={(_, data) => setDateFilter(String(data.optionValue))}
+          >
             <Option value="any-date">Any Date</Option>
             <Option value="7-days">Last 7 days</Option>
             <Option value="30-days">Last 30 days</Option>
           </Dropdown>
+
+          <Button appearance="outline" onClick={() => void load()} disabled={loading || uploading}>
+            {loading ? "Refreshing..." : "Refresh"}
+          </Button>
         </div>
       </Card>
 
@@ -633,11 +580,11 @@ export function DocumentManagement() {
           onTabSelect={(_, data) => setActiveTab(data.value as DocTab)}
           className={styles.tabList}
         >
-          <Tab value="all">All Documents (248)</Tab>
-          <Tab value="application">Application (89)</Tab>
-          <Tab value="verification">Verification (64)</Tab>
-          <Tab value="onboarding">Onboarding (45)</Tab>
-          <Tab value="employee">Employee Records (50)</Tab>
+          <Tab value="all">All Documents ({tabCounts.all})</Tab>
+          <Tab value="application">Application ({tabCounts.application})</Tab>
+          <Tab value="verification">Verification ({tabCounts.verification})</Tab>
+          <Tab value="onboarding">Onboarding ({tabCounts.onboarding})</Tab>
+          <Tab value="employee">Employee Records ({tabCounts.employee})</Tab>
         </TabList>
       </div>
 
@@ -646,41 +593,34 @@ export function DocumentManagement() {
           <Table aria-label="Documents table" className={styles.table}>
             <TableHeader>
               <TableRow className={styles.tableHeaderRow}>
-                <TableHeaderCell
-                  className={styles.tableHeaderCell}
-                  style={{ width: "30%" }}
-                >
+                <TableHeaderCell className={styles.tableHeaderCell} style={{ width: "30%" }}>
                   Document Name
                 </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Type
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Category
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Uploaded By
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Upload Date
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Size
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Status
-                </TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Type</TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Category</TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Uploaded By</TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Upload Date</TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Size</TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Status</TableHeaderCell>
                 <TableHeaderCell className={styles.tableHeaderCell} />
               </TableRow>
             </TableHeader>
 
             <TableBody>
-              {filteredDocs.map((doc) => (
-                <TableRow key={doc.id} className={styles.tableRow}>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className={styles.tableCell}>
+                    <Text style={{ display: "block", textAlign: "center", padding: "16px 0", color: "#6B7280" }}>
+                      Loading documents...
+                    </Text>
+                  </TableCell>
+                </TableRow>
+              ) : filteredDocs.map((doc) => (
+                <TableRow key={doc._id} className={styles.tableRow}>
                   <TableCell className={styles.docNameCell}>
                     <div className={styles.docNameRow}>
                       <div className={styles.docIconBox}>
-                        {doc.name.match(/\.(jpg|jpeg|png)$/i) ? (
+                        {doc.mimeType.startsWith("image/") ? (
                           <Image20Regular style={{ color: "#0118D8" }} />
                         ) : (
                           <DocumentPdf20Regular style={{ color: "#0118D8" }} />
@@ -695,57 +635,47 @@ export function DocumentManagement() {
                   <TableCell className={styles.tableCell}>{doc.type}</TableCell>
 
                   <TableCell className={styles.tableCell}>
-                    <Badge
-                      appearance="outline"
-                      className={styles.categoryBadge}
-                    >
+                    <Badge appearance="outline" className={styles.categoryBadge}>
                       {doc.category}
                     </Badge>
                   </TableCell>
 
                   <TableCell className={styles.tableCell}>
-                    {doc.uploadedBy}
+                    {doc.uploadedByUserId?.name || doc.uploadedByUserId?.email || "-"}
                   </TableCell>
 
-                  <TableCell className={styles.tableCell}>
-                    {doc.uploadDate}
-                  </TableCell>
+                  <TableCell className={styles.tableCell}>{dateText(doc.createdAt)}</TableCell>
 
-                  <TableCell className={styles.tableCell}>{doc.size}</TableCell>
+                  <TableCell className={styles.tableCell}>{bytesToSize(doc.sizeBytes)}</TableCell>
 
                   <TableCell className={styles.tableCell}>
-                    <StatusPill
-                      status={mapStatusToPill(doc.status)}
-                      label={doc.status}
-                      size="sm"
-                    />
+                    <StatusPill status={mapStatusToPill(doc.status)} label={doc.status} size="sm" />
                   </TableCell>
 
                   <TableCell className={styles.tableCell}>
                     <Menu>
                       <MenuTrigger disableButtonEnhancement>
-                        <button
-                          type="button"
-                          className={styles.actionButton}
-                          aria-label="More options"
-                        >
+                        <button type="button" className={styles.actionButton} aria-label="More options">
                           <MoreVerticalRegular />
                         </button>
                       </MenuTrigger>
                       <MenuPopover>
                         <MenuList>
-                          <MenuItem icon={<Eye20Regular />}>View</MenuItem>
-                          <MenuItem icon={<ArrowDownload20Regular />}>
+                          <MenuItem icon={<Eye20Regular />} onClick={() => viewDoc(doc)}>View</MenuItem>
+                          <MenuItem icon={<ArrowDownload20Regular />} onClick={() => void downloadDoc(doc)}>
                             Download
                           </MenuItem>
-                          <MenuItem icon={<ShieldCheckmark20Regular />}>
+                          <MenuItem
+                            icon={<ShieldCheckmark20Regular />}
+                            disabled={doc.status !== "PENDING"}
+                            onClick={() => void verifyDoc(doc)}
+                          >
                             Verify
                           </MenuItem>
                           <MenuItem
                             icon={<Delete20Regular />}
-                            style={{
-                              color: tokens.colorPaletteRedForeground1,
-                            }}
+                            style={{ color: tokens.colorPaletteRedForeground1 }}
+                            onClick={() => void deleteDoc(doc)}
                           >
                             Delete
                           </MenuItem>
@@ -756,17 +686,10 @@ export function DocumentManagement() {
                 </TableRow>
               ))}
 
-              {filteredDocs.length === 0 && (
+              {!loading && filteredDocs.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className={styles.tableCell}>
-                    <Text
-                      style={{
-                        display: "block",
-                        textAlign: "center",
-                        padding: "16px 0",
-                        color: "#6B7280",
-                      }}
-                    >
+                    <Text style={{ display: "block", textAlign: "center", padding: "16px 0", color: "#6B7280" }}>
                       No documents match the current filters.
                     </Text>
                   </TableCell>
@@ -777,22 +700,22 @@ export function DocumentManagement() {
         </div>
       </Card>
 
-      <Card className={styles.uploadCard}>
+      <Card className={styles.uploadCard} onClick={openFilePicker}>
         <div className={styles.uploadIconCircle}>
-          <CloudArrowUp20Regular style={{ color: "#0118D8", fontSize: 28 }} />
+          {uploading ? <Spinner size="small" /> : <CloudArrowUp20Regular style={{ color: "#0118D8", fontSize: 28 }} />}
         </div>
-        <div className={styles.uploadTitle}>
-          Drop files here or click to upload
-        </div>
-        <div className={styles.uploadSubtitle}>
-          Supports: PDF, DOC, DOCX, JPG, PNG (Max 10MB)
-        </div>
+        <div className={styles.uploadTitle}>Drop files here or click to upload</div>
+        <div className={styles.uploadSubtitle}>Supports: PDF, DOC, DOCX, JPG, PNG (Max 10MB)</div>
         <Button
-          style={{ width: "20px" }}
           appearance="primary"
           size="small"
           className={styles.uploadButton}
           icon={<CloudArrowUp20Regular />}
+          onClick={(e) => {
+            e.stopPropagation();
+            openFilePicker();
+          }}
+          disabled={uploading}
         >
           Select Files
         </Button>
