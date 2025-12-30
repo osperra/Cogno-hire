@@ -32,7 +32,6 @@ type InterviewSettingsDb = {
 type JobFromDB = {
   _id: string;
 
-  // ✅ coming from job doc (preferred)
   company?: string;
   companyName?: string;
 
@@ -145,8 +144,8 @@ function toCard(j: JobFromDB): JobCardUI {
     j.interviewSettings?.difficultyLevel ?? j.difficultyLevel ?? j.difficulty
   );
 
-  // ✅ company should come from job itself
-  const company = (j.company || j.companyName || "Company").toString();
+  const company =
+    (j.company ?? j.companyName ?? "Company").toString().trim() || "Company";
   const companyLogo = initials(company);
 
   return {
@@ -302,6 +301,7 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
     params.set("page", String(nextPage));
     params.set("limit", String(limit));
     params.set("sort", sortValue);
+
     params.set("includeAll", "1");
 
     const q = searchQuery.trim();
@@ -331,6 +331,7 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       try {
         setLoading(true);
@@ -347,10 +348,10 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
         if (alive) setLoading(false);
       }
     })();
+
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     searchQuery,
     locationValue,
@@ -361,7 +362,7 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
     minSalaryFilter,
   ]);
 
-  const filtered = useMemo(() => jobs, [jobs]); // backend already filters
+  const filtered = useMemo(() => jobs, [jobs]);
   const hasMore = jobs.length < total;
 
   const chipCounts = useMemo(() => {
@@ -434,7 +435,7 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
               value={sortValue}
               className={styles.dropdown}
               onChange={(e) => {
-                setSortValue(e.target.value as SortValue); // ✅ fixes your TS2345 error
+                setSortValue(e.target.value as SortValue);
                 setPage(1);
               }}
             >
