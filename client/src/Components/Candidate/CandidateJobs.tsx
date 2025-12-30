@@ -1,5 +1,13 @@
 import * as React from "react";
-import { Card, Button, Input, Select, Text, makeStyles, tokens } from "@fluentui/react-components";
+import {
+  Card,
+  Button,
+  Input,
+  Select,
+  Text,
+  makeStyles,
+  tokens,
+} from "@fluentui/react-components";
 import { Search20Regular } from "@fluentui/react-icons";
 import { EnhancedJobCard } from "../ui/EnhancedJobCard";
 import { useEffect, useMemo, useState } from "react";
@@ -23,14 +31,18 @@ type InterviewSettingsDb = {
 
 type JobFromDB = {
   _id: string;
+
+  // ✅ coming from job doc (preferred)
+  company?: string;
+  companyName?: string;
+
   title: string;
-  employerId?: string;
   about?: string;
   description?: string;
 
-  location?: string;  
-  workType?: string; 
-  jobType?: string;   
+  location?: string;
+  workType?: string;
+  jobType?: string;
 
   salaryRange?: SalaryRangeDb;
 
@@ -47,6 +59,13 @@ type JobFromDB = {
   isActive?: boolean;
 };
 
+type JobsResponse = {
+  items: JobFromDB[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
 type JobCardUI = {
   id: string;
   company: string;
@@ -61,6 +80,9 @@ type JobCardUI = {
   skills: string[];
   match: number;
 };
+
+type SortValue = "relevance" | "recent" | "match" | "salary-high";
+type LocationValue = "all-locations" | "remote" | "onsite" | "hybrid";
 
 function postedText(d?: string) {
   if (!d) return "-";
@@ -82,7 +104,9 @@ function titleCase(s: string) {
 }
 
 function normalizeDifficulty(v: unknown): "Easy" | "Medium" | "Hard" {
-  const s = String(v ?? "").trim().toLowerCase();
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
   if (s === "easy" || s === "low" || s === "1") return "Easy";
   if (s === "medium" || s === "mid" || s === "2") return "Medium";
   if (s === "hard" || s === "high" || s === "3") return "Hard";
@@ -91,40 +115,44 @@ function normalizeDifficulty(v: unknown): "Easy" | "Medium" | "Hard" {
 
 function salaryToText(sr?: SalaryRangeDb): string {
   if (!sr) return "-";
-
-  // if backend ever sends salaryRange as string
   if (typeof sr === "string") {
     const t = sr.trim();
     return t ? t : "-";
   }
-
   const start = typeof sr.start === "number" ? sr.start : undefined;
   const end = typeof sr.end === "number" ? sr.end : undefined;
   const cur = sr.currency ? String(sr.currency) : "";
-
   if (start != null && end != null) return `${cur}${start} - ${cur}${end}`;
   if (start != null) return `${cur}${start}+`;
   if (end != null) return `${cur}Up to ${end}`;
   return "-";
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "C";
+  const second = parts.length > 1 ? parts[1]?.[0] : parts[0]?.[1];
+  return (first + (second ?? "O")).toUpperCase();
+}
+
 function toCard(j: JobFromDB): JobCardUI {
-  const skills = (j.techStack ?? j.skills ?? []).filter(Boolean);
-
+  const skills = (j.techStack ?? j.skills ?? []).filter(Boolean).map(String);
   const location = (j.location ?? j.workType ?? "-").toString();
-
   const type = j.jobType ? titleCase(String(j.jobType)) : "-";
-
   const ctc = salaryToText(j.salaryRange);
 
   const difficulty = normalizeDifficulty(
     j.interviewSettings?.difficultyLevel ?? j.difficultyLevel ?? j.difficulty
   );
 
+  // ✅ company should come from job itself
+  const company = (j.company || j.companyName || "Company").toString();
+  const companyLogo = initials(company);
+
   return {
     id: j._id,
-    company: "Company",
-    companyLogo: "CO",
+    company,
+    companyLogo,
     title: j.title,
     location,
     type,
@@ -164,7 +192,11 @@ const useStyles = makeStyles({
     border: "1px solid rgba(2,6,23,0.08)",
     backgroundColor: tokens.colorNeutralBackground1,
   },
-  searchSection: { display: "flex", flexDirection: "column", rowGap: tokens.spacingVerticalM },
+  searchSection: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalM,
+  },
   searchRow: {
     display: "flex",
     flexDirection: "column",
@@ -182,7 +214,11 @@ const useStyles = makeStyles({
     width: "100%",
     "@media (min-width: 768px)": { width: "190px", justifySelf: "end" },
   },
-  filterChipRow: { display: "flex", flexWrap: "wrap", gap: tokens.spacingHorizontalS },
+  filterChipRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: tokens.spacingHorizontalS,
+  },
   chipBase: {
     borderRadius: "999px",
     border: "1px solid rgba(2,6,23,0.08)",
@@ -191,65 +227,169 @@ const useStyles = makeStyles({
     cursor: "pointer",
     backgroundColor: tokens.colorNeutralBackground1,
     color: "#5B6475",
-    transition: "border-color 150ms ease, background-color 150ms ease, color 150ms ease",
+    transition:
+      "border-color 150ms ease, background-color 150ms ease, color 150ms ease",
   },
   chipSelected: { backgroundColor: "#0118D8", color: "#FFFF" },
-  resultsRow: { display: "flex", alignItems: "center", justifyContent: "space-between", columnGap: tokens.spacingHorizontalM },
+  resultsRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    columnGap: tokens.spacingHorizontalM,
+  },
   resultsText: { color: "#5B6475" },
   resultsStrong: { color: "#0B1220", fontWeight: 500 },
-  jobsList: { display: "flex", flexDirection: "column", rowGap: tokens.spacingVerticalM },
+  jobsList: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: tokens.spacingVerticalM,
+  },
   loadMoreWrapper: { textAlign: "center", paddingTop: tokens.spacingVerticalL },
   loadMoreButton: { ":hover": { backgroundColor: "#E9DFC3" } },
 });
 
 export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
   const styles = useStyles();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>(["Remote"]);
+
+  const [locationValue, setLocationValue] =
+    useState<LocationValue>("all-locations");
+  const [sortValue, setSortValue] = useState<SortValue>("recent");
+
   const [jobs, setJobs] = useState<JobCardUI[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const toggleFilter = (filter: string) => {
+    setSelectedFilters((prev) =>
+      prev.includes(filter)
+        ? prev.filter((f) => f !== filter)
+        : [...prev, filter]
+    );
+    setPage(1);
+  };
+
+  const difficultyFilter = useMemo(() => {
+    if (selectedFilters.includes("Easy")) return "easy";
+    if (selectedFilters.includes("Medium")) return "medium";
+    if (selectedFilters.includes("Hard")) return "hard";
+    return undefined;
+  }, [selectedFilters]);
+
+  const workTypeFilter = useMemo(() => {
+    if (selectedFilters.includes("Remote")) return "remote";
+    return undefined;
+  }, [selectedFilters]);
+
+  const jobTypeFilter = useMemo(() => {
+    if (selectedFilters.includes("Full-time")) return "full-time";
+    return undefined;
+  }, [selectedFilters]);
+
+  const minSalaryFilter = useMemo(() => {
+    if (selectedFilters.includes("$100k+")) return "100000";
+    return undefined;
+  }, [selectedFilters]);
+
+  const buildQuery = (nextPage: number) => {
+    const params = new URLSearchParams();
+    params.set("page", String(nextPage));
+    params.set("limit", String(limit));
+    params.set("sort", sortValue);
+    params.set("includeAll", "1");
+
+    const q = searchQuery.trim();
+    if (q) params.set("q", q);
+
+    if (locationValue && locationValue !== "all-locations")
+      params.set("location", locationValue);
+    if (workTypeFilter) params.set("workType", workTypeFilter);
+    if (jobTypeFilter) params.set("jobType", jobTypeFilter);
+    if (difficultyFilter) params.set("difficulty", difficultyFilter);
+    if (minSalaryFilter) params.set("minSalary", minSalaryFilter);
+
+    return `/api/jobs?${params.toString()}`;
+  };
+
+  const fetchJobs = async (nextPage: number, mode: "replace" | "append") => {
+    const url = buildQuery(nextPage);
+    const res = await api<JobsResponse>(url);
+
+    const items = (res?.items ?? []).map(toCard);
+
+    setTotal(res?.total ?? items.length);
+    setPage(res?.page ?? nextPage);
+
+    setJobs((prev) => (mode === "append" ? [...prev, ...items] : items));
+  };
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoading(true);
-        const data = await api<JobFromDB[]>("/api/jobs");
-        const visible = (data ?? []).filter((j) => (j.status ?? "open") === "open" && j.isActive !== false);
-        if (alive) setJobs(visible.map(toCard));
+        setJobs([]);
+        setPage(1);
+        await fetchJobs(1, "replace");
       } catch (err) {
         console.error("LOAD_CANDIDATE_JOBS_ERROR:", err);
-        if (alive) setJobs([]);
+        if (alive) {
+          setJobs([]);
+          setTotal(0);
+        }
       } finally {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
-  }, []);
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    searchQuery,
+    locationValue,
+    sortValue,
+    workTypeFilter,
+    jobTypeFilter,
+    difficultyFilter,
+    minSalaryFilter,
+  ]);
 
-  const toggleFilter = (filter: string) => {
-    setSelectedFilters((prev) => (prev.includes(filter) ? prev.filter((f) => f !== filter) : [...prev, filter]));
-  };
+  const filtered = useMemo(() => jobs, [jobs]); // backend already filters
+  const hasMore = jobs.length < total;
 
-  const filtered = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return jobs.filter((j) => {
-      if (!q) return true;
-      return (
-        j.title.toLowerCase().includes(q) ||
-        j.company.toLowerCase().includes(q) ||
-        j.skills.join(" ").toLowerCase().includes(q)
-      );
-    });
-  }, [jobs, searchQuery]);
+  const chipCounts = useMemo(() => {
+    const base = {
+      Remote: 0,
+      "Full-time": 0,
+      Easy: 0,
+      Medium: 0,
+      Hard: 0,
+      "$100k+": 0,
+    };
+    for (const j of jobs) {
+      if (String(j.location).toLowerCase().includes("remote")) base.Remote += 1;
+      if (String(j.type).toLowerCase().includes("full")) base["Full-time"] += 1;
+      base[j.difficulty] += 1;
+      if (j.ctc.includes("100") || j.ctc.toLowerCase().includes("$100k"))
+        base["$100k+"] += 1;
+    }
+    return base;
+  }, [jobs]);
 
   const filterChips = [
-    { label: "Remote", count: 0 },
-    { label: "Full-time", count: 0 },
-    { label: "Easy", count: 0 },
-    { label: "Medium", count: 0 },
-    { label: "Hard", count: 0 },
-    { label: "$100k+", count: 0 },
+    { label: "Remote", count: chipCounts.Remote },
+    { label: "Full-time", count: chipCounts["Full-time"] },
+    { label: "Easy", count: chipCounts.Easy },
+    { label: "Medium", count: chipCounts.Medium },
+    { label: "Hard", count: chipCounts.Hard },
+    { label: "$100k+", count: chipCounts["$100k+"] },
   ];
 
   return (
@@ -260,21 +400,44 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
             <div className={styles.searchInputWrapper}>
               <Input
                 className={styles.searchInput}
-                contentBefore={<Search20Regular style={{ color: "#5B6475", fontSize: 16 }} />}
-                placeholder={loading ? "Loading jobs..." : "Search by title, company, or skills..."}
+                contentBefore={
+                  <Search20Regular style={{ color: "#5B6475", fontSize: 16 }} />
+                }
+                placeholder={
+                  loading
+                    ? "Loading jobs..."
+                    : "Search by title, company, or skills..."
+                }
                 value={searchQuery}
-                onChange={(_, data) => setSearchQuery(data.value)}
+                onChange={(_, data) => {
+                  setSearchQuery(data.value);
+                  setPage(1);
+                }}
               />
             </div>
 
-            <Select defaultValue="all-locations" className={styles.dropdown}>
+            <Select
+              value={locationValue}
+              className={styles.dropdown}
+              onChange={(e) => {
+                setLocationValue(e.target.value as LocationValue);
+                setPage(1);
+              }}
+            >
               <option value="all-locations">All Locations</option>
               <option value="remote">Remote</option>
               <option value="onsite">On-site</option>
               <option value="hybrid">Hybrid</option>
             </Select>
 
-            <Select defaultValue="relevance" className={styles.dropdown}>
+            <Select
+              value={sortValue}
+              className={styles.dropdown}
+              onChange={(e) => {
+                setSortValue(e.target.value as SortValue); // ✅ fixes your TS2345 error
+                setPage(1);
+              }}
+            >
               <option value="relevance">Most Relevant</option>
               <option value="recent">Most Recent</option>
               <option value="match">Best Match</option>
@@ -290,10 +453,16 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
                   key={chip.label}
                   type="button"
                   onClick={() => toggleFilter(chip.label)}
-                  className={selected ? `${styles.chipBase} ${styles.chipSelected}` : styles.chipBase}
+                  className={
+                    selected
+                      ? `${styles.chipBase} ${styles.chipSelected}`
+                      : styles.chipBase
+                  }
                 >
                   {chip.label}
-                  <span style={{ marginLeft: 4, opacity: 0.7 }}>({chip.count})</span>
+                  <span style={{ marginLeft: 4, opacity: 0.7 }}>
+                    ({chip.count})
+                  </span>
                 </button>
               );
             })}
@@ -303,7 +472,17 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
 
       <div className={styles.resultsRow}>
         <Text className={styles.resultsText}>
-          Showing <span className={styles.resultsStrong}>{filtered.length}</span> jobs
+          Showing{" "}
+          <span className={styles.resultsStrong}>
+            {loading ? "…" : filtered.length}
+          </span>{" "}
+          jobs
+          {total ? (
+            <>
+              {" "}
+              of <span className={styles.resultsStrong}>{total}</span>
+            </>
+          ) : null}
         </Text>
         <Button appearance="subtle" size="small">
           <h4> Save Search </h4>
@@ -332,8 +511,29 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
       </div>
 
       <div className={styles.loadMoreWrapper}>
-        <Button appearance="outline" size="large" className={styles.loadMoreButton}>
-          Load More Jobs
+        <Button
+          appearance="outline"
+          size="large"
+          className={styles.loadMoreButton}
+          disabled={loading || loadingMore || !hasMore}
+          onClick={async () => {
+            if (!hasMore) return;
+            try {
+              setLoadingMore(true);
+              const nextPage = page + 1;
+              await fetchJobs(nextPage, "append");
+            } catch (e) {
+              console.error("LOAD_MORE_JOBS_ERROR:", e);
+            } finally {
+              setLoadingMore(false);
+            }
+          }}
+        >
+          {loadingMore
+            ? "Loading..."
+            : hasMore
+            ? "Load More Jobs"
+            : "No more jobs"}
         </Button>
       </div>
     </div>
