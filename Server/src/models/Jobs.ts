@@ -13,6 +13,9 @@ export interface InterviewSettings {
   interviewDuration?: number;
   difficultyLevel?: string;
   language?: string;
+
+  interviewers?: unknown[];
+  questions?: unknown[];
 }
 
 export interface JobDoc {
@@ -34,9 +37,14 @@ export interface JobDoc {
   isActive?: boolean;
   workExperience?: number;
 
+  techStack?: string[]; 
+
   interviewSettings?: InterviewSettings;
 
   invitedCandidates?: unknown[];
+
+  price?: number;
+  paymentDetails?: unknown;
 
   status: JobStatus;
   createdAt: Date;
@@ -58,15 +66,22 @@ const interviewSettingsSchema = new Schema<InterviewSettings>(
     interviewDuration: { type: Number },
     difficultyLevel: { type: String, trim: true },
     language: { type: String, trim: true },
+
+    interviewers: { type: [Schema.Types.Mixed], default: [] },
+    questions: { type: [Schema.Types.Mixed], default: [] },
   },
   { _id: false }
 );
 
 const jobSchema = new Schema<JobDoc>(
   {
-    employerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    employerId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
 
-    // ✅ add these
     company: { type: String, trim: true },
     companyName: { type: String, trim: true },
 
@@ -77,17 +92,33 @@ const jobSchema = new Schema<JobDoc>(
     workType: { type: String, trim: true },
 
     jobType: { type: String, trim: true },
-
     salaryRange: { type: salaryRangeSchema },
 
     isActive: { type: Boolean, default: true },
     workExperience: { type: Number },
 
+    techStack: {
+      type: [String],
+      default: [],
+      set: (arr: unknown) =>
+        Array.isArray(arr)
+          ? arr.map((s) => String(s).trim()).filter(Boolean)
+          : [],
+    },
+
     interviewSettings: { type: interviewSettingsSchema },
 
     invitedCandidates: { type: [Schema.Types.Mixed], default: [] },
 
-    status: { type: String, enum: ["draft", "open", "closed"], default: "open", index: true },
+    price: { type: Number },
+    paymentDetails: { type: Schema.Types.Mixed },
+
+    status: {
+      type: String,
+      enum: ["draft", "open", "closed"],
+      default: "open",
+      index: true,
+    },
   },
   { timestamps: true }
 );
