@@ -1,15 +1,11 @@
-// Server/src/utils/mongooseGridfs.ts
 import mongoose from "mongoose";
 
 export function getMongooseBucket(bucketName = "docs") {
   const db = mongoose.connection.db;
   if (!db) throw new Error("Mongoose DB not ready. Did you connect first?");
 
-  // Use mongoose's bundled driver to avoid mongodb type/version conflicts
-  const GridFSBucketCtor = (mongoose.mongo as any).GridFSBucket as new (
-    db: any,
-    options: { bucketName: string }
-  ) => any;
+  const GridFSBucketCtor = (mongoose.mongo as unknown as { GridFSBucket: new (db: unknown, opts: { bucketName: string }) => any })
+    .GridFSBucket;
 
   return new GridFSBucketCtor(db, { bucketName });
 }
