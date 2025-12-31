@@ -16,7 +16,7 @@ interface CandidateApplyFormProps {
   onNavigate: (page: string, data?: Record<string, unknown>) => void;
 }
 
-type UploadResumeResponse = { resumeUrl: string };
+type UploadResumeResponse = { resumeUrl: string; resumeDocId: string };
 type ApplyResponse = { message: string; applicationId: string };
 
 const useStyles = makeStyles({
@@ -37,10 +37,22 @@ const useStyles = makeStyles({
   title: { fontSize: "18px", fontWeight: 700, color: "#0B1220" },
   sub: { fontSize: "13px", color: "#5B6475", marginTop: "4px" },
   row: { display: "flex", gap: "12px", flexWrap: "wrap" },
-  field: { display: "flex", flexDirection: "column", rowGap: "6px", flex: 1, minWidth: "260px" },
+  field: {
+    display: "flex",
+    flexDirection: "column",
+    rowGap: "6px",
+    flex: 1,
+    minWidth: "260px",
+  },
   error: { color: "#b91c1c", fontSize: "13px" },
   ok: { color: "#15803d", fontSize: "13px" },
-  footer: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" },
+  footer: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    flexWrap: "wrap",
+  },
   primaryButton: {
     backgroundColor: "#0118D8",
     color: "#FFFFFF",
@@ -53,16 +65,22 @@ function getQueryParam(locationSearch: string, key: string) {
   return sp.get(key) ?? "";
 }
 
-export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({ onNavigate }) => {
+export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({
+  onNavigate,
+}) => {
   const styles = useStyles();
   const location = useLocation();
 
-  const jobId = useMemo(() => getQueryParam(location.search, "jobId"), [location.search]);
+  const jobId = useMemo(
+    () => getQueryParam(location.search, "jobId"),
+    [location.search]
+  );
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [coverLetter, setCoverLetter] = useState("");
   const [resumeUrl, setResumeUrl] = useState<string>("");
+  const [resumeDocId, setResumeDocId] = useState<string>("");
   const [resumeName, setResumeName] = useState<string>("");
 
   const [uploading, setUploading] = useState(false);
@@ -81,13 +99,15 @@ export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({ onNaviga
     try {
       const fd = new FormData();
       fd.append("resume", file);
+      fd.append("jobId", jobId);
 
-      const res = await api<UploadResumeResponse>("/api/applications/upload-resume", {
-        method: "POST",
-        body: fd,
-      });
+      const res = await api<UploadResumeResponse>(
+        "/api/applications/upload-resume",
+        { method: "POST", body: fd }
+      );
 
       setResumeUrl(res.resumeUrl);
+      setResumeDocId(res.resumeDocId);
       setResumeName(file.name);
       setSuccess("Resume uploaded.");
     } catch (e) {
@@ -112,7 +132,7 @@ export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({ onNaviga
       const payload = {
         jobId,
         coverLetter: coverLetter.trim() || undefined,
-        resumeUrl: resumeUrl || undefined,
+        resumeDocId: resumeDocId || undefined,
       };
 
       const res = await api<ApplyResponse>("/api/applications", {
@@ -122,7 +142,6 @@ export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({ onNaviga
       });
 
       setSuccess(res.message || "Applied successfully");
-
       setTimeout(() => onNavigate("applications"), 600);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to apply");
@@ -179,31 +198,35 @@ export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({ onNaviga
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (!f) return;
-                uploadResume(f);
+                void uploadResume(f);
                 e.currentTarget.value = "";
               }}
             />
 
-            {resumeUrl ? (
-              <div className={styles.sub}>
-                Uploaded URL: <b>{resumeUrl}</b>
+            {error ? (
+              <div className={styles.error} style={{ marginTop: 8 }}>
+                {error}
+              </div>
+            ) : null}
+            {success ? (
+              <div className={styles.ok} style={{ marginTop: 8 }}>
+                {success}
               </div>
             ) : null}
           </div>
         </div>
 
-        <div style={{ marginTop: 12 }}>
-          {error ? <div className={styles.error}>{error}</div> : null}
-          {success ? <div className={styles.ok}>{success}</div> : null}
-        </div>
-
         <div style={{ marginTop: 16 }} className={styles.footer}>
-          <Button appearance="outline" onClick={() => onNavigate("jobs")} disabled={uploading || submitting}>
+          <Button
+            appearance="outline"
+            onClick={() => onNavigate("jobs")}
+            disabled={uploading || submitting}
+          >
             Back to Jobs
           </Button>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            {(uploading || submitting) ? <Spinner size="small" /> : null}
+            {uploading || submitting ? <Spinner size="small" /> : null}
             <Button
               appearance="primary"
               className={styles.primaryButton}

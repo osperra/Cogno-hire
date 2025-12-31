@@ -30,7 +30,6 @@ import {
 import {
   SearchRegular,
   MoreVerticalRegular,
-  DocumentText20Regular,
   DocumentPdf20Regular,
   Image20Regular,
   CheckmarkCircle20Regular,
@@ -41,12 +40,18 @@ import {
   Eye20Regular,
   Delete20Regular,
   CloudArrowUp20Regular,
+  DocumentText20Regular,
 } from "@fluentui/react-icons";
 
 import { StatusPill, type StatusType } from "../ui/StatusPill";
 import { api } from "../../api/http";
 
-type DocTab = "all" | "application" | "verification" | "onboarding" | "employee";
+type DocTab =
+  | "all"
+  | "application"
+  | "verification"
+  | "onboarding"
+  | "employee";
 type DocStatus = "PENDING" | "VERIFIED" | "COMPLETED" | "SIGNED";
 
 type DocRow = {
@@ -59,11 +64,15 @@ type DocRow = {
   mimeType: string;
   sizeBytes: number;
   createdAt: string;
-
   uploadedByUserId?: { name?: string; email?: string };
 };
 
-type Stats = { total: number; verified: number; pending: number; requiresAction: number };
+type Stats = {
+  total: number;
+  verified: number;
+  pending: number;
+  requiresAction: number;
+};
 
 const useStyles = makeStyles({
   root: {
@@ -107,7 +116,9 @@ const useStyles = makeStyles({
     gridTemplateColumns: "repeat(1,minmax(0,1fr))",
     rowGap: "12px",
     columnGap: "12px",
-    "@media (min-width: 768px)": { gridTemplateColumns: "repeat(4,minmax(0,1fr))" },
+    "@media (min-width: 768px)": {
+      gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+    },
   },
   statCard: {
     ...shorthands.borderRadius("12px"),
@@ -118,7 +129,14 @@ const useStyles = makeStyles({
   },
   statLabel: { fontSize: "0.8rem", color: "#5B6475", marginBottom: "4px" },
   statValue: { fontSize: "2rem", fontWeight: 600, color: "#0B1220" },
-  statIconBox: { width: "48px", height: "48px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center" },
+  statIconBox: {
+    width: "48px",
+    height: "48px",
+    borderRadius: "12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   toolbarCard: {
     ...shorthands.borderRadius("999px"),
@@ -127,10 +145,29 @@ const useStyles = makeStyles({
     padding: "10px 16px",
     backgroundColor: "#FFFFFF",
   },
-  toolbarRow: { display: "flex", alignItems: "center", columnGap: "12px", rowGap: "8px", flexWrap: "wrap" },
+  toolbarRow: {
+    display: "flex",
+    alignItems: "center",
+    columnGap: "12px",
+    rowGap: "8px",
+    flexWrap: "wrap",
+  },
 
-  searchWrapper: { position: "relative", flex: 1, minWidth: "260px", maxWidth: "100%" },
-  searchIcon: { position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#5B6475", pointerEvents: "none", zIndex: 10 },
+  searchWrapper: {
+    position: "relative",
+    flex: 1,
+    minWidth: "260px",
+    maxWidth: "100%",
+  },
+  searchIcon: {
+    position: "absolute",
+    left: "14px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    color: "#5B6475",
+    pointerEvents: "none",
+    zIndex: 10,
+  },
   searchInput: {
     width: "100%",
     height: "44px",
@@ -173,7 +210,12 @@ const useStyles = makeStyles({
   tableWrapper: { overflowX: "auto", backgroundColor: "#FFFFFF" },
   table: { width: "100%", minWidth: "980px" },
   tableHeaderRow: { background: "#F5F7FF" },
-  tableHeaderCell: { fontSize: "0.8rem", color: "#4B5563", fontWeight: 600, padding: "12px 20px" },
+  tableHeaderCell: {
+    fontSize: "0.8rem",
+    color: "#4B5563",
+    fontWeight: 600,
+    padding: "12px 20px",
+  },
   tableRow: {
     height: "60px",
     backgroundColor: "#FFFFFF",
@@ -184,7 +226,16 @@ const useStyles = makeStyles({
 
   docNameCell: { padding: "12px 20px" },
   docNameRow: { display: "flex", alignItems: "center", columnGap: "12px" },
-  docIconBox: { width: "40px", height: "40px", borderRadius: "10px", backgroundColor: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  docIconBox: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "10px",
+    backgroundColor: "#EEF2FF",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
   docNameText: { color: "#0B1220", fontSize: "0.9rem", fontWeight: 500 },
 
   categoryBadge: {
@@ -228,8 +279,17 @@ const useStyles = makeStyles({
     justifyContent: "center",
     margin: "0 auto 16px",
   },
-  uploadTitle: { fontSize: "1rem", fontWeight: 600, color: "#0B1220", marginBottom: "4px" },
-  uploadSubtitle: { fontSize: "0.85rem", color: "#5B6475", marginBottom: "12px" },
+  uploadTitle: {
+    fontSize: "1rem",
+    fontWeight: 600,
+    color: "#0B1220",
+    marginBottom: "4px",
+  },
+  uploadSubtitle: {
+    fontSize: "0.85rem",
+    color: "#5B6475",
+    marginBottom: "12px",
+  },
   uploadButton: {
     backgroundColor: "#0118D8",
     color: "#FFFFFF",
@@ -256,7 +316,11 @@ function bytesToSize(bytes: number) {
 function dateText(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" });
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
 }
 
 const mapStatusToPill = (status: DocStatus): StatusType => {
@@ -285,7 +349,12 @@ export function DocumentManagement() {
   const [dateFilter, setDateFilter] = useState("any-date");
 
   const [docs, setDocs] = useState<DocRow[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, verified: 0, pending: 0, requiresAction: 0 });
+  const [stats, setStats] = useState<Stats>({
+    total: 0,
+    verified: 0,
+    pending: 0,
+    requiresAction: 0,
+  });
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -298,7 +367,13 @@ export function DocumentManagement() {
   }, [docs]);
 
   const tabCounts = useMemo(() => {
-    const c = { all: 0, application: 0, verification: 0, onboarding: 0, employee: 0 } as Record<DocTab, number>;
+    const c = {
+      all: 0,
+      application: 0,
+      verification: 0,
+      onboarding: 0,
+      employee: 0,
+    } as Record<DocTab, number>;
     for (const d of docs) {
       c.all += 1;
       const cat = String(d.category || "").toLowerCase();
@@ -350,6 +425,7 @@ export function DocumentManagement() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load documents");
       setDocs([]);
+      setStats({ total: 0, verified: 0, pending: 0, requiresAction: 0 });
     } finally {
       setLoading(false);
     }
@@ -359,8 +435,6 @@ export function DocumentManagement() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, search, typeFilter, statusFilter, dateFilter]);
-
-  const filteredDocs = useMemo(() => docs, [docs]);
 
   const openFilePicker = () => fileRef.current?.click();
 
@@ -373,14 +447,17 @@ export function DocumentManagement() {
 
       const ext = (file.name.split(".").pop() ?? "").toLowerCase();
       const isImg = ["jpg", "jpeg", "png"].includes(ext);
-      const isResume = file.name.toLowerCase().includes("resume") || ext === "pdf";
+      const isResume =
+        file.name.toLowerCase().includes("resume") || ext === "pdf";
 
-      fd.append("type", isResume ? "Resume" : isImg ? "Identification" : "Document");
+      fd.append(
+        "type",
+        isResume ? "Resume" : isImg ? "Identification" : "Document"
+      );
       fd.append("category", isResume ? "Application" : "Verification");
       fd.append("status", "PENDING");
 
       await api("/api/documents/upload", { method: "POST", body: fd });
-
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
@@ -389,10 +466,10 @@ export function DocumentManagement() {
     }
   };
 
-  const viewDoc = (d: DocRow) => window.open(d.fileUrl, "_blank", "noopener,noreferrer");
+  const viewDoc = (d: DocRow) =>
+    window.open(d.fileUrl, "_blank", "noopener,noreferrer");
 
-  const downloadDoc = async (d: DocRow) => {
-
+  const downloadDoc = (d: DocRow) => {
     const a = document.createElement("a");
     a.href = d.fileUrl;
     a.download = d.name || "document";
@@ -410,7 +487,11 @@ export function DocumentManagement() {
         body: JSON.stringify({ status: "VERIFIED" }),
       });
 
-      setDocs((prev) => prev.map((x) => (x._id === d._id ? { ...x, status: updated.status } : x)));
+      setDocs((prev) =>
+        prev.map((x) =>
+          x._id === d._id ? { ...x, status: updated.status } : x
+        )
+      );
       const st = await api<Stats>("/api/documents/stats");
       setStats(st);
     } catch (e) {
@@ -452,7 +533,15 @@ export function DocumentManagement() {
             Manage candidate documents, certificates, and verification records
           </span>
           {error ? (
-            <span style={{ color: tokens.colorPaletteRedForeground1, fontSize: 13, marginTop: 6 }}>{error}</span>
+            <span
+              style={{
+                color: tokens.colorPaletteRedForeground1,
+                fontSize: 13,
+                marginTop: 6,
+              }}
+            >
+              {error}
+            </span>
           ) : null}
         </div>
 
@@ -469,48 +558,96 @@ export function DocumentManagement() {
 
       <div className={styles.statsGrid}>
         <Card className={styles.statCard}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             <div>
               <div className={styles.statLabel}>Total Documents</div>
-              <div className={styles.statValue}>{loading ? "…" : stats.total}</div>
+              <div className={styles.statValue}>
+                {loading ? "…" : stats.total}
+              </div>
             </div>
-            <div className={styles.statIconBox} style={{ backgroundColor: "#EFF6FF" }}>
-              <DocumentText20Regular style={{ color: "#0118D8", fontSize: 24 }} />
+            <div
+              className={styles.statIconBox}
+              style={{ backgroundColor: "#EFF6FF" }}
+            >
+              <DocumentText20Regular
+                style={{ color: "#0118D8", fontSize: 24 }}
+              />
             </div>
           </div>
         </Card>
 
         <Card className={styles.statCard}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             <div>
               <div className={styles.statLabel}>Verified</div>
-              <div className={styles.statValue}>{loading ? "…" : stats.verified}</div>
+              <div className={styles.statValue}>
+                {loading ? "…" : stats.verified}
+              </div>
             </div>
-            <div className={styles.statIconBox} style={{ backgroundColor: "#ECFDF5" }}>
-              <CheckmarkCircle20Regular style={{ color: "#16A34A", fontSize: 24 }} />
+            <div
+              className={styles.statIconBox}
+              style={{ backgroundColor: "#ECFDF5" }}
+            >
+              <CheckmarkCircle20Regular
+                style={{ color: "#16A34A", fontSize: 24 }}
+              />
             </div>
           </div>
         </Card>
 
         <Card className={styles.statCard}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             <div>
               <div className={styles.statLabel}>Pending Review</div>
-              <div className={styles.statValue}>{loading ? "…" : stats.pending}</div>
+              <div className={styles.statValue}>
+                {loading ? "…" : stats.pending}
+              </div>
             </div>
-            <div className={styles.statIconBox} style={{ backgroundColor: "#FFFBEB" }}>
+            <div
+              className={styles.statIconBox}
+              style={{ backgroundColor: "#FFFBEB" }}
+            >
               <Clock20Regular style={{ color: "#D97706", fontSize: 24 }} />
             </div>
           </div>
         </Card>
 
         <Card className={styles.statCard}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             <div>
               <div className={styles.statLabel}>Requires Action</div>
-              <div className={styles.statValue}>{loading ? "…" : stats.requiresAction}</div>
+              <div className={styles.statValue}>
+                {loading ? "…" : stats.requiresAction}
+              </div>
             </div>
-            <div className={styles.statIconBox} style={{ backgroundColor: "#FEF2F2" }}>
+            <div
+              className={styles.statIconBox}
+              style={{ backgroundColor: "#FEF2F2" }}
+            >
               <Warning20Regular style={{ color: "#DC2626", fontSize: 24 }} />
             </div>
           </div>
@@ -535,7 +672,9 @@ export function DocumentManagement() {
             className={styles.filterButton}
             value={typeFilter}
             selectedOptions={[typeFilter]}
-            onOptionSelect={(_, data) => setTypeFilter(String(data.optionValue))}
+            onOptionSelect={(_, data) =>
+              setTypeFilter(String(data.optionValue))
+            }
           >
             {typeOptions.map((t) => (
               <Option key={t} value={t}>
@@ -548,7 +687,9 @@ export function DocumentManagement() {
             className={styles.filterButton}
             value={statusFilter}
             selectedOptions={[statusFilter]}
-            onOptionSelect={(_, data) => setStatusFilter(String(data.optionValue))}
+            onOptionSelect={(_, data) =>
+              setStatusFilter(String(data.optionValue))
+            }
           >
             <Option value="all-status">All Status</Option>
             <Option value="pending">Pending</Option>
@@ -561,14 +702,20 @@ export function DocumentManagement() {
             className={styles.filterButton}
             value={dateFilter}
             selectedOptions={[dateFilter]}
-            onOptionSelect={(_, data) => setDateFilter(String(data.optionValue))}
+            onOptionSelect={(_, data) =>
+              setDateFilter(String(data.optionValue))
+            }
           >
             <Option value="any-date">Any Date</Option>
             <Option value="7-days">Last 7 days</Option>
             <Option value="30-days">Last 30 days</Option>
           </Dropdown>
 
-          <Button appearance="outline" onClick={() => void load()} disabled={loading || uploading}>
+          <Button
+            appearance="outline"
+            onClick={() => void load()}
+            disabled={loading || uploading}
+          >
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
         </div>
@@ -582,7 +729,9 @@ export function DocumentManagement() {
         >
           <Tab value="all">All Documents ({tabCounts.all})</Tab>
           <Tab value="application">Application ({tabCounts.application})</Tab>
-          <Tab value="verification">Verification ({tabCounts.verification})</Tab>
+          <Tab value="verification">
+            Verification ({tabCounts.verification})
+          </Tab>
           <Tab value="onboarding">Onboarding ({tabCounts.onboarding})</Tab>
           <Tab value="employee">Employee Records ({tabCounts.employee})</Tab>
         </TabList>
@@ -593,15 +742,30 @@ export function DocumentManagement() {
           <Table aria-label="Documents table" className={styles.table}>
             <TableHeader>
               <TableRow className={styles.tableHeaderRow}>
-                <TableHeaderCell className={styles.tableHeaderCell} style={{ width: "30%" }}>
+                <TableHeaderCell
+                  className={styles.tableHeaderCell}
+                  style={{ width: "30%" }}
+                >
                   Document Name
                 </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>Type</TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>Category</TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>Uploaded By</TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>Upload Date</TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>Size</TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>Status</TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>
+                  Type
+                </TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>
+                  Category
+                </TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>
+                  Uploaded By
+                </TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>
+                  Upload Date
+                </TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>
+                  Size
+                </TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>
+                  Status
+                </TableHeaderCell>
                 <TableHeaderCell className={styles.tableHeaderCell} />
               </TableRow>
             </TableHeader>
@@ -610,87 +774,132 @@ export function DocumentManagement() {
               {loading ? (
                 <TableRow>
                   <TableCell colSpan={8} className={styles.tableCell}>
-                    <Text style={{ display: "block", textAlign: "center", padding: "16px 0", color: "#6B7280" }}>
+                    <Text
+                      style={{
+                        display: "block",
+                        textAlign: "center",
+                        padding: "16px 0",
+                        color: "#6B7280",
+                      }}
+                    >
                       Loading documents...
                     </Text>
                   </TableCell>
                 </TableRow>
-              ) : filteredDocs.map((doc) => (
-                <TableRow key={doc._id} className={styles.tableRow}>
-                  <TableCell className={styles.docNameCell}>
-                    <div className={styles.docNameRow}>
-                      <div className={styles.docIconBox}>
-                        {doc.mimeType.startsWith("image/") ? (
-                          <Image20Regular style={{ color: "#0118D8" }} />
-                        ) : (
-                          <DocumentPdf20Regular style={{ color: "#0118D8" }} />
-                        )}
+              ) : (
+                docs.map((doc) => (
+                  <TableRow key={doc._id} className={styles.tableRow}>
+                    <TableCell className={styles.docNameCell}>
+                      <div className={styles.docNameRow}>
+                        <div className={styles.docIconBox}>
+                          {doc.mimeType.startsWith("image/") ? (
+                            <Image20Regular style={{ color: "#0118D8" }} />
+                          ) : (
+                            <DocumentPdf20Regular
+                              style={{ color: "#0118D8" }}
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <div className={styles.docNameText}>{doc.name}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className={styles.docNameText}>{doc.name}</div>
-                      </div>
-                    </div>
-                  </TableCell>
+                    </TableCell>
 
-                  <TableCell className={styles.tableCell}>{doc.type}</TableCell>
+                    <TableCell className={styles.tableCell}>
+                      {doc.type}
+                    </TableCell>
 
-                  <TableCell className={styles.tableCell}>
-                    <Badge appearance="outline" className={styles.categoryBadge}>
-                      {doc.category}
-                    </Badge>
-                  </TableCell>
+                    <TableCell className={styles.tableCell}>
+                      <Badge
+                        appearance="outline"
+                        className={styles.categoryBadge}
+                      >
+                        {doc.category}
+                      </Badge>
+                    </TableCell>
 
-                  <TableCell className={styles.tableCell}>
-                    {doc.uploadedByUserId?.name || doc.uploadedByUserId?.email || "-"}
-                  </TableCell>
+                    <TableCell className={styles.tableCell}>
+                      {doc.uploadedByUserId?.name ||
+                        doc.uploadedByUserId?.email ||
+                        "-"}
+                    </TableCell>
+                    <TableCell className={styles.tableCell}>
+                      {dateText(doc.createdAt)}
+                    </TableCell>
+                    <TableCell className={styles.tableCell}>
+                      {bytesToSize(doc.sizeBytes)}
+                    </TableCell>
 
-                  <TableCell className={styles.tableCell}>{dateText(doc.createdAt)}</TableCell>
+                    <TableCell className={styles.tableCell}>
+                      <StatusPill
+                        status={mapStatusToPill(doc.status)}
+                        label={doc.status}
+                        size="sm"
+                      />
+                    </TableCell>
 
-                  <TableCell className={styles.tableCell}>{bytesToSize(doc.sizeBytes)}</TableCell>
-
-                  <TableCell className={styles.tableCell}>
-                    <StatusPill status={mapStatusToPill(doc.status)} label={doc.status} size="sm" />
-                  </TableCell>
-
-                  <TableCell className={styles.tableCell}>
-                    <Menu>
-                      <MenuTrigger disableButtonEnhancement>
-                        <button type="button" className={styles.actionButton} aria-label="More options">
-                          <MoreVerticalRegular />
-                        </button>
-                      </MenuTrigger>
-                      <MenuPopover>
-                        <MenuList>
-                          <MenuItem icon={<Eye20Regular />} onClick={() => viewDoc(doc)}>View</MenuItem>
-                          <MenuItem icon={<ArrowDownload20Regular />} onClick={() => void downloadDoc(doc)}>
-                            Download
-                          </MenuItem>
-                          <MenuItem
-                            icon={<ShieldCheckmark20Regular />}
-                            disabled={doc.status !== "PENDING"}
-                            onClick={() => void verifyDoc(doc)}
+                    <TableCell className={styles.tableCell}>
+                      <Menu>
+                        <MenuTrigger disableButtonEnhancement>
+                          <button
+                            type="button"
+                            className={styles.actionButton}
+                            aria-label="More options"
                           >
-                            Verify
-                          </MenuItem>
-                          <MenuItem
-                            icon={<Delete20Regular />}
-                            style={{ color: tokens.colorPaletteRedForeground1 }}
-                            onClick={() => void deleteDoc(doc)}
-                          >
-                            Delete
-                          </MenuItem>
-                        </MenuList>
-                      </MenuPopover>
-                    </Menu>
-                  </TableCell>
-                </TableRow>
-              ))}
+                            <MoreVerticalRegular />
+                          </button>
+                        </MenuTrigger>
+                        <MenuPopover>
+                          <MenuList>
+                            <MenuItem
+                              icon={<Eye20Regular />}
+                              onClick={() => viewDoc(doc)}
+                            >
+                              View
+                            </MenuItem>
+                            <MenuItem
+                              icon={<ArrowDownload20Regular />}
+                              onClick={() => downloadDoc(doc)}
+                            >
+                              Download
+                            </MenuItem>
+                            <MenuItem
+                              icon={<ShieldCheckmark20Regular />}
+                              disabled={doc.status !== "PENDING"}
+                              onClick={() => void verifyDoc(doc)}
+                            >
+                              Verify
+                            </MenuItem>
+                            <MenuItem
+                              icon={<Delete20Regular />}
+                              style={{
+                                color: tokens.colorPaletteRedForeground1,
+                              }}
+                              onClick={() => void deleteDoc(doc)}
+                            >
+                              Delete
+                            </MenuItem>
+                          </MenuList>
+                        </MenuPopover>
+                      </Menu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
 
-              {!loading && filteredDocs.length === 0 && (
+              {!loading && docs.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className={styles.tableCell}>
-                    <Text style={{ display: "block", textAlign: "center", padding: "16px 0", color: "#6B7280" }}>
-                      No documents match the current filters.
+                    <Text
+                      style={{
+                        display: "block",
+                        textAlign: "center",
+                        padding: "16px 0",
+                        color: "#6B7280",
+                      }}
+                    >
+                      No documents found.
                     </Text>
                   </TableCell>
                 </TableRow>
@@ -702,10 +911,18 @@ export function DocumentManagement() {
 
       <Card className={styles.uploadCard} onClick={openFilePicker}>
         <div className={styles.uploadIconCircle}>
-          {uploading ? <Spinner size="small" /> : <CloudArrowUp20Regular style={{ color: "#0118D8", fontSize: 28 }} />}
+          {uploading ? (
+            <Spinner size="small" />
+          ) : (
+            <CloudArrowUp20Regular style={{ color: "#0118D8", fontSize: 28 }} />
+          )}
         </div>
-        <div className={styles.uploadTitle}>Drop files here or click to upload</div>
-        <div className={styles.uploadSubtitle}>Supports: PDF, DOC, DOCX, JPG, PNG (Max 10MB)</div>
+        <div className={styles.uploadTitle}>
+          Drop files here or click to upload
+        </div>
+        <div className={styles.uploadSubtitle}>
+          Supports: PDF, DOC, DOCX, JPG, PNG (Max 10MB)
+        </div>
         <Button
           appearance="primary"
           size="small"

@@ -18,6 +18,9 @@ export interface DocumentDoc {
     mimeType: string;
     sizeBytes: number;
 
+    gridFsId: Types.ObjectId;
+    bucketName: string;
+
     fileUrl: string;
     status: DocumentStatus;
 
@@ -40,6 +43,9 @@ const docSchema = new Schema<DocumentDoc>(
         mimeType: { type: String, required: true },
         sizeBytes: { type: Number, required: true },
 
+        gridFsId: { type: Schema.Types.ObjectId, required: true, index: true },
+        bucketName: { type: String, required: true, default: "docs" },
+
         fileUrl: { type: String, required: true },
         status: { type: String, enum: ["PENDING", "VERIFIED", "COMPLETED", "SIGNED"], default: "PENDING", index: true },
     },
@@ -47,6 +53,7 @@ const docSchema = new Schema<DocumentDoc>(
 );
 
 docSchema.index({ ownerUserId: 1, createdAt: -1 });
+docSchema.index({ jobId: 1, createdAt: -1 });
+docSchema.index({ applicationId: 1, createdAt: -1 });
 
-export const Document =
-    model<DocumentDoc>("Document", docSchema, "documents");
+export const Document = model<DocumentDoc>("Document", docSchema, "documents");
