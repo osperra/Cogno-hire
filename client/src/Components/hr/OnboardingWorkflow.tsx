@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Button,
   Card,
@@ -25,82 +26,157 @@ import {
 
 import { StatusPill } from "../ui/StatusPill";
 
-const mockOnboarding = [
-  {
-    id: 1,
-    employee: "Alice Johnson",
-    position: "Senior Frontend Developer",
-    startDate: "Feb 1, 2025",
-    progress: 85,
-    status: "In Progress",
-    daysRemaining: 3,
-  },
-  {
-    id: 2,
-    employee: "Bob Martinez",
-    position: "Product Designer",
-    startDate: "Feb 5, 2025",
-    progress: 45,
-    status: "In Progress",
-    daysRemaining: 7,
-  },
-  {
-    id: 3,
-    employee: "Carol White",
-    position: "Backend Engineer",
-    startDate: "Jan 15, 2025",
-    progress: 100,
-    status: "Completed",
-    daysRemaining: 0,
-  },
-];
+type UiStatus = "In Progress" | "Completed";
 
-const onboardingSteps = [
-  {
-    category: "Pre-Onboarding",
-    icon: Mail20Regular,
-    tasks: [
-      { id: 1, name: "Send welcome email", completed: true },
-      { id: 2, name: "Collect required documents", completed: true },
-      { id: 3, name: "Background check completed", completed: true },
-      { id: 4, name: "Sign offer letter", completed: true },
-    ],
-  },
-  {
-    category: "Day 1 - Setup",
-    icon: Laptop20Regular,
-    tasks: [
-      { id: 5, name: "Workspace setup", completed: true },
-      { id: 6, name: "IT equipment provisioning", completed: true },
-      { id: 7, name: "Email and account creation", completed: true },
-      { id: 8, name: "Security badge issuance", completed: false },
-    ],
-  },
-  {
-    category: "Week 1 - Orientation",
-    icon: BookOpenFilled,
+type OnboardingRow = {
+  id: string | number;
+  employee: string;
+  position: string;
+  startDate: string; 
+  progress: number; 
+  status: UiStatus;
+  daysRemaining: number;
+};
 
-    tasks: [
-      { id: 9, name: "Company orientation", completed: true },
-      { id: 10, name: "Team introductions", completed: true },
-      { id: 11, name: "HR policies review", completed: false },
-      { id: 12, name: "Benefits enrollment", completed: false },
-    ],
-  },
-  {
-    category: "Week 2-4 - Integration",
-    icon: PeopleTeam20Regular,
-    tasks: [
-      { id: 13, name: "Department training", completed: false },
-      { id: 14, name: "Shadow team members", completed: false },
-      { id: 15, name: "First project assignment", completed: false },
-      { id: 16, name: "30-day check-in meeting", completed: false },
-    ],
-  },
-];
+type OnboardingTask = { id: string | number; name: string; completed: boolean };
+
+type OnboardingStepDto = {
+  category: string;
+  iconKey: "MAIL" | "LAPTOP" | "BOOK" | "TEAM";
+  tasks: OnboardingTask[];
+};
+
+type OnboardingDetailDto = {
+  id: string | number;
+  employee: string;
+  position: string;
+  startDate: string;
+  progress: number;
+  status: UiStatus;
+  steps: OnboardingStepDto[];
+};
+
+type OnboardingStatsDto = {
+  activeOnboardingCount: number;
+  completedCount: number;
+  avgCompletion: string; 
+  successRate: string; 
+};
+
+
+function getAuthToken(): string | null {
+  return (
+    localStorage.getItem("token") ||
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("accessToken")
+  );
+}
+
+async function safeJson(res: Response) {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid JSON response. First chars: ${text.slice(0, 30)}`);
+  }
+}
+
+async function apiGet<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(url, {
+    method: "GET",
+    signal,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  const data = await safeJson(res);
+
+  if (!res.ok) {
+    const msg =
+      (data &&
+        typeof data === "object" &&
+        "message" in data &&
+        (data).message) ||
+      `${res.status} ${res.statusText}`;
+    throw new Error(msg);
+  }
+
+  return data as T;
+}
+
+async function apiPut<T>(
+  url: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(url, {
+    method: "PUT",
+    signal,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await safeJson(res);
+
+  if (!res.ok) {
+    const msg =
+      (data &&
+        typeof data === "object" &&
+        "message" in data &&
+        (data).message) ||
+      `${res.status} ${res.statusText}`;
+    throw new Error(msg);
+  }
+
+  return data as T;
+}
+
+
+function fetchOnboardingStats(signal?: AbortSignal) {
+  return apiGet<OnboardingStatsDto>("/api/onboarding/stats", signal);
+}
+
+function fetchOnboardingList(signal?: AbortSignal) {
+  return apiGet<OnboardingRow[]>("/api/onboarding?status=active", signal);
+}
+
+function fetchOnboardingDetail(id: string | number, signal?: AbortSignal) {
+  return apiGet<OnboardingDetailDto>(`/api/onboarding/${id}`, signal);
+}
+
+function updateTask(
+  onboardingId: string | number,
+  taskId: string | number,
+  completed: boolean,
+  signal?: AbortSignal,
+) {
+  return apiPut<{ ok: boolean }>(
+    `/api/onboarding/${onboardingId}/task/${taskId}`,
+    { completed },
+    signal,
+  );
+}
+
+
+function iconFromKey(key: OnboardingStepDto["iconKey"]) {
+  if (key === "MAIL") return Mail20Regular;
+  if (key === "LAPTOP") return Laptop20Regular;
+  if (key === "BOOK") return BookOpenFilled;
+  return PeopleTeam20Regular;
+}
 
 const useStyles = makeStyles({
-root: {
+  root: {
     display: "flex",
     flexDirection: "column",
     rowGap: "24px",
@@ -220,7 +296,7 @@ root: {
 
   table: {
     width: "100%",
-    minWidth: "880px", 
+    minWidth: "880px",
   },
 
   tableHeaderRow: {
@@ -418,10 +494,91 @@ root: {
 export function OnboardingWorkflow() {
   const styles = useStyles();
 
-  const activeOnboardingCount = 12;
-  const completedCount = 48;
-  const avgCompletion = "18 days";
-  const successRate = "96%";
+  // ======== dynamic data states (UI unchanged) ========
+  const [stats, setStats] = useState<OnboardingStatsDto>({
+    activeOnboardingCount: 0,
+    completedCount: 0,
+    avgCompletion: "0 days",
+    successRate: "0%",
+  });
+
+  const [mockOnboarding, setMockOnboarding] = useState<OnboardingRow[]>([]);
+  const [selectedId, setSelectedId] = useState<string | number | null>(null);
+
+  // keep same variable name "onboardingSteps" for your existing UI mapping
+  const [onboardingSteps, setOnboardingSteps] = useState<
+    { category: string; icon: React.ComponentType<{ style?: React.CSSProperties }>; tasks: OnboardingTask[] }[]
+  >([]);
+
+  const [workflowName, setWorkflowName] = useState<string>("—");
+
+  // ======== load stats + table ========
+  useEffect(() => {
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const [s, list] = await Promise.all([
+          fetchOnboardingStats(controller.signal),
+          fetchOnboardingList(controller.signal),
+        ]);
+
+        setStats(s);
+        setMockOnboarding(Array.isArray(list) ? list : []);
+
+        const first = Array.isArray(list) ? list[0] : undefined;
+        setSelectedId(first ? first.id : null);
+      } catch {
+        setStats({
+          activeOnboardingCount: 0,
+          completedCount: 0,
+          avgCompletion: "0 days",
+          successRate: "0%",
+        });
+        setMockOnboarding([]);
+        setSelectedId(null);
+        setOnboardingSteps([]);
+        setWorkflowName("—");
+      }
+    })();
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    (async () => {
+      if (!selectedId) {
+        setOnboardingSteps([]);
+        setWorkflowName("—");
+        return;
+      }
+      try {
+        const d = await fetchOnboardingDetail(selectedId, controller.signal);
+
+        setWorkflowName(d.employee || "—");
+
+        const steps = (d.steps || []).map((s) => ({
+          category: s.category,
+          icon: iconFromKey(s.iconKey),
+          tasks: s.tasks || [],
+        }));
+
+        setOnboardingSteps(steps);
+      } catch {
+        setOnboardingSteps([]);
+        setWorkflowName("—");
+      }
+    })();
+
+    return () => controller.abort();
+  }, [selectedId]);
+
+  const activeOnboardingCount = stats.activeOnboardingCount;
+  const completedCount = stats.completedCount;
+  const avgCompletion = stats.avgCompletion;
+  const successRate = stats.successRate;
 
   return (
     <div className={styles.root}>
@@ -626,7 +783,11 @@ export function OnboardingWorkflow() {
                     </TableCell>
 
                     <TableCell className={styles.tableCell}>
-                      <Button appearance="subtle" size="small">
+                      <Button
+                        appearance="subtle"
+                        size="small"
+                        onClick={() => setSelectedId(item.id)}
+                      >
                         View Details
                       </Button>
                     </TableCell>
@@ -641,31 +802,30 @@ export function OnboardingWorkflow() {
       <Card className={styles.sectionCard}>
         <div className={styles.workflowCardInner}>
           <div className={styles.workflowTitle}>
-            Onboarding Workflow: Alice Johnson
+            Onboarding Workflow: {workflowName}
           </div>
 
           <div>
             {onboardingSteps.map((step, index) => {
               const Icon = step.icon;
-              const completedTasks = step.tasks.filter(
-                (t) => t.completed
-              ).length;
+              const completedTasks = step.tasks.filter((t) => t.completed).length;
               const totalTasks = step.tasks.length;
-              const progressPercentage = (completedTasks / totalTasks) * 100;
+              const progressPercentage =
+                totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
               const iconBg =
                 progressPercentage === 100
                   ? "#ECFDF5"
                   : progressPercentage > 0
-                  ? "#EFF6FF"
-                  : "#F3F4F6";
+                    ? "#EFF6FF"
+                    : "#F3F4F6";
 
               const iconColor =
                 progressPercentage === 100
                   ? "#16A34A"
                   : progressPercentage > 0
-                  ? "#0118D8"
-                  : "#9CA3AF";
+                    ? "#0118D8"
+                    : "#9CA3AF";
 
               return (
                 <div key={index} className={styles.workflowStepBlock}>
@@ -696,7 +856,48 @@ export function OnboardingWorkflow() {
                   <div className={styles.tasksWrapper}>
                     {step.tasks.map((task) => (
                       <div key={task.id} className={styles.taskItem}>
-                        <Checkbox defaultChecked={task.completed} />
+                        <Checkbox
+                          defaultChecked={task.completed}
+                          onChange={async (_e, data) => {
+                            if (!selectedId) return;
+
+                            const next = !!data.checked;
+
+                            // optimistic update (keeps UI same)
+                            setOnboardingSteps((prev) =>
+                              prev.map((s) =>
+                                s.category !== step.category
+                                  ? s
+                                  : {
+                                      ...s,
+                                      tasks: s.tasks.map((t) =>
+                                        t.id === task.id
+                                          ? { ...t, completed: next }
+                                          : t,
+                                      ),
+                                    },
+                              ),
+                            );
+
+                            try {
+                              await updateTask(selectedId, task.id, next);
+                            } catch {
+                              try {
+                                const d = await fetchOnboardingDetail(selectedId);
+                                setWorkflowName(d.employee || "—");
+                                setOnboardingSteps(
+                                  (d.steps || []).map((s) => ({
+                                    category: s.category,
+                                    icon: iconFromKey(s.iconKey),
+                                    tasks: s.tasks || [],
+                                  })),
+                                );
+                              } catch {
+                                // ignore
+                              }
+                            }
+                          }}
+                        />
                         <span
                           className={
                             task.completed

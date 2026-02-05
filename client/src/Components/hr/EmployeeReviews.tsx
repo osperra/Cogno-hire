@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -31,58 +31,170 @@ import {
 
 import { StatusPill } from "../ui/StatusPill";
 
-const mockReviews = [
-  {
-    id: 1,
-    employee: "John Doe",
-    position: "Senior Frontend Developer",
-    reviewDate: "Jan 15, 2025",
-    reviewer: "Sarah Manager",
-    overallRating: 4.5,
-    categories: {
-      technical: 5,
-      communication: 4,
-      teamwork: 4.5,
-      productivity: 4.5,
-    },
-    status: "Completed",
-  },
-  {
-    id: 2,
-    employee: "Jane Smith",
-    position: "Product Designer",
-    reviewDate: "Jan 18, 2025",
-    reviewer: "Mike Lead",
-    overallRating: 4.8,
-    categories: {
-      technical: 5,
-      communication: 5,
-      teamwork: 4.5,
-      productivity: 5,
-    },
-    status: "Completed",
-  },
-  {
-    id: 3,
-    employee: "Bob Johnson",
-    position: "Backend Engineer",
-    reviewDate: "Scheduled: Jan 25",
-    reviewer: "Sarah Manager",
-    overallRating: 0,
-    categories: {
-      technical: 0,
-      communication: 0,
-      teamwork: 0,
-      productivity: 0,
-    },
-    status: "Pending",
-  },
-];
-
 type ReviewTab = "all" | "completed" | "pending" | "scheduled";
 
+type ReviewStatusUi = "Completed" | "Pending" | "Scheduled";
+
+type ReviewRow = {
+  id: string | number;
+  employee: string;
+  position: string;
+  reviewDate: string;
+  reviewer: string;
+  overallRating: number;
+  categories: {
+    technical: number;
+    communication: number;
+    teamwork: number;
+    productivity: number;
+  };
+  status: ReviewStatusUi;
+};
+
+type ReviewsListResponse = ReviewRow[];
+
+type ReviewDetail = {
+  id: string | number;
+  employee: string;
+  position: string;
+  reviewer: string;
+  reviewDate: string;
+  overallRating: number;
+  categories: ReviewRow["categories"];
+  status: ReviewStatusUi;
+
+  managerFeedback?: string;
+  areasForGrowth?: string;
+  goals?: string[];
+  achievements?: string[];
+};
+
+type ReviewsStatsResponse = {
+  totalReviews: number;
+  completed: number;
+  pending: number;
+  scheduled: number;
+  thisQuarter: number;
+  avgRating: number;
+};
+
+function getAuthToken(): string | null {
+  return (
+    localStorage.getItem("token") ||
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("accessToken")
+  );
+}
+
+async function safeJson(res: Response) {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid JSON response. First chars: ${text.slice(0, 30)}`);
+  }
+}
+
+async function apiGet<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(url, {
+    method: "GET",
+    signal,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  const data = await safeJson(res);
+
+  if (!res.ok) {
+    const msg =
+      (data && typeof data === "object" && "message" in data && data.message) ||
+      `${res.status} ${res.statusText}`;
+    throw new Error(msg);
+  }
+
+  return data as T;
+}
+
+async function apiPut<T>(
+  url: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(url, {
+    method: "PUT",
+    signal,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await safeJson(res);
+
+  if (!res.ok) {
+    const msg =
+      (data && typeof data === "object" && "message" in data && data.message) ||
+      `${res.status} ${res.statusText}`;
+    throw new Error(msg);
+  }
+
+  return data as T;
+}
+
+function fetchReviews(tab: ReviewTab, signal?: AbortSignal) {
+  const q =
+    tab === "all"
+      ? ""
+      : tab === "completed"
+        ? "?status=completed"
+        : tab === "pending"
+          ? "?status=pending"
+          : "?status=scheduled";
+
+  return apiGet<ReviewsListResponse>(`/api/reviews${q}`, signal);
+}
+
+function fetchStats(signal?: AbortSignal) {
+  return apiGet<ReviewsStatsResponse>("/api/reviews/stats", signal);
+}
+
+function fetchReviewDetail(id: string | number, signal?: AbortSignal) {
+  return apiGet<ReviewDetail>(`/api/reviews/${id}`, signal);
+}
+
+function updateReview(
+  id: string | number,
+  payload: Partial<ReviewDetail>,
+  signal?: AbortSignal,
+) {
+  return apiPut<{ ok: boolean }>(`/api/reviews/${id}`, payload, signal);
+}
+
+function initials(name: string) {
+  const s = (name || "").trim();
+  if (!s) return "NA";
+  const parts = s.split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "N";
+  const second = parts.length > 1 ? parts[1][0] : (parts[0]?.[1] ?? "A");
+  return (first + second).toUpperCase();
+}
+
+function clampRating0to5(n: unknown) {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(5, v));
+}
+
 const useStyles = makeStyles({
-root: {
+  root: {
     display: "flex",
     flexDirection: "column",
     rowGap: "24px",
@@ -446,60 +558,198 @@ root: {
     flex: 1,
   },
 
-growthTextarea: {
-  width: "100%",
-  boxSizing: "border-box",
+  growthTextarea: {
+    width: "100%",
+    boxSizing: "border-box",
 
-  border: "1px solid rgba(148,163,184,0.9) !important",
-  ...shorthands.borderRadius("10px"),
-
-  backgroundColor: "#FFFFFF !important",
-
-  fontSize: "0.85rem",
-  padding: "10px 12px",
-
-  ":hover": {
     border: "1px solid rgba(148,163,184,0.9) !important",
+    ...shorthands.borderRadius("10px"),
+
     backgroundColor: "#FFFFFF !important",
+
+    fontSize: "0.85rem",
+    padding: "10px 12px",
+
+    ":hover": {
+      border: "1px solid rgba(148,163,184,0.9) !important",
+      backgroundColor: "#FFFFFF !important",
+    },
+
+    ":focus": {
+      border: "1px solid rgba(148,163,184,0.9) !important",
+      outlineStyle: "none",
+    },
+
+    ":focus-within": {
+      border: "1px solid rgba(148,163,184,0.9) !important",
+    },
   },
-
-  ":focus": {
-    border: "1px solid rgba(148,163,184,0.9) !important",
-    outlineStyle: "none",
-  },
-
-  ":focus-within": {
-    border: "1px solid rgba(148,163,184,0.9) !important",
-  },
-},
-
-
 });
 
 export function EmployeeReviews() {
   const styles = useStyles();
-  const [activeTab, setActiveTab] = useState<TabValue>("all" as ReviewTab);
 
-  const filteredReviews = useMemo(() => {
-    if (activeTab === "completed") {
-      return mockReviews.filter((r) => r.status === "Completed");
-    }
-    if (activeTab === "pending") {
-      return mockReviews.filter((r) => r.status === "Pending");
-    }
-    if (activeTab === "scheduled") {
-      return mockReviews.filter((r) =>
-        r.reviewDate.toLowerCase().includes("scheduled")
-      );
-    }
-    return mockReviews;
+  const [activeTab, setActiveTab] = useState<TabValue>("all" as ReviewTab);
+  const [reviews, setReviews] = useState<ReviewRow[]>([]);
+  const [stats, setStats] = useState<ReviewsStatsResponse>({
+    totalReviews: 0,
+    completed: 0,
+    pending: 0,
+    scheduled: 0,
+    thisQuarter: 0,
+    avgRating: 0,
+  });
+
+  const [selectedReviewId, setSelectedReviewId] = useState<
+    string | number | null
+  >(null);
+  const [detail, setDetail] = useState<ReviewDetail | null>(null);
+
+  const [error, setError] = useState<string | null>(null);
+
+  const [areasForGrowth, setAreasForGrowth] = useState<string>("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        setError(null);
+
+        const [statsRes, listRes] = await Promise.all([
+          fetchStats(controller.signal),
+          fetchReviews(activeTab as ReviewTab, controller.signal),
+        ]);
+
+        setStats(statsRes);
+        setReviews(Array.isArray(listRes) ? listRes : []);
+
+        const first = (Array.isArray(listRes) ? listRes : [])[0];
+        setSelectedReviewId(first ? first.id : null);
+      } catch (e: unknown) {
+        const isAbort =
+          (typeof DOMException !== "undefined" &&
+            e instanceof DOMException &&
+            e.name === "AbortError") ||
+          (e instanceof Error && e.name === "AbortError");
+        if (isAbort) return;
+
+        setError(e instanceof Error ? e.message : "Something went wrong");
+        setStats({
+          totalReviews: 0,
+          completed: 0,
+          pending: 0,
+          scheduled: 0,
+          thisQuarter: 0,
+          avgRating: 0,
+        });
+        setReviews([]);
+        setSelectedReviewId(null);
+        setDetail(null);
+        setAreasForGrowth("");
+      }
+    })();
+
+    return () => controller.abort();
   }, [activeTab]);
 
-  const totalReviews = 124;
-  const completed = 106;
-  const pending = 18;
-  const thisQuarter = 42;
-  const avgRating = 4.6;
+  useEffect(() => {
+    const controller = new AbortController();
+
+    (async () => {
+      if (!selectedReviewId) {
+        setDetail(null);
+        setAreasForGrowth("");
+        return;
+      }
+      try {
+        setError(null);
+        const d = await fetchReviewDetail(selectedReviewId, controller.signal);
+        setDetail(d);
+        setAreasForGrowth(d.areasForGrowth ?? "");
+      } catch (e: unknown) {
+        const isAbort =
+          (typeof DOMException !== "undefined" &&
+            e instanceof DOMException &&
+            e.name === "AbortError") ||
+          (e instanceof Error && e.name === "AbortError");
+        if (isAbort) return;
+
+        setError(e instanceof Error ? e.message : "Something went wrong");
+        setDetail(null);
+        setAreasForGrowth("");
+      }
+    })();
+
+    return () => controller.abort();
+  }, [selectedReviewId]);
+
+  const filteredReviews = useMemo(() => {
+    if (activeTab === "completed")
+      return reviews.filter((r) => r.status === "Completed");
+    if (activeTab === "pending")
+      return reviews.filter((r) => r.status === "Pending");
+    if (activeTab === "scheduled")
+      return reviews.filter(
+        (r) =>
+          r.status === "Scheduled" ||
+          r.reviewDate.toLowerCase().includes("scheduled"),
+      );
+    return reviews;
+  }, [activeTab, reviews]);
+
+  const totalReviews = stats.totalReviews;
+  const completed = stats.completed;
+  const pending = stats.pending;
+  const scheduled = stats.scheduled;
+  const thisQuarter = stats.thisQuarter;
+  const avgRating = clampRating0to5(stats.avgRating);
+
+  const avgStars = Math.floor(avgRating);
+
+  const detailTitleName = detail?.employee ?? "—";
+
+  const categories = detail?.categories ?? {
+    technical: 0,
+    communication: 0,
+    teamwork: 0,
+    productivity: 0,
+  };
+
+  const achievements = detail?.achievements?.length
+    ? detail.achievements
+    : [
+        "Led migration to React 18, improving performance by 40%",
+        "Mentored 3 junior developers, all promoted within 6 months",
+        "Delivered 5 major features ahead of schedule",
+      ];
+
+  const goals = detail?.goals?.length
+    ? detail.goals
+    : [
+        "Lead architecture for new microservices initiative",
+        "Expand mentorship program to 5 developers",
+        "Complete AWS Solutions Architect certification",
+      ];
+
+  const managerFeedback = detail?.managerFeedback ?? "“—”";
+
+  async function onSaveReview() {
+    if (!detail?.id) return;
+    try {
+      setError(null);
+      await updateReview(
+        detail.id,
+        {
+          areasForGrowth,
+        },
+        undefined,
+      );
+      setDetail((r) => (r ? { ...r, areasForGrowth } : r));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    }
+  }
 
   return (
     <div className={styles.root}>
@@ -521,6 +771,8 @@ export function EmployeeReviews() {
           Schedule Review
         </Button>
       </div>
+
+      {error && <Text style={{ color: "#B91C1C", fontSize: 12 }}>{error}</Text>}
 
       <div className={styles.statsGrid}>
         <Card className={styles.statCard}>
@@ -555,14 +807,14 @@ export function EmployeeReviews() {
             <div>
               <div className={styles.statLabel}>Avg Rating</div>
               <div className={styles.ratingRow}>
-                <span className={styles.statValue}>{avgRating}</span>
+                <span className={styles.statValue}>{avgRating.toFixed(1)}</span>
                 <div className={styles.ratingStars}>
                   {Array.from({ length: 5 }).map((_, i) =>
-                    i < 4 ? (
+                    i < avgStars ? (
                       <Star20Filled key={i} style={{ color: "#F59E0B" }} />
                     ) : (
                       <Star20Regular key={i} style={{ color: "#D1D5DB" }} />
-                    )
+                    ),
                   )}
                 </div>
               </div>
@@ -626,7 +878,7 @@ export function EmployeeReviews() {
           <Tab value="all">All Reviews ({totalReviews})</Tab>
           <Tab value="completed">Completed ({completed})</Tab>
           <Tab value="pending">Pending ({pending})</Tab>
-          <Tab value="scheduled">Scheduled (12)</Tab>
+          <Tab value="scheduled">Scheduled ({scheduled})</Tab>
         </TabList>
       </div>
 
@@ -665,10 +917,7 @@ export function EmployeeReviews() {
                   <TableCell className={styles.employeeCell}>
                     <div className={styles.employeeRow}>
                       <div className={styles.avatarCircle}>
-                        {review.employee
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
+                        {initials(review.employee)}
                       </div>
                       <span className={styles.employeeName}>
                         {review.employee}
@@ -679,11 +928,9 @@ export function EmployeeReviews() {
                   <TableCell className={styles.tableCell}>
                     {review.position}
                   </TableCell>
-
                   <TableCell className={styles.tableCell}>
                     {review.reviewDate}
                   </TableCell>
-
                   <TableCell className={styles.tableCell}>
                     {review.reviewer}
                   </TableCell>
@@ -706,7 +953,7 @@ export function EmployeeReviews() {
                                 key={i}
                                 style={{ color: "#D1D5DB" }}
                               />
-                            )
+                            ),
                           )}
                         </div>
                       </div>
@@ -726,7 +973,11 @@ export function EmployeeReviews() {
                   </TableCell>
 
                   <TableCell className={styles.tableCell}>
-                    <Button appearance="subtle" size="small">
+                    <Button
+                      appearance="subtle"
+                      size="small"
+                      onClick={() => setSelectedReviewId(review.id)}
+                    >
                       View Details
                     </Button>
                   </TableCell>
@@ -738,19 +989,21 @@ export function EmployeeReviews() {
       </Card>
 
       <Card className={styles.detailCard}>
-        <div className={styles.detailTitle}>Performance Review: John Doe</div>
+        <div className={styles.detailTitle}>
+          Performance Review: {detailTitleName}
+        </div>
 
         <div className={styles.detailGrid}>
           <div>
             <div className={styles.sectionTitle}>Performance Categories</div>
 
-            {Object.entries(mockReviews[0].categories).map(
-              ([category, rating]) => (
+            {Object.entries(categories).map(([category, rating]) => {
+              const r = clampRating0to5(rating);
+              return (
                 <div key={category} className={styles.categoryBlock}>
                   <div className={styles.categoryHeader}>
                     <span className={styles.categoryLabel}>
-                      {category.charAt(0).toUpperCase() +
-                        category.slice(1)}{" "}
+                      {category.charAt(0).toUpperCase() + category.slice(1)}{" "}
                       Skills
                     </span>
                     <div className={styles.categoryRatingRow}>
@@ -761,11 +1014,11 @@ export function EmployeeReviews() {
                           fontSize: "0.85rem",
                         }}
                       >
-                        {rating}/5
+                        {r}/5
                       </span>
                       <div className={styles.ratingStars}>
                         {Array.from({ length: 5 }).map((_, i) =>
-                          i < rating ? (
+                          i < Math.floor(r) ? (
                             <Star20Filled
                               key={i}
                               style={{ color: "#F59E0B" }}
@@ -775,52 +1028,29 @@ export function EmployeeReviews() {
                               key={i}
                               style={{ color: "#D1D5DB" }}
                             />
-                          )
+                          ),
                         )}
                       </div>
                     </div>
                   </div>
-                  <ProgressBar
-                    value={rating / 5}
-                    className={styles.progress}
-                  />
+                  <ProgressBar value={r / 5} className={styles.progress} />
                 </div>
-              )
-            )}
+              );
+            })}
 
             <div style={{ marginTop: "8px" }}>
               <div className={styles.sectionTitle}>Key Achievements</div>
               <ul className={styles.achievementList}>
-                <li className={styles.achievementItem}>
-                  <div className={styles.achievementIconCircle}>
-                    <ArrowTrending20Regular
-                      style={{ color: "#16A34A", fontSize: 14 }}
-                    />
-                  </div>
-                  <span className={styles.achievementText}>
-                    Led migration to React 18, improving performance by 40%
-                  </span>
-                </li>
-                <li className={styles.achievementItem}>
-                  <div className={styles.achievementIconCircle}>
-                    <ArrowTrending20Regular
-                      style={{ color: "#16A34A", fontSize: 14 }}
-                    />
-                  </div>
-                  <span className={styles.achievementText}>
-                    Mentored 3 junior developers, all promoted within 6 months
-                  </span>
-                </li>
-                <li className={styles.achievementItem}>
-                  <div className={styles.achievementIconCircle}>
-                    <ArrowTrending20Regular
-                      style={{ color: "#16A34A", fontSize: 14 }}
-                    />
-                  </div>
-                  <span className={styles.achievementText}>
-                    Delivered 5 major features ahead of schedule
-                  </span>
-                </li>
+                {achievements.map((t, idx) => (
+                  <li key={idx} className={styles.achievementItem}>
+                    <div className={styles.achievementIconCircle}>
+                      <ArrowTrending20Regular
+                        style={{ color: "#16A34A", fontSize: 14 }}
+                      />
+                    </div>
+                    <span className={styles.achievementText}>{t}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
@@ -835,12 +1065,7 @@ export function EmployeeReviews() {
                       style={{ color: "#0118D8", fontSize: 18 }}
                     />
                   </div>
-                  <span className={styles.feedbackText}>
-                    “John has been an exceptional contributor to the team. His
-                    technical expertise and leadership have been instrumental in
-                    our recent successes. He consistently goes above and beyond
-                    and is a valued mentor to junior team members.”
-                  </span>
+                  <span className={styles.feedbackText}>{managerFeedback}</span>
                 </div>
               </div>
             </div>
@@ -851,7 +1076,8 @@ export function EmployeeReviews() {
                 appearance="filled-lighter"
                 resize="none"
                 rows={3}
-                defaultValue="Continue developing system design skills through architecture reviews and larger project ownership. Consider pursuing technical leadership role in Q2."
+                value={areasForGrowth}
+                onChange={(_, data) => setAreasForGrowth(data.value)}
                 className={styles.growthTextarea}
               />
             </div>
@@ -859,36 +1085,16 @@ export function EmployeeReviews() {
             <div style={{ marginBottom: "16px" }}>
               <div className={styles.sectionTitle}>Goals for Next Period</div>
               <ul className={styles.goalsList}>
-                <li className={styles.goalItem}>
-                  <div className={styles.goalIconCircle}>
-                    <TargetArrow20Regular
-                      style={{ color: "#0118D8", fontSize: 14 }}
-                    />
-                  </div>
-                  <span className={styles.goalText}>
-                    Lead architecture for new microservices initiative
-                  </span>
-                </li>
-                <li className={styles.goalItem}>
-                  <div className={styles.goalIconCircle}>
-                    <TargetArrow20Regular
-                      style={{ color: "#0118D8", fontSize: 14 }}
-                    />
-                  </div>
-                  <span className={styles.goalText}>
-                    Expand mentorship program to 5 developers
-                  </span>
-                </li>
-                <li className={styles.goalItem}>
-                  <div className={styles.goalIconCircle}>
-                    <TargetArrow20Regular
-                      style={{ color: "#0118D8", fontSize: 14 }}
-                    />
-                  </div>
-                  <span className={styles.goalText}>
-                    Complete AWS Solutions Architect certification
-                  </span>
-                </li>
+                {goals.map((t, idx) => (
+                  <li key={idx} className={styles.goalItem}>
+                    <div className={styles.goalIconCircle}>
+                      <TargetArrow20Regular
+                        style={{ color: "#0118D8", fontSize: 14 }}
+                      />
+                    </div>
+                    <span className={styles.goalText}>{t}</span>
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -896,6 +1102,7 @@ export function EmployeeReviews() {
               <Button
                 appearance="primary"
                 className={styles.primaryDetailButton}
+                onClick={onSaveReview}
               >
                 Save Review
               </Button>

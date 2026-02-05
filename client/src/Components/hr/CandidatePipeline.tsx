@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -16,77 +16,157 @@ import {
   ChevronRight20Regular,
 } from "@fluentui/react-icons";
 
-const pipelineStages = [
-  { name: "Applied", count: 156, color: "#6B7280" },
-  { name: "Screening", count: 89, color: "#2563EB" },
-  { name: "Interview", count: 42, color: "#7C3AED" },
-  { name: "Offer", count: 18, color: "#F97316" },
-  { name: "Hired", count: 12, color: "#16A34A" },
-];
+interface PipelineStage {
+  name: string;
+  count: number;
+  color: string;
+}
 
-const candidates = {
-  screening: [
-    {
-      id: 1,
-      name: "Sarah Chen",
-      role: "Senior Frontend Dev",
-      score: 95,
-      avatar: "SC",
-    },
-    {
-      id: 2,
-      name: "Mike Rodriguez",
-      role: "Product Designer",
-      score: 88,
-      avatar: "MR",
-    },
-    {
-      id: 3,
-      name: "Emily Watson",
-      role: "Backend Engineer",
-      score: 92,
-      avatar: "EW",
-    },
-  ],
-  interview: [
-    {
-      id: 4,
-      name: "John Smith",
-      role: "DevOps Engineer",
-      score: 87,
-      avatar: "JS",
-    },
-    {
-      id: 5,
-      name: "Lisa Park",
-      role: "Data Scientist",
-      score: 91,
-      avatar: "LP",
-    },
-  ],
-  offer: [
-    {
-      id: 6,
-      name: "David Kim",
-      role: "Full Stack Dev",
-      score: 94,
-      avatar: "DK",
-    },
-  ],
+interface Candidate {
+  id: string | number;
+  name: string;
+  role: string;
+  score: number;
+  avatar: string;
+}
+
+type CandidatesResponse = {
+  screening: Candidate[];
+  interview: Candidate[];
+  offer: Candidate[];
 };
 
-export function CandidatePipeline() {
-  const totalCandidates = pipelineStages.reduce(
-    (sum, stage) => sum + stage.count,
-    0
+type PipelineResponse = {
+  stages: PipelineStage[];
+};
+
+function getAuthToken(): string | null {
+  return (
+    localStorage.getItem("token") ||
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("accessToken")
   );
-  const conversionRate = (
-    (pipelineStages[4].count / pipelineStages[0].count) *
-    100
-  ).toFixed(1);
+}
+
+async function safeJson(res: Response) {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid JSON response. First chars: ${text.slice(0, 30)}`);
+  }
+}
+
+async function apiGet<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const token = getAuthToken();
+
+  const res = await fetch(url, {
+    method: "GET",
+    signal,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  const data = await safeJson(res);
+
+  if (!res.ok) {
+    const msg =
+      (data && typeof data === "object" && "message" in data && data.message) ||
+      `${res.status} ${res.statusText}`;
+    throw new Error(String(msg));
+  }
+
+  return data as T;
+}
+
+function fetchPipelineData(signal?: AbortSignal) {
+  return apiGet<PipelineResponse>("/api/pipeline", signal);
+}
+
+function fetchCandidatesData(signal?: AbortSignal) {
+  return apiGet<CandidatesResponse>("/api/candidates", signal);
+}
+
+export function CandidatePipeline() {
+  const [pipelineStages, setPipelineStages] = useState<PipelineStage[]>([]);
+  const [candidates, setCandidates] = useState<CandidatesResponse>({
+    screening: [],
+    interview: [],
+    offer: [],
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  // ===== computed =====
+  const totalCandidates = useMemo(() => {
+    return pipelineStages.reduce((sum, stage) => sum + (stage?.count ?? 0), 0);
+  }, [pipelineStages]);
+
+  const conversionRate = useMemo(() => {
+    const applied = pipelineStages?.[0]?.count ?? 0;
+    const hired = pipelineStages?.[4]?.count ?? 0;
+    if (!applied) return "0.0";
+    return ((hired / applied) * 100).toFixed(1);
+  }, [pipelineStages]);
+
+  const getStageWidthPercent = (count: number) => {
+    if (!totalCandidates || count <= 0) return 0;
+    const pct = (count / totalCandidates) * 100;
+    const MIN_VISIBLE = 18;
+    return Math.min(100, Math.max(MIN_VISIBLE, pct));
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        setError(null);
+
+        const [pipelineData, candidatesData] = await Promise.all([
+          fetchPipelineData(controller.signal),
+          fetchCandidatesData(controller.signal),
+        ]);
+
+        setPipelineStages(
+          Array.isArray(pipelineData?.stages) ? pipelineData.stages : [],
+        );
+
+        setCandidates({
+          screening: Array.isArray(candidatesData?.screening)
+            ? candidatesData.screening
+            : [],
+          interview: Array.isArray(candidatesData?.interview)
+            ? candidatesData.interview
+            : [],
+          offer: Array.isArray(candidatesData?.offer)
+            ? candidatesData.offer
+            : [],
+        });
+      } catch (e: unknown) {
+        const isAbort =
+          (typeof DOMException !== "undefined" &&
+            e instanceof DOMException &&
+            e.name === "AbortError") ||
+          (e instanceof Error && e.name === "AbortError");
+        if (isAbort) return;
+
+        setPipelineStages([]);
+        setCandidates({ screening: [], interview: [], offer: [] });
+
+        if (e instanceof Error) setError(e.message);
+        else setError("Something went wrong");
+      }
+    })();
+
+    return () => controller.abort();
+  }, []);
 
   const withHoverAnimation = (
-    base: React.CSSProperties
+    base: React.CSSProperties,
   ): React.CSSProperties => ({
     ...base,
     transition: "transform 150ms ease, box-shadow 150ms ease",
@@ -445,6 +525,7 @@ export function CandidatePipeline() {
             Visual funnel of candidates through the hiring process
           </span>
         </div>
+
         <div style={headerActions}>
           <Button
             variant="outline"
@@ -473,6 +554,12 @@ export function CandidatePipeline() {
           </Button>
         </div>
       </div>
+
+      {error && (
+        <div style={{ color: "#B91C1C", fontSize: 12 }}>
+          Failed to load pipeline: {error}
+        </div>
+      )}
 
       <div style={statsGrid}>
         <Card style={statCard}>
@@ -522,31 +609,42 @@ export function CandidatePipeline() {
         <div style={funnelTitle}>Hiring Funnel</div>
         <div>
           {pipelineStages.map((stage, index) => {
-            const percentage = (stage.count / totalCandidates) * 100;
-            const widthPercent = index === 0 ? 98 : 100 - index * 15;
+            const count = stage?.count ?? 0;
+            const percentage = totalCandidates
+              ? (count / totalCandidates) * 100
+              : 0;
+
+            const widthPercent = getStageWidthPercent(count);
+
+            const nextCount = pipelineStages?.[index + 1]?.count ?? 0;
+            const showConnector = count > 0 && nextCount > 0;
 
             return (
               <div key={stage.name} style={funnelStageRow}>
                 <div style={funnelStageHeader}>
                   <div style={funnelStageLeft}>
                     <span style={stageName}>{stage.name}</span>
-                    <Badge style={stageCountBadge}>{stage.count}</Badge>
+                    <Badge style={stageCountBadge}>{count}</Badge>
                   </div>
                   <span style={stagePercent}>{percentage.toFixed(1)}%</span>
                 </div>
 
-                <div
-                  style={{
-                    ...funnelBarBase,
-                    width: `${widthPercent}%`,
-                    backgroundColor: stage.color,
-                  }}
-                >
-                  <span style={funnelBarValue}>{stage.count}</span>
-                  <ChevronRight20Regular style={{ width: 24, height: 24 }} />
-                </div>
+                {count > 0 ? (
+                  <div
+                    style={{
+                      ...funnelBarBase,
+                      width: `${widthPercent}%`,
+                      backgroundColor: stage.color,
+                    }}
+                  >
+                    <span style={funnelBarValue}>{count}</span>
+                    <ChevronRight20Regular style={{ width: 24, height: 24 }} />
+                  </div>
+                ) : (
+                  <div style={{ height: 64 }} />
+                )}
 
-                {index < pipelineStages.length - 1 && (
+                {index < pipelineStages.length - 1 && showConnector && (
                   <div style={funnelChevronOverlay}>
                     <ChevronRight20Regular
                       style={{ width: 28, height: 28, color: "#D1D5DB" }}
@@ -571,12 +669,7 @@ export function CandidatePipeline() {
             <span style={stageColumnTitle}>
               Screening ({candidates.screening.length})
             </span>
-            <Badge
-              style={{
-                ...stageColumnBadge,
-                backgroundColor: "#2563EB",
-              }}
-            >
+            <Badge style={{ ...stageColumnBadge, backgroundColor: "#2563EB" }}>
               {candidates.screening.length}
             </Badge>
           </div>
@@ -601,20 +694,23 @@ export function CandidatePipeline() {
                       {candidate.avatar}
                     </AvatarFallback>
                   </Avatar>
+
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={candidateName}>{candidate.name}</div>
                     <div style={candidateRole}>{candidate.role}</div>
                   </div>
+
                   <button
                     style={candidateMoreButton}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.backgroundColor =
-                        "#F3F4F6";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.backgroundColor =
-                        "transparent";
-                    }}
+                    onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLElement).style.backgroundColor =
+                        "#F3F4F6")
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLElement).style.backgroundColor =
+                        "transparent")
+                    }
+                    type="button"
                   >
                     <MoreVerticalRegular
                       style={{ width: 16, height: 16, color: "#6B7280" }}
@@ -633,11 +729,11 @@ export function CandidatePipeline() {
                 />
 
                 <div style={candidateActionsRow}>
-                  <button style={softButton}>
+                  <button style={softButton} type="button">
                     <Mail20Regular style={{ width: 12, height: 12 }} />
                     <span>Email</span>
                   </button>
-                  <button style={softButton}>
+                  <button style={softButton} type="button">
                     <Call20Regular style={{ width: 12, height: 12 }} />
                     <span>Call</span>
                   </button>
@@ -658,12 +754,7 @@ export function CandidatePipeline() {
             <span style={stageColumnTitle}>
               Interview ({candidates.interview.length})
             </span>
-            <Badge
-              style={{
-                ...stageColumnBadge,
-                backgroundColor: "#7C3AED",
-              }}
-            >
+            <Badge style={{ ...stageColumnBadge, backgroundColor: "#7C3AED" }}>
               {candidates.interview.length}
             </Badge>
           </div>
@@ -688,20 +779,23 @@ export function CandidatePipeline() {
                       {candidate.avatar}
                     </AvatarFallback>
                   </Avatar>
+
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={candidateName}>{candidate.name}</div>
                     <div style={candidateRole}>{candidate.role}</div>
                   </div>
+
                   <button
                     style={candidateMoreButton}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.backgroundColor =
-                        "#F3F4F6";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.backgroundColor =
-                        "transparent";
-                    }}
+                    onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLElement).style.backgroundColor =
+                        "#F3F4F6")
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLElement).style.backgroundColor =
+                        "transparent")
+                    }
+                    type="button"
                   >
                     <MoreVerticalRegular
                       style={{ width: 16, height: 16, color: "#6B7280" }}
@@ -717,11 +811,11 @@ export function CandidatePipeline() {
                 <Progress value={candidate.score} style={progressBarStyle} />
 
                 <div style={candidateActionsRow}>
-                  <button style={softButton}>
+                  <button style={softButton} type="button">
                     <CalendarLtr20Regular style={{ width: 12, height: 12 }} />
                     <span>Schedule</span>
                   </button>
-                  <button style={softButtonEmphasis}>
+                  <button style={softButtonEmphasis} type="button">
                     <span>View</span>
                   </button>
                 </div>
@@ -729,6 +823,7 @@ export function CandidatePipeline() {
             ))}
           </div>
         </Card>
+
         <Card style={stageColumnCard}>
           <div
             style={{
@@ -740,12 +835,7 @@ export function CandidatePipeline() {
             <span style={stageColumnTitle}>
               Offer ({candidates.offer.length})
             </span>
-            <Badge
-              style={{
-                ...stageColumnBadge,
-                backgroundColor: "#16A34A",
-              }}
-            >
+            <Badge style={{ ...stageColumnBadge, backgroundColor: "#16A34A" }}>
               {candidates.offer.length}
             </Badge>
           </div>
@@ -774,20 +864,23 @@ export function CandidatePipeline() {
                       {candidate.avatar}
                     </AvatarFallback>
                   </Avatar>
+
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={candidateName}>{candidate.name}</div>
                     <div style={candidateRole}>{candidate.role}</div>
                   </div>
+
                   <button
                     style={candidateMoreButton}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.backgroundColor =
-                        "#F3F4F6";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.backgroundColor =
-                        "transparent";
-                    }}
+                    onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLElement).style.backgroundColor =
+                        "#F3F4F6")
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLElement).style.backgroundColor =
+                        "transparent")
+                    }
+                    type="button"
                   >
                     <MoreVerticalRegular
                       style={{ width: 16, height: 16, color: "#6B7280" }}

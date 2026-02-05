@@ -23,6 +23,20 @@ import {
   CheckmarkCircle20Regular,
 } from "@fluentui/react-icons";
 
+const EXPERIENCE_OPTIONS = [
+  { value: "junior", label: "Junior (0-2 years)" },
+  { value: "mid", label: "Mid-level (3-5 years)" },
+  { value: "senior", label: "Senior (5-7 years)" },
+  { value: "lead", label: "Lead (7+ years)" },
+];
+
+const EMPLOYMENT_OPTIONS = [
+  { value: "full-time", label: "Full-time" },
+  { value: "part-time", label: "Part-time" },
+  { value: "contract", label: "Contract" },
+  { value: "internship", label: "Internship" },
+];
+
 const useStyles = makeStyles({
   root: {
     display: "flex",
@@ -85,6 +99,7 @@ const useStyles = makeStyles({
   },
 
   leftCard: {
+    alignSelf: "start",
     ...shorthands.borderRadius("16px"),
     ...shorthands.border("1px", "solid", "rgba(2,6,23,0.08)"),
     padding: "18px 20px 20px",
@@ -149,7 +164,7 @@ const useStyles = makeStyles({
     animationName: {
       from: { transform: "rotate(0deg)" },
       to: { transform: "rotate(360deg)" },
-    } ,
+    },
     animationDuration: "0.7s",
     animationIterationCount: "infinite",
     animationTimingFunction: "linear",
@@ -192,6 +207,16 @@ const useStyles = makeStyles({
   copyActionsRow: {
     display: "flex",
     columnGap: "8px",
+  },
+
+  actionBtn: {
+    transitionProperty: "transform, box-shadow",
+    transitionDuration: "160ms",
+    transitionTimingFunction: "ease",
+    ":hover": {
+      transform: "translateY(-1px)",
+      boxShadow: "0 8px 18px rgba(2,6,23,0.12)",
+    },
   },
 
   generatedTextContainer: {
@@ -289,73 +314,105 @@ const useStyles = makeStyles({
   },
 });
 
-const sampleGeneratedJD = `Senior Frontend Developer
-
-About the Role:
-We are seeking a talented Senior Frontend Developer to join our dynamic team. You will be responsible for building scalable, high-performance web applications using modern technologies and best practices.
-
-Key Responsibilities:
-• Design and develop responsive web applications using React, TypeScript, and modern JavaScript
-• Collaborate with cross-functional teams to define, design, and ship new features
-• Optimize applications for maximum speed and scalability
-• Mentor junior developers and conduct code reviews
-• Stay up-to-date with emerging trends and technologies in frontend development
-
-Required Qualifications:
-• 5-7 years of professional experience in frontend development
-• Expert knowledge of React, TypeScript, and modern JavaScript (ES6+)
-• Strong understanding of responsive design and cross-browser compatibility
-• Experience with state management libraries (Redux, Zustand, or similar)
-• Proficiency in HTML5, CSS3, and modern CSS frameworks (Tailwind, styled-components)
-• Experience with testing frameworks (Jest, React Testing Library)
-• Excellent problem-solving skills and attention to detail
-
-Preferred Qualifications:
-• Experience with Next.js or other React frameworks
-• Knowledge of backend technologies (Node.js, GraphQL)
-• Familiarity with CI/CD pipelines and DevOps practices
-• Contributions to open-source projects
-• Experience with performance optimization and monitoring tools
-
-What We Offer:
-• Competitive salary: $120,000 - $150,000 per year
-• Comprehensive health, dental, and vision insurance
-• 401(k) with company match
-• Flexible remote work options
-• Professional development budget
-• Collaborative and innovative work environment
-
-Application Process:
-Qualified candidates will undergo an AI-powered technical interview followed by team interviews. We strive to complete the hiring process within 2-3 weeks.`;
+type JDResponse = { text: string };
+type ApiError = { message?: string };
 
 export const AIJobDescriptionGenerator: React.FC = () => {
   const styles = useStyles();
+
+  const [jobTitle, setJobTitle] = React.useState("Senior Frontend Developer");
+  const [experienceLevel, setExperienceLevel] = React.useState<string>("senior");
+  const [employmentType, setEmploymentType] = React.useState<string>("full-time");
+  const [keySkills, setKeySkills] = React.useState("React, TypeScript, JavaScript, CSS, HTML");
+  const [location, setLocation] = React.useState("");
+  const [salaryRange, setSalaryRange] = React.useState("");
+  const [additionalRequirements, setAdditionalRequirements] = React.useState("");
+
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [generationProgress, setGenerationProgress] = React.useState(0);
   const [generatedJD, setGeneratedJD] = React.useState("");
+  const [error, setError] = React.useState<string>("");
 
-  const handleGenerate = () => {
+  const canGenerate =
+    jobTitle.trim() && experienceLevel.trim() && employmentType.trim() && keySkills.trim();
+
+  const handleGenerate = async () => {
     if (isGenerating) return;
-    setIsGenerating(true);
-    setGenerationProgress(0);
+    setError("");
     setGeneratedJD("");
+    setIsGenerating(true);
+    setGenerationProgress(10);
 
-    const interval = window.setInterval(() => {
-      setGenerationProgress((prev) => {
-        if (prev >= 100) {
-          window.clearInterval(interval);
-          setIsGenerating(false);
-          setGeneratedJD(sampleGeneratedJD);
-          return 100;
-        }
-        return prev + 10;
+    const timer = window.setInterval(() => {
+      setGenerationProgress((p) => (p >= 90 ? p : p + 10));
+    }, 250);
+
+    try {
+      const res = await fetch("/api/ai/job-description", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        },
+        body: JSON.stringify({
+          jobTitle,
+          experienceLevel,
+          employmentType,
+          keySkills,
+          location,
+          salaryRange,
+          additionalRequirements,
+        }),
       });
-    }, 200);
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as ApiError;
+        throw new Error(data?.message || `Request failed (${res.status})`);
+      }
+
+      const data = (await res.json()) as JDResponse;
+      setGeneratedJD(data.text || "");
+      setGenerationProgress(100);
+    } catch (e) {
+      setError(
+        (e instanceof Error ? e.message : String(e)) || "Failed to generate job description"
+      );
+      setGenerationProgress(0);
+    } finally {
+      if (timer) window.clearInterval(timer);
+      setIsGenerating(false);
+    }
   };
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (!generatedJD) return;
-    navigator.clipboard?.writeText(generatedJD).catch(() => {});
+    try {
+      await navigator.clipboard?.writeText(generatedJD);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleExport = () => {
+    if (!generatedJD) return;
+
+    const safeTitle = (jobTitle || "job-description")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+
+    const blob = new Blob([generatedJD], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${safeTitle || "job-description"}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -380,6 +437,10 @@ export const AIJobDescriptionGenerator: React.FC = () => {
         <Card className={styles.leftCard}>
           <div className={styles.sectionTitle}>Job Details</div>
 
+          {!!error && (
+            <div style={{ color: "#DC2626", fontSize: "0.85rem", marginBottom: 8 }}>{error}</div>
+          )}
+
           <div style={{ display: "flex", flexDirection: "column", rowGap: "12px" }}>
             <div className={styles.fieldGroup}>
               <Label htmlFor="job-title" className={styles.fieldLabel}>
@@ -388,7 +449,8 @@ export const AIJobDescriptionGenerator: React.FC = () => {
               <Input
                 id="job-title"
                 placeholder="e.g. Senior Frontend Developer"
-                defaultValue="Senior Frontend Developer"
+                value={jobTitle}
+                onChange={(_, data) => setJobTitle(data.value)}
               />
             </div>
 
@@ -399,13 +461,19 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                 </Label>
                 <Dropdown
                   id="level"
-                  defaultSelectedOptions={["senior"]}
                   placeholder="Select level"
+                  selectedOptions={experienceLevel ? [experienceLevel] : []}
+                  value={EXPERIENCE_OPTIONS.find((x) => x.value === experienceLevel)?.label ?? ""}
+                  onOptionSelect={(_, data) => {
+                    const v = String(data.optionValue ?? "");
+                    if (v) setExperienceLevel(v);
+                  }}
                 >
-                  <Option value="junior">Junior (0-2 years)</Option>
-                  <Option value="mid">Mid-level (3-5 years)</Option>
-                  <Option value="senior">Senior (5-7 years)</Option>
-                  <Option value="lead">Lead (7+ years)</Option>
+                  {EXPERIENCE_OPTIONS.map((opt) => (
+                    <Option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </Option>
+                  ))}
                 </Dropdown>
               </div>
 
@@ -415,13 +483,19 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                 </Label>
                 <Dropdown
                   id="type"
-                  defaultSelectedOptions={["full-time"]}
                   placeholder="Select type"
+                  selectedOptions={employmentType ? [employmentType] : []}
+                  value={EMPLOYMENT_OPTIONS.find((x) => x.value === employmentType)?.label ?? ""}
+                  onOptionSelect={(_, data) => {
+                    const v = String(data.optionValue ?? "");
+                    if (v) setEmploymentType(v);
+                  }}
                 >
-                  <Option value="full-time">Full-time</Option>
-                  <Option value="part-time">Part-time</Option>
-                  <Option value="contract">Contract</Option>
-                  <Option value="internship">Internship</Option>
+                  {EMPLOYMENT_OPTIONS.map((opt) => (
+                    <Option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </Option>
+                  ))}
                 </Dropdown>
               </div>
             </div>
@@ -433,7 +507,8 @@ export const AIJobDescriptionGenerator: React.FC = () => {
               <Input
                 id="skills"
                 placeholder="e.g. React, TypeScript, Node.js"
-                defaultValue="React, TypeScript, JavaScript, CSS, HTML"
+                value={keySkills}
+                onChange={(_, data) => setKeySkills(data.value)}
               />
             </div>
 
@@ -445,6 +520,8 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                 <Input
                   id="location"
                   placeholder="e.g. Remote, New York"
+                  value={location}
+                  onChange={(_, data) => setLocation(data.value)}
                 />
               </div>
               <div className={styles.fieldGroup}>
@@ -454,6 +531,8 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                 <Input
                   id="salary"
                   placeholder="e.g. $100k - $150k"
+                  value={salaryRange}
+                  onChange={(_, data) => setSalaryRange(data.value)}
                 />
               </div>
             </div>
@@ -466,6 +545,8 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                 id="additional"
                 className={styles.textarea}
                 placeholder="Any specific requirements, benefits, or company details..."
+                value={additionalRequirements}
+                onChange={(_, data) => setAdditionalRequirements(data.value)}
               />
             </div>
 
@@ -473,7 +554,7 @@ export const AIJobDescriptionGenerator: React.FC = () => {
               appearance="primary"
               className={styles.generateButton}
               onClick={handleGenerate}
-              disabled={isGenerating}
+              disabled={isGenerating || !canGenerate}
             >
               {isGenerating ? (
                 <>
@@ -494,11 +575,7 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                   <span className={styles.progressLabel}>Generating...</span>
                   <span className={styles.progressValue}>{generationProgress}%</span>
                 </div>
-                <ProgressBar
-                  value={generationProgress}
-                  max={100}
-                  className={styles.progressBar}
-                />
+                <ProgressBar value={generationProgress} max={100} className={styles.progressBar} />
               </div>
             )}
           </div>
@@ -514,6 +591,7 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                   size="small"
                   icon={<Copy20Regular />}
                   onClick={handleCopy}
+                  className={styles.actionBtn} 
                 >
                   Copy
                 </Button>
@@ -521,6 +599,8 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                   appearance="outline"
                   size="small"
                   icon={<ArrowDownload20Regular />}
+                  onClick={handleExport}
+                  className={styles.actionBtn} 
                 >
                   Export
                 </Button>
@@ -535,66 +615,42 @@ export const AIJobDescriptionGenerator: React.FC = () => {
               <div className={styles.postSection}>
                 <div className={styles.postTitle}>Post to Job Boards</div>
                 <div className={styles.postGrid}>
-                  <Button
-                    appearance="outline"
-                    className={styles.postButton}
-                  >
-                    <div
-                      className={styles.postLogoBox}
-                      style={{ backgroundColor: "#0077B5" }}
-                    >
+                  <Button appearance="outline" className={styles.postButton}>
+                    <div className={styles.postLogoBox} style={{ backgroundColor: "#0077B5" }}>
                       <Globe20Regular style={{ color: "#ffffff" }} />
                     </div>
                     <div className={styles.postTextBlock}>
                       <div className={styles.postMain}>Post to LinkedIn</div>
-                      <div className={styles.postSub}>
-                        Reach millions of professionals
-                      </div>
+                      <div className={styles.postSub}>Reach millions of professionals</div>
                     </div>
-                    <CheckmarkCircle20Regular
-                      style={{ color: "#16A34A", flexShrink: 0 }}
-                    />
+                    <CheckmarkCircle20Regular style={{ color: "#16A34A", flexShrink: 0 }} />
                   </Button>
 
                   <Button
                     appearance="outline"
                     className={styles.postButton}
-                    style={{
-                      borderColor: "#2557A7",
-                    }}
+                    style={{ borderColor: "#2557A7" }}
                   >
-                    <div
-                      className={styles.postLogoBox}
-                      style={{ backgroundColor: "#2557A7" }}
-                    >
+                    <div className={styles.postLogoBox} style={{ backgroundColor: "#2557A7" }}>
                       <Globe20Regular style={{ color: "#ffffff" }} />
                     </div>
                     <div className={styles.postTextBlock}>
                       <div className={styles.postMain}>Post to Indeed</div>
-                      <div className={styles.postSub}>
-                        World's largest job site
-                      </div>
+                      <div className={styles.postSub}>World&apos;s largest job site</div>
                     </div>
                   </Button>
 
                   <Button
                     appearance="outline"
                     className={styles.postButton}
-                    style={{
-                      borderColor: "#0CAA41",
-                    }}
+                    style={{ borderColor: "#0CAA41" }}
                   >
-                    <div
-                      className={styles.postLogoBox}
-                      style={{ backgroundColor: "#0CAA41" }}
-                    >
+                    <div className={styles.postLogoBox} style={{ backgroundColor: "#0CAA41" }}>
                       <Globe20Regular style={{ color: "#ffffff" }} />
                     </div>
                     <div className={styles.postTextBlock}>
                       <div className={styles.postMain}>Post to Glassdoor</div>
-                      <div className={styles.postSub}>
-                        Connect with active job seekers
-                      </div>
+                      <div className={styles.postSub}>Connect with active job seekers</div>
                     </div>
                   </Button>
 
