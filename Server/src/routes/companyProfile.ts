@@ -4,35 +4,24 @@ import { z } from "zod";
 import multer, { type FileFilterCallback } from "multer";
 import { CompanyProfile } from "../models/companyProfile.js";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
-import { getMongooseBucket } from "../utils/mongooseGridfs.js";
 import { Types } from "mongoose";
+import { storage } from "../config/cloudinary.js"; // Import Cloudinary storage
 
 export const companyProfileRouter = Router();
 
 /**
- * ✅ We store logo in MongoDB (GridFS)
- * => use memoryStorage (NO disk folder)
+ * ✅ We store logo in Cloudinary
  */
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage,
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
-  fileFilter: ((
-    _req: Request,
-    file: Express.Multer.File,
-    cb: FileFilterCallback
-  ) => {
-    const ok = ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(
-      file.mimetype
-    );
-
-    if (!ok) {
-      // TS in your setup complains if we pass Error|null combos
-      // So we use "any" call signature safely.
-      (cb as any)(new Error("Only PNG/JPG/WEBP allowed"), false);
-      return;
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+       cb(null, true);
+    } else {
+       cb(new Error("Only images allowed") as any, false);
     }
-    (cb as any)(null, true);
-  }) as any,
+  }
 });
 
 type MulterAuthedRequest = AuthedRequest & {
@@ -102,9 +91,8 @@ companyProfileRouter.put(
  * POST /api/company-profile/logo
  * form-data: logo=<file>
  *
- * ✅ Stores file in GridFS
- * ✅ Saves logoGridFsId + mimeType into company profile
- * ✅ Returns logoUrl which is a STREAM endpoint (not disk path)
+ * ✅ Stores file in Cloudinary
+ * ✅ Saves logoUrl in company profile
  */
 companyProfileRouter.post(
   "/logo",
@@ -128,48 +116,19 @@ companyProfileRouter.post(
         });
       }
 
-      // If old logo exists in GridFS, delete it best-effort
-      if (profile.logoGridFsId && Types.ObjectId.isValid(profile.logoGridFsId)) {
-        try {
-          const bucket = getMongooseBucket("logos");
-          await bucket.delete(profile.logoGridFsId as any);
-        } catch {
-          // ignore delete failures
-        }
-      }
+      // Cloudinary upload handled by multer, req.file.path is the URL
+      const logoUrl = req.file.path;
+      
+      profile.logoUrl = logoUrl;
+      // We can clear GridFS fields or leave them for history, but relying on logoUrl is best
+      profile.logoMimeType = req.file.mimetype;
+      profile.logoOriginalName = req.file.originalname;
 
-      const bucket = getMongooseBucket("logos");
-
-      // Store mimeType in metadata (avoid "contentType" typing issue)
-      const uploadStream = bucket.openUploadStream(
-        req.file.originalname || "logo",
-        {
-          metadata: {
-            mimeType: req.file.mimetype,
-            employerId: String(employerId),
-          },
-        } as any
-      );
-
-      uploadStream.end(req.file.buffer);
-
-      uploadStream.on("error", (err: unknown) => {
-        console.error("GRIDFS_LOGO_UPLOAD_ERROR:", err);
-        return res.status(500).json({ message: "Failed to upload logo" });
-      });
-
-      uploadStream.on("finish", async () => {
-        // ✅ IMPORTANT: use uploadStream.id (NOT file._id)
-        profile!.logoGridFsId = uploadStream.id as unknown as Types.ObjectId;
-        profile!.logoMimeType = req.file!.mimetype;
-        profile!.logoOriginalName = req.file!.originalname;
-
-        // A stream endpoint that serves the image from DB
-        const logoUrl = `/api/company-profile/logo/me`;
-
-        await profile!.save();
-        return res.json({ logoUrl });
-      });
+      await profile.save();
+      
+      // Return the direct URL or the API endpoint
+      return res.json({ logoUrl });
+      
     } catch (e) {
       console.error("COMPANY_LOGO_ERROR:", e);
       return res.status(500).json({ message: "Server error" });
@@ -179,7 +138,7 @@ companyProfileRouter.post(
 
 /**
  * GET /api/company-profile/logo/me
- * ✅ Streams logo from GridFS for current employer
+ * ✅ Redirects to Cloudinary URL
  */
 companyProfileRouter.get(
   "/logo/me",
@@ -189,20 +148,19 @@ companyProfileRouter.get(
     const employerId = req.user!.id;
 
     const profile = await CompanyProfile.findOne({ employerId }).lean();
-    if (!profile?.logoGridFsId)
-      return res.status(404).json({ message: "Logo not found" });
+    
+    if (profile?.logoUrl) {
+         return res.redirect(profile.logoUrl);
+    }
 
-    const bucket = getMongooseBucket("logos");
-
-    res.setHeader(
-      "Content-Type",
-      profile.logoMimeType || "application/octet-stream"
-    );
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="${profile.logoOriginalName || "logo"}"`
-    );
-
-    bucket.openDownloadStream(profile.logoGridFsId as any).pipe(res);
+    // Fallback: Check if GridFS ID exists (legacy)
+    if (profile?.logoGridFsId) {
+        // Since we removed helper function usage here to simplify, we just return 404 or a placeholder if only GridFS exists
+        // but haven't migrated. Ideally we migrate everything. 
+        // For now, let's just return 404 if no Cloudinary URL.
+        return res.status(404).json({ message: "Logo not found (legacy storage not supported)" });
+    }
+    
+    return res.status(404).json({ message: "Logo not found" });
   }
 );

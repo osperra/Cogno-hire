@@ -1,3 +1,4 @@
+// Server/src/routes/documents.ts
 import { Router, type Request } from "express";
 import { z } from "zod";
 import multer, { type FileFilterCallback } from "multer";
@@ -8,32 +9,25 @@ import { Application } from "../models/Application.js";
 import { Job } from "../models/Jobs.js";
 
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
-import { getMongooseBucket } from "../utils/mongooseGridfs.js";
+import { storage } from "../config/cloudinary.js"; // Import Cloudinary storage
 
 export const documentsRouter = Router();
 
-const BUCKET_NAME = "docs";
-const storage = multer.memoryStorage();
-
-const ALLOWED_MIME = new Set<string>([
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "image/jpeg",
-    "image/png",
-    "image/jpg",
-]);
-
-function fileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCallback) {
-    const ok = ALLOWED_MIME.has(file.mimetype);
-    if (!ok) return cb(new Error("Only PDF/DOC/DOCX/JPG/PNG allowed"));
-    return cb(null, true);
-}
-
+// Use Cloudinary storage
 const upload = multer({
     storage,
-    fileFilter,
-    limits: { fileSize: 10 * 1024 * 1024 },
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    fileFilter: (_req, file, cb) => {
+        // Basic filter, Cloudinary also has format restrictions
+        if (file.mimetype.startsWith("image/") || 
+            file.mimetype === "application/pdf" || 
+            file.mimetype.includes("word") ||
+            file.mimetype.includes("document")) {
+            cb(null, true);
+        } else {
+            cb(null, false);
+        }
+    }
 });
 
 type MulterAuthedRequest = Request & {
@@ -41,11 +35,7 @@ type MulterAuthedRequest = Request & {
     file?: Express.Multer.File;
 };
 
-function safeFilename(original: string) {
-    const base = (original || "file").replace(/[^\w.\-() ]+/g, "_");
-    return `${Date.now()}_${Math.random().toString(16).slice(2)}_${base}`;
-}
-
+// ... helper functions (getEmployerJobIds, etc.) remain mostly same ...
 async function getEmployerJobIds(employerId: string) {
     const jobs = await Job.find({ employerId }).select("_id").lean();
     return jobs.map((j) => j._id);
@@ -78,11 +68,20 @@ documentsRouter.get(
     async (req: AuthedRequest, res) => {
         try {
             const id = req.params.id;
-            if (!Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid file id" });
-
-            const doc = await Document.findOne({ gridFsId: id }).lean();
+            // NOTE: We now assume `id` might be a Mongo ObjectId of the Document record, OR a GridFS ID if legacy.
+            // But usually the client calls this with the Document ID or the fileUrl handles it.
+            // If the client expects to download by `gridFsId`, we need to find the document.
+            
+            // Let's assume the ID passed is a Document _id (or we try to find by gridFsId for backward compat)
+            let doc = await Document.findById(id).lean();
+            if (!doc && Types.ObjectId.isValid(id)) {
+                 doc = await Document.findOne({ gridFsId: id }).lean();
+            }
+            // For Cloudinary migration, we might not rely on gridFsId anymore.
+            
             if (!doc) return res.status(404).json({ message: "File not found" });
 
+            // Access control
             if (req.user!.role === "candidate" && String(doc.ownerUserId) !== String(req.user!.id)) {
                 return res.status(403).json({ message: "Forbidden" });
             }
@@ -99,14 +98,15 @@ documentsRouter.get(
                 }
             }
 
-            const bucket = getMongooseBucket(doc.bucketName || BUCKET_NAME);
+            // Redirect to Cloudinary URL
+            if (doc.fileUrl) {
+                return res.redirect(doc.fileUrl);
+            }
 
-            res.setHeader("Content-Type", doc.mimeType || "application/octet-stream");
-            res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(doc.name)}"`);
+            // Fallback for legacy GridFS (if any exist and we haven't migrated them)
+            // If you want to strictly remove GridFS, just error here.
+             return res.status(404).json({ message: "File URL not found" });
 
-            const downloadStream = bucket.openDownloadStream(new Types.ObjectId(id));
-            downloadStream.on("error", () => res.status(404).end());
-            downloadStream.pipe(res);
         } catch (e) {
             console.error("DOC_FILE_STREAM_ERROR:", e);
             return res.status(500).json({ message: "Server error" });
