@@ -46,13 +46,25 @@ app.use("/api/sidebar", sidebarRouter);
 
 app.use("/api/company-profile", companyProfileRouter);
 
+
+// Export app for Vercel
+export default app;
+
 const port = Number(process.env.PORT || 5000);
 
-connectDB(process.env.MONGODB_URI!)
-  .then(() => {
-    app.listen(port, () => console.log(`✅ API running on http://localhost:${port}`));
-  })
-  .catch((e) => {
-    console.error("❌ DB connection failed", e);
-    process.exit(1);
-  });
+if (process.env.VERCEL) {
+    // In Vercel, just connect to DB, don't listen
+    // Mongoose buffers commands, so we don't strictly need to await here for the export to work,
+    // but we need to start the connection.
+    connectDB(process.env.MONGODB_URI!).catch(e => console.error("DB Connect Error", e));
+} else {
+    // Local development
+    connectDB(process.env.MONGODB_URI!)
+      .then(() => {
+        app.listen(port, () => console.log(`✅ API running on http://localhost:${port}`));
+      })
+      .catch((e) => {
+        console.error("❌ DB connection failed", e);
+        process.exit(1);
+      });
+}
