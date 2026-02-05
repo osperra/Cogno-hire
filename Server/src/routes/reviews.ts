@@ -4,7 +4,6 @@ import { EmployeeReview } from "../models/EmployeeReview.js";
 
 export const reviewsRouter = Router();
 
-// helper
 function quarterStart(d: Date) {
   const q = Math.floor(d.getMonth() / 3) * 3;
   return new Date(d.getFullYear(), q, 1);
@@ -19,8 +18,7 @@ reviewsRouter.get(
   requireAuth,
   requireRole(["employer", "hr"]),
   async (_req: AuthedRequest, res) => {
-    // NOTE: your existing code does not filter by employer/company.
-    // Keeping same behavior: global stats across all reviews.
+
     const now = new Date();
     const qStart = quarterStart(now);
 

@@ -1,13 +1,17 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 
-export type AuthedUser = { id: string; role: string };
+export type AuthedUser = {
+  id: string;
+  role: string;
+  name?: string; // ✅ optional
+};
 
 export interface AuthedRequest extends Request {
   user?: AuthedUser;
 }
 
-type JwtWithRole = jwt.JwtPayload & { role?: unknown };
+type JwtWithRole = jwt.JwtPayload & { role?: unknown; name?: unknown };
 
 function getJwtSecret() {
   const s = process.env.JWT_SECRET;
@@ -26,12 +30,13 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
   try {
     const payload = jwt.verify(token, secret) as JwtWithRole;
 
-    const userId = payload.sub; 
+    const userId = payload.sub;
     const role = typeof payload.role === "string" ? payload.role : "";
+    const name = typeof (payload as any).name === "string" ? (payload as any).name : undefined;
 
     if (!userId) return res.status(401).json({ message: "Invalid token" });
 
-    req.user = { id: String(userId), role };
+    req.user = { id: String(userId), role, name }; // ✅ now valid
     next();
   } catch {
     return res.status(401).json({ message: "Invalid/expired token" });
