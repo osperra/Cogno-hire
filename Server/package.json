@@ -20,6 +20,7 @@
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
     "node-fetch": "^3.3.2",
+    "undici": "^7.20.0",
     "zod": "^4.2.1"
   },
   "devDependencies": {

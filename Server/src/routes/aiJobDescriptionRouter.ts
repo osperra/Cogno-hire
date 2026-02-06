@@ -1,10 +1,8 @@
-// src/routes/aiJobDescriptionRouter.ts
 import { Router } from "express";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth.js";
+import { generateTextWithFallback } from "../ai/generateWithFallback.js";
 
 export const aiJobDescriptionRouter = Router();
-const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "mistral:latest";
 
 type JDRequest = {
   jobTitle: string;
@@ -64,35 +62,6 @@ Application Process:
 `.trim();
 }
 
-async function callOllama(prompt: string) {
-  const url = `${OLLAMA_HOST.replace(/\/$/, "")}/api/generate`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: OLLAMA_MODEL,
-      prompt,
-      stream: false,
-      options: {
-        temperature: 0.4,
-        num_predict: 900,
-      },
-    }),
-  });
-
-  const data = await res.json().catch(() => null);
-
-  if (!res.ok) {
-    const msg = data?.error || data?.message || `${res.status} ${res.statusText}`;
-    throw new Error(msg);
-  }
-
-  const text = String(data?.response || "").trim();
-  if (!text) throw new Error("Ollama returned empty output");
-  return text;
-}
-
 aiJobDescriptionRouter.post(
   "/job-description",
   requireAuth,
@@ -118,10 +87,19 @@ aiJobDescriptionRouter.post(
     });
 
     try {
-      const jd = await callOllama(prompt);
-      res.json({ text: jd });
+      const out = await generateTextWithFallback(prompt, [
+        "gemini",
+        "groq",
+        "ollama",
+      ]);
+
+      res.json({ text: out.text, provider: out.provider });
     } catch (e: any) {
-      res.status(500).json({ message: e?.message || "AI generation failed" });
+      res.status(500).json({
+        message: e?.message || "AI generation failed",
+        providerErrors: e?.providerErrors || [],
+      });
     }
-  },
+
+  }
 );

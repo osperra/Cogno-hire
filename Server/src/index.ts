@@ -1,8 +1,13 @@
+// Server/src/index.ts
+import "dotenv/config"; // ✅ MUST be first so all imports can read .env
+
 import express, { type Request, type Response } from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import path from "path";
 import { connectDB } from "./config/db.js";
+
+import { fetch } from "undici";
+(globalThis as any).fetch = fetch;
 
 import authRouter from "./routes/auth.js";
 import { jobsRouter } from "./routes/jobs.js";
@@ -18,8 +23,7 @@ import { candidatesRouter } from "./routes/candidates.js";
 import { reviewsRouter } from "./routes/reviews.js";
 import { onboardingRouter } from "./routes/onboarding.js";
 import { aiJobDescriptionRouter } from "./routes/aiJobDescriptionRouter.js";
-
-dotenv.config();
+import { aiInterviewRouter } from "./routes/aiInterviewRouter.js";
 
 
 const app = express();
@@ -32,6 +36,7 @@ app.use(
 );
 
 app.use(express.json());
+
 app.use("/api/documents", documentsRouter);
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
@@ -54,6 +59,8 @@ app.use("/api/reviews", reviewsRouter);
 app.use("/api/company-profile", companyProfileRouter);
 app.use("/api/onboarding", onboardingRouter);
 app.use("/api/ai", aiJobDescriptionRouter);
+app.use("/api/ai", aiInterviewRouter);
+
 
 const port = Number(process.env.PORT || 5000);
 

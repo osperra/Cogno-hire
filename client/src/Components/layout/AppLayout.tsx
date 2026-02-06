@@ -21,6 +21,7 @@ import { CandidateNotifications } from "../Candidate/CandidateNotifications";
 import { InterviewRoom } from "../Interview/InterviewRoom";
 
 import {CandidateApplyForm} from "../Candidate/CandidateApplyForm";
+import { CandidateInterviewResults } from "../Candidate/CandidateInterviewResults";
 
 import { CandidatePipeline } from "../hr/CandidatePipeline";
 import { DocumentManagement } from "../hr/DocumentManagement";
@@ -51,6 +52,7 @@ export const ROUTES = {
   candidateApplications: "/app/candidate/applications",
   candidateNotifications: "/app/candidate/notifications",
   candidateInterview: "/app/candidate/interview",
+  candidateResults: "/app/candidate/results",
 
   candidateApply: "/app/candidate/apply",
 } as const;
@@ -184,8 +186,10 @@ export default function AppLayout() {
     if (startsWithPath(p, ROUTES.candidateApply)) return <CandidateApplyForm onNavigate={onNavigate} />;
 
     if (startsWithPath(p, ROUTES.candidateInterview)) {
-      return <InterviewRoom jobTitle="Interview" company="Company" onComplete={() => navigate(ROUTES.candidateHome)} />;
+      return <InterviewRoom jobTitle="Interview" company="Company" onComplete={(data) => navigate(ROUTES.candidateResults, { state: data })} />;
     }
+
+    if (startsWithPath(p, ROUTES.candidateResults)) return <CandidateInterviewResults />;
 
     return role === "employer" ? <EmployerDashboard onNavigate={onNavigate} /> : <CandidateHome onNavigate={onNavigate} />;
   };
