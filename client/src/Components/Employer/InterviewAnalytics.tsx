@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react";
 import {
   Button,
   Card,
   Badge,
   makeStyles,
   shorthands,
+  Spinner,
 } from "@fluentui/react-components";
 
 import {
@@ -26,32 +28,12 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
 } from "recharts";
+import { api } from "../../api/http";
 
 interface InterviewAnalyticsProps {
   onNavigate: (page: string) => void;
 }
-
-const skillsData = [
-  { skill: "React", score: 90 },
-  { skill: "TypeScript", score: 85 },
-  { skill: "Problem Solving", score: 88 },
-  { skill: "Communication", score: 82 },
-  { skill: "System Design", score: 78 },
-];
-
-const competencyData = [
-  { category: "Technical", score: 87 },
-  { category: "Problem Solving", score: 90 },
-  { category: "Communication", score: 82 },
-  { category: "Collaboration", score: 85 },
-  { category: "Creativity", score: 78 },
-];
 
 const useStyles = makeStyles({
  root: {
@@ -497,6 +479,59 @@ const useStyles = makeStyles({
 export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
   const styles = useStyles();
 
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api<any>("/api/ai/analytics");
+        setData(res);
+      } catch (e) {
+        console.error("Failed to fetch analytics", e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className={styles.root} style={{ alignItems: "center", justifyContent: "center" }}>
+        <Spinner label="Loading analytics..." />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className={styles.root}>
+        <div className={styles.headerRow}>
+          <Button
+            appearance="subtle"
+            size="small"
+            onClick={() => onNavigate("Applicants")}
+            icon={<ArrowLeft20Regular />}
+            className={styles.backButton}
+          />
+          <div className={styles.headerTitleBlock}>
+            <span className={styles.headerTitle}>Interview Analytics</span>
+          </div>
+        </div>
+        <Card className={styles.candidateCard}>
+          <div style={{ textAlign: "center", color: "#6B7280" }}>
+            No interview data found for this session.
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // Use real data from "data" object
+  const { overallScore, feedback, skills, strengths, improvements, jobTitle, createdAt } = data;
+
+  const dateStr = new Date(createdAt).toLocaleDateString();
+
   return (
     <div className={styles.root}>
       <div className={styles.headerRow}>
@@ -534,37 +569,35 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
           <div className={styles.candidateMain}>
             <div className={styles.candidateHeaderRow}>
               <div>
-                <div className={styles.candidateName}>Sarah Chen</div>
+                <div className={styles.candidateName}>Candidate</div>
                 <div className={styles.candidateMetaRow}>
                   <div className={styles.metaItem}>
                     <Mail20Regular />
-                    <span>sarah.chen@email.com</span>
+                    <span>candidate@example.com</span>
                   </div>
                   <div className={styles.metaItem}>
                     <Briefcase20Regular />
-                    <span>Senior Frontend Developer</span>
+                    <span>{jobTitle}</span>
                   </div>
                   <div className={styles.metaItem}>
                     <CalendarLtr20Regular />
-                    <span>Interviewed on Jan 15, 2025</span>
+                    <span>Interviewed on {dateStr}</span>
                   </div>
                 </div>
               </div>
 
               <div className={styles.overallScoreBox}>
-                <div className={styles.overallScoreValue}>87%</div>
+                <div className={styles.overallScoreValue}>{overallScore}%</div>
                 <div className={styles.overallScoreLabel}>Overall Score</div>
               </div>
             </div>
 
             <div className={styles.candidateBadgesRow}>
-              <Badge className={styles.badgeStrong}>
-                Strong Technical Skills
-              </Badge>
-              <Badge className={styles.badgeBlue}>
-                Excellent Problem Solver
-              </Badge>
-              <Badge className={styles.badgeNeutral}>Good Communication</Badge>
+              {strengths?.slice(0, 3).map((s: any, i: number) => (
+                <Badge key={i} className={styles.badgeStrong}>
+                  {s.title}
+                </Badge>
+              ))}
             </div>
           </div>
         </div>
@@ -576,12 +609,13 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
           <div className={styles.chartWrapper}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={skillsData}
-                margin={{ top: 16, right: 16, left: 0, bottom: 8 }}
+                data={skills || []}
+                layout="vertical"
+                margin={{ top: 16, right: 16, left: 16, bottom: 8 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis dataKey="skill" tick={{ fontSize: 12 }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
+                <XAxis type="number" domain={[0, 100]} hide />
+                <YAxis dataKey="skill" type="category" width={100} tick={{ fontSize: 12 }} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "#FFFFFF",
@@ -590,30 +624,17 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
                     fontSize: 12,
                   }}
                 />
-                <Bar dataKey="score" fill="#0118D8" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="score" fill="#0118D8" radius={[0, 4, 4, 0]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
         <Card className={styles.sectionCard}>
-          <div className={styles.sectionTitle}>Competency Analysis</div>
-          <div className={styles.chartWrapper}>
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={competencyData}>
-                <PolarGrid stroke="#E5E7EB" />
-                <PolarAngleAxis dataKey="category" tick={{ fontSize: 12 }} />
-                <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                <Radar
-                  name="Score"
-                  dataKey="score"
-                  stroke="#0118D8"
-                  fill="#0118D8"
-                  fillOpacity={0.35}
-                />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
+          <div className={styles.sectionTitle}>Feedback Summary</div>
+          <p style={{ fontSize: "0.9rem", color: "#4B5563", lineHeight: 1.5 }}>
+            {feedback}
+          </p>
         </Card>
       </div>
 
@@ -626,48 +647,17 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
             <div className={styles.sectionTitle}>Key Strengths</div>
           </div>
           <ul className={styles.bulletList}>
-            <li className={styles.bulletItem}>
-              <div className={styles.bulletIcon}>
-                <CheckmarkCircle20Regular style={{ color: "#16A34A" }} />
-              </div>
-              <div>
-                <div className={styles.bulletTitle}>
-                  Exceptional React expertise
+            {strengths?.map((item: any, idx: number) => (
+              <li key={idx} className={styles.bulletItem}>
+                <div className={styles.bulletIcon}>
+                  <CheckmarkCircle20Regular style={{ color: "#16A34A" }} />
                 </div>
-                <div className={styles.bulletText}>
-                  Demonstrated deep knowledge of React hooks, performance
-                  optimization, and modern patterns.
+                <div>
+                  <div className={styles.bulletTitle}>{item.title}</div>
+                  <div className={styles.bulletText}>{item.description}</div>
                 </div>
-              </div>
-            </li>
-            <li className={styles.bulletItem}>
-              <div className={styles.bulletIcon}>
-                <CheckmarkCircle20Regular style={{ color: "#16A34A" }} />
-              </div>
-              <div>
-                <div className={styles.bulletTitle}>
-                  Strong problem-solving approach
-                </div>
-                <div className={styles.bulletText}>
-                  Showed excellent analytical thinking and a systematic approach
-                  to complex problems.
-                </div>
-              </div>
-            </li>
-            <li className={styles.bulletItem}>
-              <div className={styles.bulletIcon}>
-                <CheckmarkCircle20Regular style={{ color: "#16A34A" }} />
-              </div>
-              <div>
-                <div className={styles.bulletTitle}>
-                  Clear communication style
-                </div>
-                <div className={styles.bulletText}>
-                  Articulated thoughts clearly and explained technical concepts
-                  effectively.
-                </div>
-              </div>
-            </li>
+              </li>
+            ))}
           </ul>
         </Card>
 
@@ -679,31 +669,17 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
             <div className={styles.sectionTitle}>Areas for Improvement</div>
           </div>
           <ul className={styles.bulletList}>
-            <li className={styles.bulletItem}>
-              <div className={styles.bulletIcon}>
-                <Warning20Regular style={{ color: "#EA580C" }} />
-              </div>
-              <div>
-                <div className={styles.bulletTitle}>
-                  System design experience
+            {improvements?.map((item: any, idx: number) => (
+              <li key={idx} className={styles.bulletItem}>
+                <div className={styles.bulletIcon}>
+                  <Warning20Regular style={{ color: "#EA580C" }} />
                 </div>
-                <div className={styles.bulletText}>
-                  Could benefit from more exposure to large-scale system
-                  architecture and trade-off decisions.
+                <div>
+                  <div className={styles.bulletTitle}>{item.title}</div>
+                  <div className={styles.bulletText}>{item.description}</div>
                 </div>
-              </div>
-            </li>
-            <li className={styles.bulletItem}>
-              <div className={styles.bulletIcon}>
-                <Warning20Regular style={{ color: "#EA580C" }} />
-              </div>
-              <div>
-                <div className={styles.bulletTitle}>Backend knowledge</div>
-                <div className={styles.bulletText}>
-                  Limited experience with backend technologies and API design.
-                </div>
-              </div>
-            </li>
+              </li>
+            ))}
           </ul>
         </Card>
       </div>
