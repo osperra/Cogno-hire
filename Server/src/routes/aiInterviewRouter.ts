@@ -6,9 +6,6 @@ import { InterviewResult } from "../models/InterviewResult.js";
 
 export const aiInterviewRouter = Router();
 
-/**
- * In-memory sessions (OK for dev). Replace with Mongo/Redis later.
- */
 type Role = "ai" | "candidate";
 type Msg = { role: Role; content: string; ts: number };
 
@@ -18,7 +15,7 @@ type InterviewSession = {
   jobTitle: string;
   company: string;
   totalQuestions: number;
-  currentQuestion: number; // 1-based (next question number to ask)
+  currentQuestion: number;
   createdAt: number;
   updatedAt: number;
   transcript: Msg[];
@@ -43,10 +40,7 @@ function safeTrim(v?: string) {
   return t || undefined;
 }
 
-/**
- * Prompt builder: asks AI to behave as interviewer.
- * Keeps output short (important for interview turn latency).
- */
+
 function buildInterviewerSystemPrompt(jobTitle: string, company: string) {
   return `
 You are an AI interviewer conducting a structured interview.
@@ -100,19 +94,11 @@ Your output:
 `.trim();
 }
 
-/**
- * Decide if we should end session (basic)
- */
 function shouldEnd(session: InterviewSession) {
   const asked = session.transcript.filter((m) => m.role === "ai").length;
   return asked >= session.totalQuestions;
 }
 
-/**
- * Start interview
- * POST /api/ai/interview/start
- * body: { jobTitle, company, totalQuestions? }
- */
 aiInterviewRouter.post(
   "/interview/start",
   requireAuth,
@@ -147,7 +133,6 @@ aiInterviewRouter.post(
     const prompt = buildNextQuestionPrompt(session);
 
     try {
-      // Keep interview turns short
       const out = await generateTextWithFallback(prompt, ["gemini", "groq", "ollama"]);
 
       session.transcript.push({ role: "ai", content: out.text.trim(), ts: now() });
@@ -170,15 +155,10 @@ aiInterviewRouter.post(
   }
 );
 
-/**
- * Next turn (candidate answers)
- * POST /api/ai/interview/next
- * body: { sessionId, answer }
- */
 aiInterviewRouter.post(
   "/interview/next",
   requireAuth,
-  requireRole(["candidate", "employer", "hr"]), // adjust as you want
+  requireRole(["candidate", "employer", "hr"]), 
   async (req: AuthedRequest, res) => {
     const sessionId = safeTrim(req.body?.sessionId);
     const answer = safeTrim(req.body?.answer);
@@ -189,7 +169,6 @@ aiInterviewRouter.post(
     const session = sessions.get(sessionId);
     if (!session) return res.status(404).json({ message: "Interview session not found" });
 
-    // store candidate answer
     session.transcript.push({ role: "candidate", content: answer, ts: now() });
     session.updatedAt = now();
 
@@ -211,7 +190,6 @@ aiInterviewRouter.post(
       session.transcript.push({ role: "ai", content: out.text.trim(), ts: now() });
       session.updatedAt = now();
 
-      // update question number based on ai messages count
       const aiCount = session.transcript.filter((m) => m.role === "ai").length;
 
       sessions.set(session.id, session);
@@ -234,10 +212,6 @@ aiInterviewRouter.post(
   }
 );
 
-/**
- * Get transcript
- * GET /api/ai/interview/:sessionId
- */
 aiInterviewRouter.get(
   "/interview/:sessionId",
   requireAuth,
@@ -259,12 +233,6 @@ aiInterviewRouter.get(
   }
 );
 
-/**
- * End interview
- * POST /api/ai/interview/end
- * body: { sessionId }
- */
-// Helper to build analysis prompt
 function buildAnalysisPrompt(session: InterviewSession) {
   const transcriptText = session.transcript
     .map((m) => `${m.role === "ai" ? "Interviewer" : "Candidate"}: ${m.content}`)
@@ -313,20 +281,14 @@ aiInterviewRouter.post(
     const session = sessions.get(sessionId);
     if (!session) return res.status(404).json({ message: "Interview session not found" });
 
-    // Generate analysis
     const prompt = buildAnalysisPrompt(session);
     let analysis = {};
 
     try {
-      // Use a "smart" model if possible, here defaulting to any available
       const out = await generateTextWithFallback(prompt, ["gemini", "groq", "ollama"]);
       const jsonText = out.text.replace(/```json/g, "").replace(/```/g, "").trim();
       analysis = JSON.parse(jsonText);
 
-      // Persist result
-      // Try to resolve userId from session.userId. If it's "unknown", you might want to handle it or skip.
-      // Assuming session.userId is a valid string ID if authenticated. 
-      // Ensure we catch errors if userId is invalid ObjectID or not found.
       if (session.userId && session.userId !== "unknown") {
         await InterviewResult.create({
           userId: session.userId,
@@ -357,10 +319,7 @@ aiInterviewRouter.post(
   }
 );
 
-/**
- * Get Analytics (Latest Result)
- * GET /api/ai/analytics
- */
+
 aiInterviewRouter.get(
   "/analytics",
   requireAuth,
@@ -370,8 +329,7 @@ aiInterviewRouter.get(
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     try {
-      // For now, just return the latest one.
-      // In a real app, you might want to list all or filter by job.
+
       const result = await InterviewResult.findOne({ userId }).sort({ createdAt: -1 });
 
       if (!result) {

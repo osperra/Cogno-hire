@@ -15,13 +15,6 @@ import {
   TableRow,
 } from "../ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -38,19 +31,19 @@ import {
   Eye20Regular,
   Edit20Regular,
   Delete20Regular,
+  DataBarHorizontal20Regular,
 } from "@fluentui/react-icons";
 
 interface EmployerDashboardProps {
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, data?: Record<string, unknown>) => void;
 }
 
 type ApiErrorBody = { message?: string };
 
 const API_BASE =
-  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_URL?.replace(
-    /\/$/,
-    ""
-  ) || "http://localhost:5000";
+  (
+    import.meta as unknown as { env?: Record<string, string> }
+  ).env?.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:5000";
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem("token");
@@ -77,11 +70,9 @@ async function apiGet<T>(path: string): Promise<T> {
       }
     } else {
       const low = raw.toLowerCase();
-      if (low.includes("<!doctype") || low.includes("<html")) {
+      if (low.includes("<!doctype") || low.includes("<html"))
         msg = `Request failed (${res.status})`;
-      } else if (raw.trim()) {
-        msg = raw;
-      }
+      else if (raw.trim()) msg = raw;
     }
 
     throw new Error(msg);
@@ -110,6 +101,56 @@ async function apiGetFirstOk<T>(paths: string[]): Promise<T> {
   throw lastErr instanceof Error ? lastErr : new Error("All endpoints failed");
 }
 
+async function apiPatchJsonFirstOk<T>(
+  paths: string[],
+  body: unknown,
+): Promise<T> {
+  let lastErr: unknown = null;
+
+  for (const p of paths) {
+    try {
+      const res = await fetch(`${API_BASE}${p}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders(),
+        },
+        body: JSON.stringify(body ?? {}),
+      });
+
+      const contentType = res.headers.get("content-type") || "";
+      const raw = await res.text().catch(() => "");
+
+      if (!res.ok) {
+        let msg = `Request failed (${res.status})`;
+        if (contentType.includes("application/json")) {
+          try {
+            const json = JSON.parse(raw) as ApiErrorBody;
+            msg = json.message || msg;
+          } catch {
+            // ignore
+          }
+        } else if (raw.trim()) {
+          msg = raw;
+        }
+        throw new Error(msg);
+      }
+
+      if (!raw.trim()) return {} as T;
+
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Expected JSON but got "${contentType || "unknown"}"`);
+      }
+
+      return JSON.parse(raw) as T;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+
+  throw lastErr instanceof Error ? lastErr : new Error("All endpoints failed");
+}
+
 type DifficultyUI = "Easy" | "Medium" | "Hard";
 
 function difficultyDbToUi(value: unknown): DifficultyUI {
@@ -117,7 +158,9 @@ function difficultyDbToUi(value: unknown): DifficultyUI {
   if (value === 2) return "Medium";
   if (value === 3) return "Hard";
 
-  const v = String(value ?? "").trim().toLowerCase();
+  const v = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (v === "easy" || v === "low") return "Easy";
   if (v === "medium" || v === "mid") return "Medium";
   if (v === "hard" || v === "high") return "Hard";
@@ -125,68 +168,12 @@ function difficultyDbToUi(value: unknown): DifficultyUI {
   return "Medium";
 }
 
-type UiJobRow = {
-  id: string;
-  title: string;
-  type: string;
-  location: string;
-  ctc: string;
-  experience: string;
-  duration: string;
-  difficulty: DifficultyUI;
-  responses: number;
-
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-type HiringStatus =
-  | "Invited"
-  | "Under Review"
-  | "Shortlisted"
-  | "Hired"
-  | "Rejected";
-type InterviewStatus = "Completed" | "Pending" | "In Progress";
-
-type UiResponseRow = {
-  id: string;
-  candidate: string;
-  email: string;
-  job: string;
-  interviewStatus: InterviewStatus;
-  hiringStatus: HiringStatus;
-  score: number | null;
-  candidateId?: string;
-  jobId?: string;
-  applicationId?: string;
-
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-function safeInterviewStatus(x: unknown): InterviewStatus {
-  const v = String(x || "").toLowerCase();
-  if (v === "completed") return "Completed";
-  if (v === "in_progress" || v === "in progress") return "In Progress";
-  return "Pending";
-}
-
-function safeHiringStatus(x: unknown): HiringStatus {
-  const v = String(x || "").toLowerCase();
-  if (v === "invited") return "Invited";
-  if (v === "under_review" || v === "under review") return "Under Review";
-  if (v === "shortlisted") return "Shortlisted";
-  if (v === "hired") return "Hired";
-  if (v === "rejected") return "Rejected";
-  return "Under Review";
-}
-
 type SalaryRangeDb = { start?: number; end?: number; currency?: string };
 
 type InterviewSettingsDb = {
   maxCandidates?: number;
   interviewDuration?: number;
-  difficultyLevel?: unknown; 
+  difficultyLevel?: unknown;
   language?: string;
 };
 
@@ -201,47 +188,23 @@ type JobFromDb = {
   invitedCandidates?: unknown[];
   interviewSettings?: InterviewSettingsDb;
   isActive?: boolean;
-
   createdAt?: string;
   updatedAt?: string;
 };
 
-type PopulatedApplication = {
-  _id: string;
-  overallScore?: number | null;
-  hiringStatus?: unknown;
-  interviewStatus?: unknown;
-
-  candidateId?:
-    | string
-    | {
-        _id: string;
-        name?: string;
-        email?: string;
-      };
-
-  jobId?:
-    | string
-    | {
-        _id: string;
-        title?: string;
-      };
-
+type UiJobRow = {
+  id: string;
+  title: string;
+  type: string;
+  location: string;
+  ctc: string;
+  experience: string;
+  duration: string;
+  difficulty: DifficultyUI;
+  responses: number;
   createdAt?: string;
   updatedAt?: string;
 };
-
-function getCandidate(x: PopulatedApplication["candidateId"]) {
-  if (!x) return { id: "", name: "Unknown", email: "-" };
-  if (typeof x === "string") return { id: x, name: "Unknown", email: "-" };
-  return { id: x._id, name: x.name || "Unknown", email: x.email || "-" };
-}
-
-function getJob(x: PopulatedApplication["jobId"]) {
-  if (!x) return { id: "", title: "Unknown Job" };
-  if (typeof x === "string") return { id: x, title: "Unknown Job" };
-  return { id: x._id, title: x.title || "Unknown Job" };
-}
 
 function titleCase(s: string) {
   return s
@@ -273,11 +236,112 @@ function durationToText(s?: InterviewSettingsDb) {
   return "—";
 }
 
+type HiringStatusApi =
+  | "PENDING"
+  | "INVITED"
+  | "UNDER_REVIEW"
+  | "SHORTLISTED"
+  | "HIRED"
+  | "REJECTED";
+
+type InterviewStatusApi = "PENDING" | "IN_PROGRESS" | "COMPLETED";
+
+type PopulatedApplication = {
+  _id: string;
+  hiringStatus: HiringStatusApi;
+  interviewStatus: InterviewStatusApi;
+  createdAt: string;
+
+  candidateId:
+    | string
+    | {
+        _id: string;
+        name: string;
+        email: string;
+      };
+
+  jobId:
+    | string
+    | {
+        _id: string;
+        title: string;
+        company?: string;
+        companyName?: string;
+        location?: string;
+      };
+
+  overallScore?: number | null;
+};
+
+type UiApplicationRow = {
+  id: string;
+  applicationId: string;
+  candidateId: string;
+  candidate: string;
+  email: string;
+  jobId: string;
+  job: string;
+  createdAt?: string;
+  appliedDate: string;
+  interviewStatus: InterviewStatusApi;
+  score: number | null;
+  hiringStatus: HiringStatusApi;
+};
+
+function formatDate(d: string) {
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return d;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+
+function getCandidate(x: PopulatedApplication["candidateId"]) {
+  if (typeof x === "string") return { id: x, name: "Unknown", email: "-" };
+  return { id: x._id, name: x.name, email: x.email };
+}
+
+function getJob(x: PopulatedApplication["jobId"]) {
+  if (typeof x === "string") return { id: x, title: "Unknown Job" };
+  return { id: x._id, title: x.title };
+}
+
+function hiringLabelApi(v: HiringStatusApi) {
+  switch (v) {
+    case "PENDING":
+      return "Pending";
+    case "INVITED":
+      return "Invited";
+    case "UNDER_REVIEW":
+      return "Under Review";
+    case "SHORTLISTED":
+      return "Shortlisted";
+    case "HIRED":
+      return "Hired";
+    default:
+      return "Rejected";
+  }
+}
+
+function interviewLabel(v: InterviewStatusApi) {
+  if (v === "COMPLETED") return "Completed";
+  if (v === "IN_PROGRESS") return "In Progress";
+  return "Pending";
+}
+
+function interviewPill(v: InterviewStatusApi): "success" | "warning" | "info" {
+  if (v === "COMPLETED") return "success";
+  if (v === "IN_PROGRESS") return "warning";
+  return "info";
+}
+
 function useMediaQuery(maxWidth: number) {
   const [match, setMatch] = useState(() =>
     typeof window !== "undefined"
       ? window.matchMedia(`(max-width:${maxWidth}px)`).matches
-      : false
+      : false,
   );
 
   useEffect(() => {
@@ -311,13 +375,15 @@ function timeAgo(iso?: string) {
 
 export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
   const [jobs, setJobs] = useState<UiJobRow[]>([]);
-  const [responses, setResponses] = useState<UiResponseRow[]>([]);
+  const [applications, setApplications] = useState<UiApplicationRow[]>([]);
 
   const [loadingJobs, setLoadingJobs] = useState(true);
-  const [loadingResponses, setLoadingResponses] = useState(true);
+  const [loadingApps, setLoadingApps] = useState(true);
 
   const [errorJobs, setErrorJobs] = useState("");
-  const [errorResponses, setErrorResponses] = useState("");
+  const [errorApps, setErrorApps] = useState("");
+
+  const [savingHiringId, setSavingHiringId] = useState<string | null>(null);
 
   const isNarrow = useMediaQuery(1024);
 
@@ -372,19 +438,19 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
 
     (async () => {
       try {
-        setLoadingResponses(true);
-        setErrorResponses("");
+        setLoadingApps(true);
+        setErrorApps("");
 
         const data = await apiGetFirstOk<PopulatedApplication[]>([
-          "/api/applications/employer?limit=5",
+          "/api/applications/employer?limit=200",
           "/api/applications/employer",
-          "/api/employer/applications?limit=5",
+          "/api/employer/applications?limit=200",
           "/api/employer/applications",
         ]);
 
         if (!alive) return;
 
-        const mapped: UiResponseRow[] = (data || []).slice(0, 5).map((a) => {
+        const mappedAll: UiApplicationRow[] = (data || []).map((a) => {
           const c = getCandidate(a.candidateId);
           const j = getJob(a.jobId);
 
@@ -392,25 +458,36 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
             id: a._id,
             applicationId: a._id,
             candidateId: c.id,
-            jobId: j.id,
             candidate: c.name,
             email: c.email,
+            jobId: j.id,
             job: j.title,
-            interviewStatus: safeInterviewStatus(a.interviewStatus),
-            hiringStatus: safeHiringStatus(a.hiringStatus),
-            score: typeof a.overallScore === "number" ? a.overallScore : null,
             createdAt: a.createdAt,
-            updatedAt: a.updatedAt,
+            appliedDate: formatDate(a.createdAt),
+            interviewStatus: a.interviewStatus,
+            score: typeof a.overallScore === "number" ? a.overallScore : null,
+            hiringStatus: a.hiringStatus,
           };
         });
 
-        setResponses(mapped);
+        const top5 = mappedAll
+          .slice()
+          .sort((x, y) => {
+            const ta = new Date(x.createdAt || "").getTime();
+            const tb = new Date(y.createdAt || "").getTime();
+            return (
+              (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0)
+            );
+          })
+          .slice(0, 5);
+
+        setApplications(top5);
       } catch (e: unknown) {
-        setErrorResponses(
-          e instanceof Error ? e.message : "Failed to load responses."
+        setErrorApps(
+          e instanceof Error ? e.message : "Failed to load responses.",
         );
       } finally {
-        if (alive) setLoadingResponses(false);
+        if (alive) setLoadingApps(false);
       }
     })();
 
@@ -421,16 +498,18 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
 
   const kpis = useMemo(() => {
     const activeJobPosts = jobs.length;
-    const totalResponses = responses.length;
+    const totalResponses = applications.length;
 
-    const pendingReviews = responses.filter(
-      (r) => r.hiringStatus === "Under Review"
+    const pendingReviews = applications.filter(
+      (r) => r.hiringStatus === "UNDER_REVIEW",
     ).length;
-    const hired = responses.filter((r) => r.hiringStatus === "Hired").length;
-    const rejected = responses.filter((r) => r.hiringStatus === "Rejected").length;
+    const hired = applications.filter((r) => r.hiringStatus === "HIRED").length;
+    const rejected = applications.filter(
+      (r) => r.hiringStatus === "REJECTED",
+    ).length;
 
     return { activeJobPosts, totalResponses, pendingReviews, hired, rejected };
-  }, [jobs, responses]);
+  }, [jobs, applications]);
 
   const activities = useMemo<ActivityItem[]>(() => {
     const jobActs: ActivityItem[] = jobs.map((j) => {
@@ -447,38 +526,38 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
       };
     });
 
-    const respActs: ActivityItem[] = responses.map((r) => {
-      const ts = r.createdAt || r.updatedAt;
+    const appActs: ActivityItem[] = applications.map((r) => {
+      const ts = r.createdAt;
 
       const title =
-        r.hiringStatus === "Hired"
+        r.hiringStatus === "HIRED"
           ? "Candidate hired"
-          : r.hiringStatus === "Rejected"
-          ? "Candidate rejected"
-          : r.hiringStatus === "Under Review"
-          ? "Application under review"
-          : "New response received";
+          : r.hiringStatus === "REJECTED"
+            ? "Candidate rejected"
+            : r.hiringStatus === "UNDER_REVIEW"
+              ? "Application under review"
+              : "New application received";
 
       const bg =
-        r.hiringStatus === "Hired"
+        r.hiringStatus === "HIRED"
           ? "rgba(22,163,74,0.12)"
-          : r.hiringStatus === "Rejected"
-          ? "rgba(220,38,38,0.12)"
-          : "rgba(249,115,22,0.12)";
+          : r.hiringStatus === "REJECTED"
+            ? "rgba(220,38,38,0.12)"
+            : "rgba(249,115,22,0.12)";
 
       const color =
-        r.hiringStatus === "Hired"
+        r.hiringStatus === "HIRED"
           ? "#16A34A"
-          : r.hiringStatus === "Rejected"
-          ? "#DC2626"
-          : "#F97316";
+          : r.hiringStatus === "REJECTED"
+            ? "#DC2626"
+            : "#F97316";
 
       const icon =
-        r.hiringStatus === "Hired"
+        r.hiringStatus === "HIRED"
           ? (CheckmarkCircle20Regular as unknown as ActivityItem["icon"])
-          : r.hiringStatus === "Rejected"
-          ? (DismissCircle20Regular as unknown as ActivityItem["icon"])
-          : (Clock20Regular as unknown as ActivityItem["icon"]);
+          : r.hiringStatus === "REJECTED"
+            ? (DismissCircle20Regular as unknown as ActivityItem["icon"])
+            : (Clock20Regular as unknown as ActivityItem["icon"]);
 
       return {
         icon,
@@ -491,18 +570,32 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
       };
     });
 
-    const merged = [...jobActs, ...respActs];
+    const merged = [...jobActs, ...appActs];
 
     merged.sort((a, b) => {
       const ta =
-        typeof a.timeSort === "string" ? new Date(a.timeSort).getTime() : Number(a.timeSort || 0);
+        typeof a.timeSort === "string"
+          ? new Date(a.timeSort).getTime()
+          : Number(a.timeSort || 0);
       const tb =
-        typeof b.timeSort === "string" ? new Date(b.timeSort).getTime() : Number(b.timeSort || 0);
+        typeof b.timeSort === "string"
+          ? new Date(b.timeSort).getTime()
+          : Number(b.timeSort || 0);
       return tb - ta;
     });
 
     return merged.slice(0, 4);
-  }, [jobs, responses]);
+  }, [jobs, applications]);
+
+  const tableCardStyle: React.CSSProperties = {
+    border: "1px solid rgba(2,6,23,0.08)",
+    boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
+  };
+
+  const tableHeaderRowStyle: React.CSSProperties = {
+    background:
+      "linear-gradient(to right, rgba(1,24,216,0.06), rgba(27,86,253,0.06))",
+  };
 
   const pageContainerStyle: React.CSSProperties = {
     display: "flex",
@@ -528,11 +621,9 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
 
   const largeGridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: isNarrow
-      ? "1fr"
-      : "minmax(0, 2fr) minmax(320px, 1fr)",
+    gridTemplateColumns: isNarrow ? "1fr" : "minmax(0, 2fr) minmax(320px, 1fr)",
     gap: 24,
-    alignItems: "start", 
+    alignItems: "start",
   };
 
   const sectionHeaderStyle: React.CSSProperties = {
@@ -550,16 +641,6 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
     fontWeight: 500,
   };
 
-  const tableCardStyle: React.CSSProperties = {
-    border: "1px solid rgba(2,6,23,0.08)",
-    boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
-  };
-
-  const tableHeaderRowStyle: React.CSSProperties = {
-    background:
-      "linear-gradient(to right, rgba(1,24,216,0.06), rgba(27,86,253,0.06))",
-  };
-
   const iconButtonStyle: React.CSSProperties = {
     height: 32,
     width: 32,
@@ -568,6 +649,153 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
     alignItems: "center",
     justifyContent: "center",
     padding: 0,
+  };
+
+  const updateHiringStatus = async (
+    applicationId: string,
+    next: HiringStatusApi,
+  ) => {
+    setApplications((prev) =>
+      prev.map((r) =>
+        r.id === applicationId ? { ...r, hiringStatus: next } : r,
+      ),
+    );
+
+    try {
+      setSavingHiringId(applicationId);
+
+      await apiPatchJsonFirstOk(
+        [
+          `/api/applications/${encodeURIComponent(applicationId)}/status`,
+          `/api/applications/${encodeURIComponent(applicationId)}`,
+          `/api/employer/applications/${encodeURIComponent(applicationId)}/status`,
+          `/api/employer/applications/${encodeURIComponent(applicationId)}`,
+        ],
+        { hiringStatus: next },
+      );
+    } catch (e) {
+      console.error("UPDATE_HIRING_STATUS_ERROR:", e);
+      try {
+        const data = await apiGetFirstOk<PopulatedApplication[]>([
+          "/api/applications/employer?limit=200",
+          "/api/applications/employer",
+          "/api/employer/applications?limit=200",
+          "/api/employer/applications",
+        ]);
+
+        const mappedAll: UiApplicationRow[] = (data || []).map((a) => {
+          const c = getCandidate(a.candidateId);
+          const j = getJob(a.jobId);
+          return {
+            id: a._id,
+            applicationId: a._id,
+            candidateId: c.id,
+            candidate: c.name,
+            email: c.email,
+            jobId: j.id,
+            job: j.title,
+            createdAt: a.createdAt,
+            appliedDate: formatDate(a.createdAt),
+            interviewStatus: a.interviewStatus,
+            score: typeof a.overallScore === "number" ? a.overallScore : null,
+            hiringStatus: a.hiringStatus,
+          };
+        });
+
+        const top5 = mappedAll
+          .slice()
+          .sort(
+            (x, y) =>
+              new Date(y.createdAt || "").getTime() -
+              new Date(x.createdAt || "").getTime(),
+          )
+          .slice(0, 5);
+
+        setApplications(top5);
+      } catch {
+        // ignore
+      }
+    } finally {
+      setSavingHiringId(null);
+    }
+  };
+
+  const HiringStatusDropdown = ({
+    rowId,
+    current,
+  }: {
+    rowId: string;
+    current: HiringStatusApi;
+  }) => {
+    const isSaving = savingHiringId === rowId;
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger>
+          <button
+            type="button"
+            disabled={isSaving}
+            style={{
+              width: 170,
+              height: 32,
+              borderRadius: 6,
+              border: "1px solid rgba(2,6,23,0.12)",
+              background: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "0 10px",
+              cursor: isSaving ? "not-allowed" : "pointer",
+              fontSize: 13,
+              color: "#0B1220",
+              opacity: isSaving ? 0.7 : 1,
+            }}
+          >
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {hiringLabelApi(current)}
+            </span>
+            <span style={{ opacity: 0.7 }}>▾</span>
+          </button>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent>
+          <DropdownMenuItem
+            onClick={() => updateHiringStatus(rowId, "PENDING")}
+          >
+            Pending
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => updateHiringStatus(rowId, "INVITED")}
+          >
+            Invited
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => updateHiringStatus(rowId, "UNDER_REVIEW")}
+          >
+            Under Review
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => updateHiringStatus(rowId, "SHORTLISTED")}
+          >
+            Shortlisted
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => updateHiringStatus(rowId, "HIRED")}>
+            Hired
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => updateHiringStatus(rowId, "REJECTED")}
+          >
+            Rejected
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
   };
 
   return (
@@ -613,7 +841,7 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
         <div style={{ height: "100%" }}>
           <ActivityTimeline
             userRole="employer"
-            loading={loadingJobs || loadingResponses}
+            loading={loadingJobs || loadingApps}
             activities={activities}
           />
         </div>
@@ -683,12 +911,14 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                       transition: "background-color 0.15s ease-in-out",
                     }}
                     onMouseEnter={(e) =>
-                      ((e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                        "#F3F4F6")
+                      ((
+                        e.currentTarget as HTMLTableRowElement
+                      ).style.backgroundColor = "#F3F4F6")
                     }
                     onMouseLeave={(e) =>
-                      ((e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                        "transparent")
+                      ((
+                        e.currentTarget as HTMLTableRowElement
+                      ).style.backgroundColor = "transparent")
                     }
                   >
                     <TableCell>
@@ -696,11 +926,15 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                         {job.title}
                       </div>
                     </TableCell>
-                    <TableCell style={{ color: "#5B6475" }}>{job.type}</TableCell>
+                    <TableCell style={{ color: "#5B6475" }}>
+                      {job.type}
+                    </TableCell>
                     <TableCell style={{ color: "#5B6475" }}>
                       {job.location}
                     </TableCell>
-                    <TableCell style={{ color: "#5B6475" }}>{job.ctc}</TableCell>
+                    <TableCell style={{ color: "#5B6475" }}>
+                      {job.ctc}
+                    </TableCell>
                     <TableCell style={{ color: "#5B6475" }}>
                       {job.experience}
                     </TableCell>
@@ -713,8 +947,8 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                           job.difficulty === "Easy"
                             ? "success"
                             : job.difficulty === "Medium"
-                            ? "warning"
-                            : "danger"
+                              ? "warning"
+                              : "danger"
                         }
                         label={job.difficulty}
                         size="sm"
@@ -727,20 +961,34 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                       <DropdownMenu>
                         <DropdownMenuTrigger>
                           <Button variant="ghost" style={iconButtonStyle}>
-                            <MoreVerticalRegular style={{ width: 16, height: 16 }} />
+                            <MoreVerticalRegular
+                              style={{ width: 16, height: 16 }}
+                            />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <DropdownMenuItem>
-                            <Eye20Regular style={{ width: 14, height: 14, marginRight: 8 }} />
+                          <DropdownMenuItem
+                            onClick={() => onNavigate("job", { jobId: job.id })}
+                          >
+                            <Eye20Regular
+                              style={{ width: 14, height: 14, marginRight: 8 }}
+                            />
                             <span>View Details</span>
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Edit20Regular style={{ width: 14, height: 14, marginRight: 8 }} />
+                          <DropdownMenuItem
+                            onClick={() =>
+                              onNavigate("jobs", { editJobId: job.id })
+                            }
+                          >
+                            <Edit20Regular
+                              style={{ width: 14, height: 14, marginRight: 8 }}
+                            />
                             <span>Edit Job</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem>
-                            <Delete20Regular style={{ width: 14, height: 14, marginRight: 8 }} />
+                            <Delete20Regular
+                              style={{ width: 14, height: 14, marginRight: 8 }}
+                            />
                             <span style={{ color: "#DC2626" }}>Delete</span>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -773,71 +1021,75 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                 <TableHead>Candidate</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Job Role</TableHead>
+                <TableHead>Applied</TableHead>
                 <TableHead>Score</TableHead>
-                <TableHead>Interview Status</TableHead>
+                <TableHead>Interview</TableHead>
                 <TableHead>Hiring Status</TableHead>
-                <TableHead style={{ width: 120 }} />
+                <TableHead style={{ width: 130 }} />
               </TableRow>
             </TableHeader>
 
             <TableBody>
-              {loadingResponses && (
+              {loadingApps && (
                 <TableRow>
-                  <TableCell colSpan={7} style={{ color: "#5B6475" }}>
+                  <TableCell colSpan={8} style={{ color: "#5B6475" }}>
                     Loading responses...
                   </TableCell>
                 </TableRow>
               )}
 
-              {!loadingResponses && errorResponses && (
+              {!loadingApps && errorApps && (
                 <TableRow>
-                  <TableCell colSpan={7} style={{ color: "#dc2626" }}>
-                    {errorResponses}
+                  <TableCell colSpan={8} style={{ color: "#dc2626" }}>
+                    {errorApps}
                   </TableCell>
                 </TableRow>
               )}
 
-              {!loadingResponses && !errorResponses && responses.length === 0 && (
+              {!loadingApps && !errorApps && applications.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} style={{ color: "#5B6475" }}>
+                  <TableCell colSpan={8} style={{ color: "#5B6475" }}>
                     No responses found.
                   </TableCell>
                 </TableRow>
               )}
 
-              {!loadingResponses &&
-                !errorResponses &&
-                responses.map((response) => (
+              {!loadingApps &&
+                !errorApps &&
+                applications.map((a) => (
                   <TableRow
-                    key={response.id}
+                    key={a.id}
                     style={{
                       cursor: "default",
                       transition: "background-color 0.15s ease-in-out",
                     }}
                     onMouseEnter={(e) =>
-                      ((e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                        "#F3F4F6")
+                      ((
+                        e.currentTarget as HTMLTableRowElement
+                      ).style.backgroundColor = "#F3F4F6")
                     }
                     onMouseLeave={(e) =>
-                      ((e.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                        "transparent")
+                      ((
+                        e.currentTarget as HTMLTableRowElement
+                      ).style.backgroundColor = "transparent")
                     }
                   >
                     <TableCell>
                       <div style={{ color: "#0B1220", fontWeight: 500 }}>
-                        {response.candidate}
+                        {a.candidate}
                       </div>
                     </TableCell>
                     <TableCell style={{ color: "#5B6475" }}>
-                      {response.email}
+                      {a.email}
                     </TableCell>
+                    <TableCell style={{ color: "#5B6475" }}>{a.job}</TableCell>
                     <TableCell style={{ color: "#5B6475" }}>
-                      {response.job}
+                      {a.appliedDate}
                     </TableCell>
                     <TableCell>
-                      {response.score != null ? (
+                      {a.score != null ? (
                         <span style={{ color: "#0118D8", fontWeight: 500 }}>
-                          {response.score}%
+                          {a.score}%
                         </span>
                       ) : (
                         <span style={{ color: "#5B6475" }}>-</span>
@@ -845,49 +1097,40 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                     </TableCell>
                     <TableCell>
                       <StatusPill
-                        status={
-                          response.interviewStatus === "Completed"
-                            ? "success"
-                            : response.interviewStatus === "In Progress"
-                            ? "warning"
-                            : "info"
-                        }
-                        label={response.interviewStatus}
+                        status={interviewPill(a.interviewStatus)}
+                        label={interviewLabel(a.interviewStatus)}
                         size="sm"
                       />
                     </TableCell>
                     <TableCell>
-                      <Select
-                        defaultValue={response.hiringStatus
-                          .toLowerCase()
-                          .replace(" ", "-")}
-                      >
-                        <SelectTrigger style={{ width: 160, height: 32 }}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="invited">Invited</SelectItem>
-                          <SelectItem value="under-review">Under Review</SelectItem>
-                          <SelectItem value="shortlisted">Shortlisted</SelectItem>
-                          <SelectItem value="hired">Hired</SelectItem>
-                          <SelectItem value="rejected">Rejected</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <HiringStatusDropdown
+                        rowId={a.id}
+                        current={a.hiringStatus}
+                      />
                     </TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onNavigate("analytics")}
+                        onClick={() =>
+                          onNavigate("analytics", {
+                            candidateId: a.candidateId,
+                            applicationId: a.applicationId,
+                          })
+                        }
                         style={{
-                          paddingInline: 12,
+                          paddingInline: 10,
                           paddingBlock: 6,
                           borderRadius: 6,
-                          fontSize: 14,
+                          fontSize: 13,
                           fontWeight: 500,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
                         }}
                       >
-                        View Analytics
+                        <DataBarHorizontal20Regular />
+                        Analytics
                       </Button>
                     </TableCell>
                   </TableRow>

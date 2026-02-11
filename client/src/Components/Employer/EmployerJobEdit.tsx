@@ -1,9 +1,12 @@
-import { useState, type KeyboardEvent } from "react";
+// client/src/Components/Employer/EmployerJobEdit.tsx (COMPLETE updated file)
+// Fix: Accept jobId prop because AppLayout renders this component manually (no react-router params).
+
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Badge,
   Button,
   Card,
-  Checkbox,
   Dropdown,
   Input,
   Option,
@@ -12,25 +15,72 @@ import {
   makeStyles,
   shorthands,
 } from "@fluentui/react-components";
-import { StatusPill } from "../ui/StatusPill";
 import {
   Dismiss12Regular,
   ChevronRight20Regular,
   CheckmarkCircle20Regular,
 } from "@fluentui/react-icons";
+import { StatusPill } from "../ui/StatusPill";
 import { api } from "../../api/http";
 
-interface EmployerCreateJobProps {
-  onNavigate: (page: string, data?: Record<string, unknown>) => void;
-}
+type SalaryRangeDb =
+  | { start?: number; end?: number; currency?: string }
+  | string;
 
-type CreatedJobResponse = { _id: string } & Record<string, unknown>;
+type JobStatus = "draft" | "open" | "closed";
+
+type JobFromDB = {
+  _id: string;
+  title?: string;
+  description?: string;
+  about?: string;
+  location?: string;
+  workType?: string;
+  jobType?: string;
+  salaryRange?: SalaryRangeDb;
+  workExperience?: number;
+  status?: JobStatus;
+  isActive?: boolean;
+  techStack?: string[];
+  interviewSettings?: {
+    maxCandidates?: number;
+    interviewDuration?: number;
+    difficultyLevel?: string;
+    language?: string;
+  };
+};
+
+type WorkTypeUI = "remote" | "hybrid" | "on-site";
+type JobTypeUI = "full-time" | "part-time" | "contract" | "internship";
+type DifficultyUI = "easy" | "medium" | "hard";
+
+type JobUpdatePayload = {
+  title: string;
+  about: string;
+  description: string;
+  location: string;
+  workType: WorkTypeUI;
+  salaryRange: { start?: number; end?: number };
+  jobType: JobTypeUI;
+  isActive: boolean;
+  workExperience: number;
+  techStack: string[];
+  interviewSettings: {
+    maxCandidates: number;
+    interviewDuration: number;
+    interviewers: unknown[];
+    difficultyLevel: DifficultyUI;
+    questions: unknown[];
+    language: string;
+  };
+  status?: JobStatus;
+};
 
 const steps = [
   { id: 1, title: "Basics", description: "Job title, type, and location" },
   { id: 2, title: "Requirements", description: "Skills and tech stack" },
   { id: 3, title: "Interview Settings", description: "Configure AI interview" },
-  { id: 4, title: "Review", description: "Review and publish" },
+  { id: 4, title: "Review", description: "Review and update" },
 ];
 
 const useStyles = makeStyles({
@@ -214,22 +264,70 @@ function parseNumberStrict(input: string): number | undefined {
   return n;
 }
 
-export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
+function salaryToInputText(sr?: SalaryRangeDb) {
+  if (!sr) return "";
+  if (typeof sr === "string") return sr;
+  const s = typeof sr.start === "number" ? sr.start : "";
+  const e = typeof sr.end === "number" ? sr.end : "";
+  if (s === "" && e === "") return "";
+  if (s !== "" && e !== "") return `${s} - ${e}`;
+  if (s !== "") return `${s}`;
+  return `${e}`;
+}
+
+function difficultyToUI(v?: string): DifficultyUI {
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
+  if (s === "hard") return "hard";
+  if (s === "medium") return "medium";
+  return "easy";
+}
+
+function workTypeToUI(v?: string): WorkTypeUI {
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
+  if (s === "hybrid") return "hybrid";
+  if (s === "on-site" || s === "onsite") return "on-site";
+  return "remote";
+}
+
+function jobTypeToUI(v?: string): JobTypeUI {
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
+  if (s === "part-time" || s === "part time") return "part-time";
+  if (s === "contract") return "contract";
+  if (s === "internship") return "internship";
+  return "full-time";
+}
+
+function stripHtml(html?: string) {
+  if (!html) return "";
+  return html.replace(/<[^>]*>/g, "").trim();
+}
+
+export function EmployerJobEdit({ jobId: jobIdProp }: { jobId?: string }) {
   const styles = useStyles();
+  const navigate = useNavigate();
+
+  // If you ever convert to real react-router routes later, this still works.
+  const params = useParams<{ jobId: string }>();
+  const effectiveJobId = useMemo(
+    () => jobIdProp ?? params.jobId,
+    [jobIdProp, params.jobId],
+  );
+
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
-
-  const [jobType, setJobType] = useState<
-    "full-time" | "part-time" | "contract" | "internship"
-  >("full-time");
-
+  const [jobType, setJobType] = useState<JobTypeUI>("full-time");
   const [location, setLocation] = useState("");
-  const [workType, setWorkType] = useState<"remote" | "hybrid" | "on-site">(
-    "remote",
-  );
+  const [workType, setWorkType] = useState<WorkTypeUI>("remote");
   const [workExperienceText, setWorkExperienceText] = useState("");
   const [salaryRangeText, setSalaryRangeText] = useState("");
   const [description, setDescription] = useState("");
@@ -239,10 +337,63 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
 
   const [maxCandidatesText, setMaxCandidatesText] = useState("1");
   const [interviewDurationText, setInterviewDurationText] = useState("10");
-  const [difficultyLevel, setDifficultyLevel] = useState<
-    "easy" | "medium" | "hard"
-  >("easy");
+  const [difficultyLevel, setDifficultyLevel] = useState<DifficultyUI>("easy");
   const [language, setLanguage] = useState("english");
+
+  useEffect(() => {
+    if (!effectiveJobId) return;
+
+    let alive = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const job = await api<JobFromDB>(
+          `/api/jobs/${encodeURIComponent(effectiveJobId)}`,
+        );
+
+        if (!alive) return;
+
+        setTitle(job.title ?? "");
+        setLocation(job.location ?? "");
+        setWorkType(workTypeToUI(job.workType));
+        setJobType(jobTypeToUI(job.jobType));
+        setWorkExperienceText(
+          typeof job.workExperience === "number"
+            ? String(job.workExperience)
+            : "",
+        );
+        setSalaryRangeText(salaryToInputText(job.salaryRange));
+        setDescription(job.description ?? stripHtml(job.about) ?? "");
+        setSelectedSkills(Array.isArray(job.techStack) ? job.techStack : []);
+
+        setMaxCandidatesText(
+          job.interviewSettings?.maxCandidates != null
+            ? String(job.interviewSettings.maxCandidates)
+            : "1",
+        );
+        setInterviewDurationText(
+          job.interviewSettings?.interviewDuration != null
+            ? String(job.interviewSettings.interviewDuration)
+            : "10",
+        );
+        setDifficultyLevel(
+          difficultyToUI(job.interviewSettings?.difficultyLevel),
+        );
+        setLanguage(job.interviewSettings?.language ?? "english");
+      } catch (e) {
+        if (!alive) return;
+        setError(e instanceof Error ? e.message : "Failed to load job");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [effectiveJobId]);
 
   const progress = (currentStep / steps.length) * 100;
 
@@ -268,80 +419,86 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
   };
 
   const goBack = () => {
-    if (currentStep === 1) onNavigate("jobs");
+    if (currentStep === 1) navigate("/app/employer/jobs");
     else setCurrentStep((prev) => Math.max(1, prev - 1));
   };
 
-  const saveJob = async (status: "draft" | "open") => {
-    setError(null);
-
-    if (!title.trim()) return setError("Job title is required");
-    if (!location.trim()) return setError("Location is required");
-    if (!description.trim()) return setError("Job description is required");
-    if (!salaryRangeText.trim()) return setError("CTC Range is required");
+  const validate = () => {
+    if (!title.trim()) return "Job title is required";
+    if (!location.trim()) return "Location is required";
+    if (!description.trim()) return "Job description is required";
+    if (!salaryRangeText.trim()) return "CTC Range is required";
 
     if (selectedSkills.length === 0)
-      return setError("Please add at least 1 skill in Tech Stack");
+      return "Please add at least 1 skill in Tech Stack";
 
     const salaryRange = parseSalaryRange(salaryRangeText);
     if (salaryRange.start == null || salaryRange.end == null)
-      return setError("CTC Range should be like: 12 - 15");
+      return "CTC Range should be like: 12 - 15";
 
     const workExperience = parseNumberStrict(workExperienceText);
     if (workExperience == null)
-      return setError("Experience should be a number (example: 1, 2, 3)");
+      return "Experience should be a number (example: 1, 2, 3)";
 
     const maxCandidates = parseNumberStrict(maxCandidatesText);
     if (maxCandidates == null || maxCandidates <= 0)
-      return setError("Max candidates must be a valid number (>= 1)");
+      return "Max candidates must be a valid number (>= 1)";
 
     const interviewDuration = parseNumberStrict(interviewDurationText);
     if (interviewDuration == null || interviewDuration <= 0)
-      return setError("Interview duration must be a valid number (>= 1)");
+      return "Interview duration must be a valid number (>= 1)";
 
-    const payload = {
+    return null;
+  };
+
+  const updateJob = async (status?: JobStatus) => {
+    if (!effectiveJobId) return;
+
+    const err = validate();
+    if (err) {
+      setError(err);
+      return;
+    }
+    setError(null);
+
+    const salaryRange = parseSalaryRange(salaryRangeText);
+    const workExperience = parseNumberStrict(workExperienceText)!;
+    const maxCandidates = parseNumberStrict(maxCandidatesText)!;
+    const interviewDuration = parseNumberStrict(interviewDurationText)!;
+
+    const payload: JobUpdatePayload = {
       title: title.trim(),
-      about: wrapAsHtmlParagraph(description), 
-      description: description.trim(), 
+      about: wrapAsHtmlParagraph(description),
+      description,
       location: location.trim(),
       workType,
+      salaryRange: { start: salaryRange.start, end: salaryRange.end },
       jobType,
-      salaryRange: { start: salaryRange.start, end: salaryRange.end }, 
       isActive: true,
       workExperience,
-      techStack: selectedSkills, 
+      techStack: selectedSkills,
       interviewSettings: {
         maxCandidates,
         interviewDuration,
-        difficultyLevel,
-        language: language.trim() || "english",
         interviewers: [],
+        difficultyLevel,
         questions: [],
+        language: language.trim() || "english",
       },
-      invitedCandidates: [],
-      status,
-      price: 7,
-      paymentDetails: { status: "pending" },
+      ...(status ? { status } : {}),
     };
 
     try {
       setSaving(true);
 
-      const created = await api<CreatedJobResponse>("/api/jobs", {
-        method: "POST",
+      await api(`/api/jobs/${encodeURIComponent(effectiveJobId)}`, {
+        method: "PATCH",
         body: JSON.stringify(payload),
       });
 
-      const createdId = typeof created?._id === "string" ? created._id : null;
-
-      if (createdId) {
-        onNavigate("job-details", { jobId: createdId });
-        return;
-      }
-
-      onNavigate("jobs");
+      navigate(`/app/employer/jobs/${encodeURIComponent(effectiveJobId)}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save job");
+      setError(e instanceof Error ? e.message : "Failed to update job");
     } finally {
       setSaving(false);
     }
@@ -352,8 +509,18 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
       setCurrentStep((prev) => Math.min(steps.length, prev + 1));
       return;
     }
-    await saveJob("open");
+    await updateJob();
   };
+
+  if (!effectiveJobId) {
+    return (
+      <div className={styles.root}>
+        <div className={styles.content}>
+          <Card className={styles.mainCard}>Invalid job id.</Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.root}>
@@ -361,17 +528,15 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
         <Card className={styles.stepsCard}>
           <div className={styles.stepsHeaderRow}>
             <div className={styles.stepsTitleBlock}>
-              <span className={styles.stepsTitle}>Create New Job</span>
+              <span className={styles.stepsTitle}>
+                {loading ? "Loading Job..." : "Edit Job"}
+              </span>
               <span className={styles.stepsSubtitle}>
                 Step {currentStep} of {steps.length}
               </span>
             </div>
 
-            <StatusPill
-              status="info"
-              label="Draft – not published yet"
-              size="sm"
-            />
+            <StatusPill status="info" label="Editing" size="sm" />
           </div>
 
           <ProgressBar value={progress} max={100} />
@@ -412,12 +577,18 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
             <div style={{ color: "crimson", marginBottom: 12 }}>{error}</div>
           )}
 
+          {loading && (
+            <div style={{ color: "#5B6475", marginBottom: 12 }}>
+              Loading job data...
+            </div>
+          )}
+
           {currentStep === 1 && (
             <div>
               <div className={styles.sectionHeader}>
                 <div className={styles.sectionTitle}>Job Basics</div>
                 <div className={styles.sectionSubtitle}>
-                  Enter the basic information about the job opening.
+                  Edit the basic information about the job opening.
                 </div>
               </div>
 
@@ -440,9 +611,7 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
                   <Dropdown
                     value={jobType}
                     onOptionSelect={(_, d) =>
-                      setJobType(
-                        (d.optionValue ?? "full-time") as typeof jobType,
-                      )
+                      setJobType((d.optionValue ?? "full-time") as JobTypeUI)
                     }
                   >
                     <Option value="full-time">Full-time</Option>
@@ -472,9 +641,7 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
                   <Dropdown
                     value={workType}
                     onOptionSelect={(_, d) =>
-                      setWorkType(
-                        (d.optionValue ?? "remote") as typeof workType,
-                      )
+                      setWorkType((d.optionValue ?? "remote") as WorkTypeUI)
                     }
                   >
                     <Option value="remote">Remote</Option>
@@ -531,7 +698,7 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
                   Requirements & Tech Stack
                 </div>
                 <div className={styles.sectionSubtitle}>
-                  Specify the skills and technologies required for this role.
+                  Update the skills and technologies required for this role.
                 </div>
               </div>
 
@@ -578,11 +745,6 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
                   ))}
                 </div>
               </div>
-
-              <div className={styles.formRow}>
-                <label className={styles.label}>Key Responsibilities</label>
-                <Textarea placeholder="List responsibilities..." rows={6} />
-              </div>
             </div>
           )}
 
@@ -591,7 +753,7 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
               <div className={styles.sectionHeader}>
                 <div className={styles.sectionTitle}>Interview Settings</div>
                 <div className={styles.sectionSubtitle}>
-                  Configure how the AI will conduct interviews for this role.
+                  Update how the AI will conduct interviews.
                 </div>
               </div>
 
@@ -630,7 +792,7 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
                     value={difficultyLevel}
                     onOptionSelect={(_, d) =>
                       setDifficultyLevel(
-                        (d.optionValue ?? "easy") as typeof difficultyLevel,
+                        (d.optionValue ?? "easy") as DifficultyUI,
                       )
                     }
                   >
@@ -649,57 +811,15 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
                   />
                 </div>
               </div>
-
-              <div className={styles.formRow}>
-                <label className={styles.label}>Interview Components</label>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    rowGap: 4,
-                  }}
-                >
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      columnGap: 6,
-                    }}
-                  >
-                    <Checkbox defaultChecked />
-                    <span>Technical Questions</span>
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      columnGap: 6,
-                    }}
-                  >
-                    <Checkbox defaultChecked />
-                    <span>Behavioral Questions</span>
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      columnGap: 6,
-                    }}
-                  >
-                    <Checkbox defaultChecked />
-                    <span>Coding Challenges</span>
-                  </label>
-                </div>
-              </div>
             </div>
           )}
 
           {currentStep === 4 && (
             <div>
               <div className={styles.sectionHeader}>
-                <div className={styles.sectionTitle}>Review & Publish</div>
+                <div className={styles.sectionTitle}>Review & Update</div>
                 <div className={styles.sectionSubtitle}>
-                  Review all the details before publishing the job post.
+                  Review all the details before saving.
                 </div>
               </div>
 
@@ -709,92 +829,27 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
                   <div className={styles.reviewValue}>{title || "—"}</div>
                 </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                    columnGap: "12px",
-                    rowGap: "8px",
-                  }}
-                >
-                  <div>
-                    <div className={styles.reviewLabel}>TYPE</div>
-                    <div className={styles.reviewValue}>{jobType}</div>
-                  </div>
-                  <div>
-                    <div className={styles.reviewLabel}>LOCATION</div>
-                    <div className={styles.reviewValue}>{location || "—"}</div>
-                  </div>
-                  <div>
-                    <div className={styles.reviewLabel}>WORK TYPE</div>
-                    <div className={styles.reviewValue}>{workType}</div>
-                  </div>
+                <div>
+                  <div className={styles.reviewLabel}>LOCATION</div>
+                  <div className={styles.reviewValue}>{location || "—"}</div>
                 </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                    columnGap: "12px",
-                    rowGap: "8px",
-                  }}
-                >
-                  <div>
-                    <div className={styles.reviewLabel}>EXPERIENCE</div>
-                    <div className={styles.reviewValue}>
-                      {workExperienceText || "—"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className={styles.reviewLabel}>CTC</div>
-                    <div className={styles.reviewValue}>
-                      {salaryRangeText || "—"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className={styles.reviewLabel}>DIFFICULTY</div>
-                    <div className={styles.reviewValue}>{difficultyLevel}</div>
-                  </div>
+                <div>
+                  <div className={styles.reviewLabel}>WORK TYPE</div>
+                  <div className={styles.reviewValue}>{workType}</div>
                 </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                    columnGap: "12px",
-                    rowGap: "8px",
-                  }}
-                >
-                  <div>
-                    <div className={styles.reviewLabel}>MAX CANDIDATES</div>
-                    <div className={styles.reviewValue}>
-                      {maxCandidatesText}
-                    </div>
-                  </div>
-                  <div>
-                    <div className={styles.reviewLabel}>DURATION</div>
-                    <div className={styles.reviewValue}>
-                      {interviewDurationText} min
-                    </div>
-                  </div>
-                  <div>
-                    <div className={styles.reviewLabel}>LANGUAGE</div>
-                    <div className={styles.reviewValue}>{language}</div>
+                <div>
+                  <div className={styles.reviewLabel}>CTC</div>
+                  <div className={styles.reviewValue}>
+                    {salaryRangeText || "—"}
                   </div>
                 </div>
 
                 <div>
                   <div className={styles.reviewLabel}>TECH STACK</div>
-                  <div className={styles.skillsChipsRow}>
-                    {selectedSkills.map((skill) => (
-                      <Badge
-                        key={skill}
-                        appearance="filled"
-                        className={styles.skillBadge}
-                      >
-                        {skill}
-                      </Badge>
-                    ))}
+                  <div className={styles.reviewValue}>
+                    {selectedSkills.join(", ") || "—"}
                   </div>
                 </div>
 
@@ -815,24 +870,26 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
           )}
 
           <div className={styles.actionsBar}>
-            <Button appearance="secondary" onClick={goBack} disabled={saving}>
+            <Button
+              appearance="secondary"
+              onClick={goBack}
+              disabled={saving || loading}
+            >
               {currentStep === 1 ? "Cancel" : "Back"}
             </Button>
 
             <div className={styles.rightActions}>
-              {currentStep < steps.length && (
-                <Button
-                  appearance="outline"
-                  disabled={saving}
-                  onClick={() => saveJob("draft")}
-                >
-                  Save as Draft
-                </Button>
-              )}
+              <Button
+                appearance="outline"
+                disabled={saving || loading}
+                onClick={() => updateJob("draft")}
+              >
+                Save as Draft
+              </Button>
 
               <Button
                 appearance="primary"
-                disabled={saving}
+                disabled={saving || loading}
                 onClick={goForward}
                 icon={
                   currentStep < steps.length ? (
@@ -844,9 +901,19 @@ export function EmployerCreateJob({ onNavigate }: EmployerCreateJobProps) {
                 {saving
                   ? "Saving..."
                   : currentStep === steps.length
-                    ? "Publish Job"
+                    ? "Update Job"
                     : "Continue"}
               </Button>
+
+              {currentStep === steps.length && (
+                <Button
+                  appearance="primary"
+                  disabled={saving || loading}
+                  onClick={() => updateJob("open")}
+                >
+                  Publish
+                </Button>
+              )}
             </div>
           </div>
         </Card>

@@ -1,4 +1,3 @@
-// client/src/Components/layout/TopBar.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Input,

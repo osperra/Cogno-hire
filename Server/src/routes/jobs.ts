@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
+import { Types } from "mongoose";
 import { Job } from "../models/Jobs.js";
+import { Application } from "../models/Application.js";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth.js";
 
 export const jobsRouter = Router();
@@ -63,7 +65,7 @@ jobsRouter.get("/", async (req, res) => {
       { workType: rx },
       { jobType: rx },
       { techStack: rx },
-      { skills: rx }, 
+      { skills: rx },
     ];
   }
 
@@ -94,8 +96,13 @@ jobsRouter.get("/", async (req, res) => {
   }
 
   let sortObj: any = { createdAt: -1 };
-  if (sort === "salary-high")
-    sortObj = { "salaryRange.end": -1, "salaryRange.start": -1, createdAt: -1 };
+  if (sort === "salary-high") {
+    sortObj = {
+      "salaryRange.end": -1,
+      "salaryRange.start": -1,
+      createdAt: -1,
+    };
+  }
 
   const [items, total] = await Promise.all([
     Job.find(filter).sort(sortObj).skip(skip).limit(limit),
@@ -114,7 +121,120 @@ jobsRouter.get(
       createdAt: -1,
     });
     res.json(jobs);
-  }
+  },
+);
+
+jobsRouter.get(
+  "/:id",
+  requireAuth,
+  requireRole(["employer", "hr"]),
+  async (req: AuthedRequest, res) => {
+    const { id } = req.params;
+
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid job id" });
+    }
+
+    const job = await Job.findOne({ _id: id, employerId: req.user!.id }).lean();
+    if (!job) return res.status(404).json({ message: "Job not found" });
+
+    return res.json(job);
+  },
+);
+
+jobsRouter.post(
+  "/:id/duplicate",
+  requireAuth,
+  requireRole(["employer", "hr"]),
+  async (req: AuthedRequest, res) => {
+    const { id } = req.params;
+
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid job id" });
+    }
+
+    const original = await Job.findOne({
+      _id: id,
+      employerId: req.user!.id,
+    }).lean();
+
+    if (!original) return res.status(404).json({ message: "Job not found" });
+
+    const { _id, createdAt, updatedAt, __v, ...rest } = original as any;
+
+    const copy = await Job.create({
+      ...rest,
+      employerId: req.user!.id,
+      title: original.title ? `${original.title} (Copy)` : "Untitled (Copy)",
+      status: "draft",
+      isActive: true,
+      invitedCandidates: [],
+    });
+
+    return res.status(201).json(copy);
+  },
+);
+
+jobsRouter.delete(
+  "/:id",
+  requireAuth,
+  requireRole(["employer", "hr"]),
+  async (req: AuthedRequest, res) => {
+    const { id } = req.params;
+
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid job id" });
+    }
+
+    const deleted = await Job.findOneAndDelete({
+      _id: id,
+      employerId: req.user!.id,
+    });
+
+    if (!deleted) {
+      return res.status(404).json({ message: "Job not found or not allowed" });
+    }
+
+    return res.json({ ok: true, id });
+  },
+);
+
+jobsRouter.get(
+  "/:id/applicants",
+  requireAuth,
+  requireRole(["employer", "hr"]),
+  async (req: AuthedRequest, res) => {
+    const { id } = req.params;
+
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid job id" });
+    }
+
+    const job = await Job.findOne({ _id: id, employerId: req.user!.id })
+      .select("_id title")
+      .lean();
+
+    if (!job) return res.status(404).json({ message: "Job not found" });
+
+    const apps = await Application.find({ jobId: new Types.ObjectId(id) })
+      .sort({ createdAt: -1 })
+      .populate("candidateId", "name email")
+      .select("candidateId hiringStatus interviewStatus overallScore createdAt")
+      .lean();
+
+    const result = apps.map((a: any) => ({
+      _id: String(a._id),
+      userId: a.candidateId?._id ? String(a.candidateId._id) : undefined,
+      name: a.candidateId?.name,
+      email: a.candidateId?.email,
+      status: a.hiringStatus,
+      score: typeof a.overallScore === "number" ? a.overallScore : 0,
+      appliedAt: a.createdAt ? new Date(a.createdAt).toISOString() : undefined,
+      interviewStatus: a.interviewStatus,
+    }));
+
+    return res.json(result);
+  },
 );
 
 jobsRouter.post(
@@ -125,67 +245,7 @@ jobsRouter.post(
     const schema = z.object({
       title: z.string().min(1).transform((s) => s.trim()),
       about: z.string().optional(),
-
-      company: z.string().optional(),
-      companyName: z.string().optional(),
-
-      location: z.string().optional(),
-      workType: z.string().optional(),
-
-      jobType: z.string().optional(),
-      salaryRange: salaryRangeInputSchema,
-
-      isActive: z.boolean().optional(),
-      workExperience: z.number().optional(),
-
-      techStack: techStackSchema, 
-
-      interviewSettings: z
-        .object({
-          maxCandidates: z.number().optional(),
-          interviewDuration: z.number().optional(),
-          difficultyLevel: z.string().optional(),
-          language: z.string().optional(),
-          interviewers: z.array(z.any()).optional(),
-          questions: z.array(z.any()).optional(),
-        })
-        .optional(),
-
-      invitedCandidates: z.array(z.any()).optional(),
-      price: z.number().optional(),
-      paymentDetails: z.any().optional(),
-
-      status: z.enum(["draft", "open", "closed"]).optional(),
-    });
-
-    const parsed = schema.safeParse(req.body);
-    if (!parsed.success) {
-      return res
-        .status(400)
-        .json({ message: "Invalid input", issues: parsed.error.issues });
-    }
-
-    const sr = parsed.data.salaryRange;
-    const normalizedSalaryRange = typeof sr === "string" ? undefined : sr;
-
-    const job = await Job.create({
-      employerId: req.user!.id,
-      ...parsed.data,
-      salaryRange: normalizedSalaryRange,
-    });
-
-    res.status(201).json(job);
-  }
-);
-
-jobsRouter.patch(
-  "/:id",
-  requireAuth,
-  requireRole(["employer", "hr"]),
-  async (req: AuthedRequest, res) => {
-    const schema = z.object({
-      title: z.string().min(1).optional().transform((s) => (s ? s.trim() : s)),
-      about: z.string().optional(),
+      description: z.string().optional(),
 
       company: z.string().optional(),
       companyName: z.string().optional(),
@@ -221,9 +281,77 @@ jobsRouter.patch(
 
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
-      return res
-        .status(400)
-        .json({ message: "Invalid input", issues: parsed.error.issues });
+      return res.status(400).json({
+        message: "Invalid input",
+        issues: parsed.error.issues,
+      });
+    }
+
+    const sr = parsed.data.salaryRange;
+    const normalizedSalaryRange = typeof sr === "string" ? undefined : sr;
+
+    const job = await Job.create({
+      employerId: req.user!.id,
+      ...parsed.data,
+      salaryRange: normalizedSalaryRange,
+    });
+
+    res.status(201).json(job);
+  },
+);
+
+jobsRouter.patch(
+  "/:id",
+  requireAuth,
+  requireRole(["employer", "hr"]),
+  async (req: AuthedRequest, res) => {
+    const schema = z.object({
+      title: z
+        .string()
+        .min(1)
+        .optional()
+        .transform((s) => (s ? s.trim() : s)),
+      about: z.string().optional(),
+      description: z.string().optional(),
+
+      company: z.string().optional(),
+      companyName: z.string().optional(),
+
+      location: z.string().optional(),
+      workType: z.string().optional(),
+
+      jobType: z.string().optional(),
+      salaryRange: salaryRangeInputSchema,
+
+      isActive: z.boolean().optional(),
+      workExperience: z.number().optional(),
+
+      techStack: techStackSchema,
+
+      interviewSettings: z
+        .object({
+          maxCandidates: z.number().optional(),
+          interviewDuration: z.number().optional(),
+          difficultyLevel: z.string().optional(),
+          language: z.string().optional(),
+          interviewers: z.array(z.any()).optional(),
+          questions: z.array(z.any()).optional(),
+        })
+        .optional(),
+
+      invitedCandidates: z.array(z.any()).optional(),
+      price: z.number().optional(),
+      paymentDetails: z.any().optional(),
+
+      status: z.enum(["draft", "open", "closed"]).optional(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        message: "Invalid input",
+        issues: parsed.error.issues,
+      });
     }
 
     const sr = parsed.data.salaryRange;
@@ -232,12 +360,12 @@ jobsRouter.patch(
     const updated = await Job.findOneAndUpdate(
       { _id: req.params.id, employerId: req.user!.id },
       { $set: { ...parsed.data, salaryRange: normalizedSalaryRange } },
-      { new: true }
+      { new: true },
     );
 
     if (!updated)
       return res.status(404).json({ message: "Job not found or not allowed" });
 
     res.json(updated);
-  }
+  },
 );

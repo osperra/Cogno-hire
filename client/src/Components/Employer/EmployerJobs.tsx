@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -17,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import type { DropdownMenuPositioning } from "../ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -37,42 +39,28 @@ import {
 } from "@fluentui/react-icons";
 import { api } from "../../api/http";
 
-interface EmployerJobsProps {
-  onNavigate: (page: string, data?: Record<string, unknown>) => void;
-}
-
 type SalaryRangeDb =
-  | {
-      start?: number;
-      end?: number;
-      currency?: string;
-    }
+  | { start?: number; end?: number; currency?: string }
   | string;
 
 type InterviewSettingsDb = {
   interviewDuration?: number;
   maxCandidates?: number;
-  difficultyLevel?: string; 
+  difficultyLevel?: string;
 };
 
 type JobFromDB = {
   _id: string;
   title?: string;
-
   location?: string;
-  workType?: string; 
-
-  salaryRange?: SalaryRangeDb; 
+  workType?: string;
+  salaryRange?: SalaryRangeDb;
   jobType?: string;
-
   isActive?: boolean;
   status?: "draft" | "open" | "closed";
-
   workExperience?: number;
   invitedCandidates?: unknown[];
-
   interviewSettings?: InterviewSettingsDb;
-
   createdAt?: string;
 };
 
@@ -124,18 +112,13 @@ function mapStatus(j: JobFromDB): StatusUI {
   if (j.status === "draft") return "Draft";
   if (j.status === "closed") return "Closed";
   if (j.status === "open") return "Active";
-
   if (j.isActive === false) return "Closed";
   return "Active";
 }
 
 function salaryToText(sr?: SalaryRangeDb) {
   if (!sr) return "-";
-
-  if (typeof sr === "string") {
-    const t = sr.trim();
-    return t ? t : "-";
-  }
+  if (typeof sr === "string") return sr.trim() || "-";
 
   const start = typeof sr.start === "number" ? sr.start : undefined;
   const end = typeof sr.end === "number" ? sr.end : undefined;
@@ -182,7 +165,15 @@ function toJobRowUI(j: JobFromDB): JobRowUI {
   };
 }
 
-export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
+const ACTIONS_MENU_POSITIONING: DropdownMenuPositioning = {
+  position: "below",
+  align: "end",
+  offset: { mainAxis: 8, crossAxis: 0 },
+};
+
+export function EmployerJobs() {
+  const navigate = useNavigate();
+
   const [selectedJobs, setSelectedJobs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [jobType, setJobType] = useState("All Types");
@@ -191,33 +182,35 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
   const [jobs, setJobs] = useState<JobRowUI[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
+  const [dupLoadingId, setDupLoadingId] = useState<string | null>(null);
+  const [delLoadingId, setDelLoadingId] = useState<string | null>(null);
 
-    (async () => {
+  const loadJobs = async (aliveRef?: { alive: boolean }) => {
+    try {
+      setLoading(true);
+
+      let data: JobFromDB[] = [];
       try {
-        setLoading(true);
-
-        let data: JobFromDB[] = [];
-        try {
-          data = await api<JobFromDB[]>("/api/jobs/me");
-        } catch {
-          data = await api<JobFromDB[]>("/api/jobs");
-        }
-
-        if (!alive) return;
-
-        setJobs((data ?? []).map(toJobRowUI));
-      } catch (err) {
-        console.error("LOAD_JOBS_ERROR:", err);
-        if (alive) setJobs([]);
-      } finally {
-        if (alive) setLoading(false);
+        data = await api<JobFromDB[]>("/api/jobs/me");
+      } catch {
+        data = await api<JobFromDB[]>("/api/jobs");
       }
-    })();
 
+      if (aliveRef && !aliveRef.alive) return;
+      setJobs((data ?? []).map(toJobRowUI));
+    } catch (err) {
+      console.error("LOAD_JOBS_ERROR:", err);
+      if (!aliveRef || aliveRef.alive) setJobs([]);
+    } finally {
+      if (!aliveRef || aliveRef.alive) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const ref = { alive: true };
+    void loadJobs(ref);
     return () => {
-      alive = false;
+      ref.alive = false;
     };
   }, []);
 
@@ -257,10 +250,7 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
     minWidth: 0,
   };
 
-  const searchWrapperStyle: React.CSSProperties = {
-    position: "relative",
-    width: "95%",
-  };
+  const searchWrapperStyle: React.CSSProperties = { position: "relative", width: "95%" };
 
   const iconButtonStyle: React.CSSProperties = {
     width: 36,
@@ -269,6 +259,47 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+  };
+
+  const handleDuplicate = async (jobId: string) => {
+    try {
+      setDupLoadingId(jobId);
+
+      const created = await api<JobFromDB>(
+        `/api/jobs/${encodeURIComponent(jobId)}/duplicate`,
+        { method: "POST" },
+      );
+
+      await loadJobs();
+
+      const newId = created?._id;
+      if (newId) navigate(`/app/employer/jobs/${encodeURIComponent(newId)}/edit`);
+    } catch (e) {
+      console.error("DUPLICATE_JOB_ERROR:", e);
+    } finally {
+      setDupLoadingId(null);
+    }
+  };
+
+  const handleDelete = async (jobId: string) => {
+    const ok = window.confirm("Delete this job? This action cannot be undone.");
+    if (!ok) return;
+
+    try {
+      setDelLoadingId(jobId);
+
+      await api(
+        `/api/jobs/${encodeURIComponent(jobId)}`,
+        { method: "DELETE" } ,
+      );
+
+      setSelectedJobs((prev) => prev.filter((id) => id !== jobId));
+      await loadJobs();
+    } catch (e) {
+      console.error("DELETE_JOB_ERROR:", e);
+    } finally {
+      setDelLoadingId(null);
+    }
   };
 
   return (
@@ -326,7 +357,7 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
           </div>
 
           <Button
-            onClick={() => onNavigate("create-job")}
+            onClick={() => navigate("/app/employer/jobs/create")}
             style={{
               backgroundColor: "#0118D8",
               color: "#FFFFFF",
@@ -387,8 +418,7 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
       <Card
         style={{
           border: "1px solid rgba(2,6,23,0.08)",
-          boxShadow:
-            "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
+          boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
           padding: 0,
         }}
       >
@@ -405,9 +435,7 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                   <Checkbox
                     checked={allChecked}
                     onChange={(_, data) =>
-                      setSelectedJobs(
-                        data?.checked ? filteredJobs.map((j) => j.id) : []
-                      )
+                      setSelectedJobs(data?.checked ? filteredJobs.map((j) => j.id) : [])
                     }
                   />
                 </TableHead>
@@ -427,21 +455,7 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
 
             <TableBody>
               {filteredJobs.map((job) => (
-                <TableRow
-                  key={job.id}
-                  style={{
-                    cursor: "default",
-                    transition: "background-color 0.15s ease-in-out",
-                  }}
-                  onMouseEnter={(ev) => {
-                    (ev.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                      "#F3F4F6";
-                  }}
-                  onMouseLeave={(ev) => {
-                    (ev.currentTarget as HTMLTableRowElement).style.backgroundColor =
-                      "transparent";
-                  }}
-                >
+                <TableRow key={job.id}>
                   <TableCell>
                     <Checkbox
                       checked={selectedJobs.includes(job.id)}
@@ -449,34 +463,24 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                         const isChecked = !!data?.checked;
                         if (isChecked) {
                           setSelectedJobs((prev) =>
-                            prev.includes(job.id) ? prev : [...prev, job.id]
+                            prev.includes(job.id) ? prev : [...prev, job.id],
                           );
                         } else {
-                          setSelectedJobs((prev) =>
-                            prev.filter((id) => id !== job.id)
-                          );
+                          setSelectedJobs((prev) => prev.filter((id) => id !== job.id));
                         }
                       }}
                     />
                   </TableCell>
 
                   <TableCell>
-                    <div style={{ color: "#0B1220", fontWeight: 500 }}>
-                      {job.title}
-                    </div>
+                    <div style={{ color: "#0B1220", fontWeight: 500 }}>{job.title}</div>
                   </TableCell>
 
                   <TableCell style={{ color: "#5B6475" }}>{job.type}</TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>
-                    {job.location}
-                  </TableCell>
+                  <TableCell style={{ color: "#5B6475" }}>{job.location}</TableCell>
                   <TableCell style={{ color: "#5B6475" }}>{job.ctc}</TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>
-                    {job.experience}
-                  </TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>
-                    {job.duration}
-                  </TableCell>
+                  <TableCell style={{ color: "#5B6475" }}>{job.experience}</TableCell>
+                  <TableCell style={{ color: "#5B6475" }}>{job.duration}</TableCell>
 
                   <TableCell>
                     <StatusPill
@@ -484,8 +488,8 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                         job.difficulty === "Easy"
                           ? "success"
                           : job.difficulty === "Medium"
-                          ? "warning"
-                          : "danger"
+                            ? "warning"
+                            : "danger"
                       }
                       label={job.difficulty}
                       size="sm"
@@ -498,8 +502,8 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                         job.status === "Active"
                           ? "success"
                           : job.status === "Draft"
-                          ? "warning"
-                          : "neutral"
+                            ? "warning"
+                            : "neutral"
                       }
                       label={job.status}
                       size="sm"
@@ -509,47 +513,73 @@ export function EmployerJobs({ onNavigate }: EmployerJobsProps) {
                   <TableCell style={{ color: "#0118D8", fontWeight: 500 }}>
                     {job.responses}
                   </TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>
-                    {job.datePosted}
-                  </TableCell>
+                  <TableCell style={{ color: "#5B6475" }}>{job.datePosted}</TableCell>
 
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger>
-                        <Button
-                          variant="ghost"
-                          style={{ ...iconButtonStyle, borderRadius: 6 }}
+                    <DropdownMenu positioning={ACTIONS_MENU_POSITIONING}>
+                      <DropdownMenuTrigger disableButtonEnhancement>
+                        <button
+                          type="button"
+                          aria-label="Job actions"
+                          style={{
+                            height: 32,
+                            width: 32,
+                            borderRadius: 8,
+                            border: "none",
+                            background: "transparent",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                          }}
                         >
                           <MoreVerticalRegular style={{ width: 16, height: 16 }} />
-                        </Button>
+                        </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem>
+
+                      <DropdownMenuContent style={{ minWidth: 180 }}>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            navigate(`/app/employer/jobs/${encodeURIComponent(job.id)}`)
+                          }
+                        >
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <Eye20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
-                            <span style={{ lineHeight: 1.2, display: "inline-block" }}>View Details</span>
+                            <span style={{ lineHeight: 1.2 }}>View Details</span>
                           </div>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            navigate(`/app/employer/jobs/${encodeURIComponent(job.id)}/edit`)
+                          }
+                        >
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <Edit20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
-                            <span style={{ lineHeight: 1.2, display: "inline-block" }}>Edit Job</span>
+                            <span style={{ lineHeight: 1.2 }}>Edit Job</span>
                           </div>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleDuplicate(job.id)}
+                          disabled={dupLoadingId === job.id}
+                        >
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <Copy20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
-                            <span style={{ lineHeight: 1.2, display: "inline-block" }}>Duplicate</span>
+                            <span style={{ lineHeight: 1.2 }}>
+                              {dupLoadingId === job.id ? "Duplicating..." : "Duplicate"}
+                            </span>
                           </div>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleDelete(job.id)}
+                          disabled={delLoadingId === job.id}
+                        >
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <Delete20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
-                            <span style={{ lineHeight: 1.2, display: "inline-block", color: "#DC2626" }}>
-                              Delete
+                            <span style={{ lineHeight: 1.2, color: "#DC2626" }}>
+                              {delLoadingId === job.id ? "Deleting..." : "Delete"}
                             </span>
                           </div>
                         </DropdownMenuItem>

@@ -26,7 +26,8 @@ export interface JobDoc {
   companyName?: string;
 
   title: string;
-  about?: string;
+  about?: string;        
+  description?: string;  
 
   location?: string;
   workType?: string;
@@ -37,7 +38,7 @@ export interface JobDoc {
   isActive?: boolean;
   workExperience?: number;
 
-  techStack?: string[]; 
+  techStack?: string[];
 
   interviewSettings?: InterviewSettings;
 
@@ -57,7 +58,7 @@ const salaryRangeSchema = new Schema<SalaryRange>(
     end: { type: Number },
     currency: { type: String, trim: true },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const interviewSettingsSchema = new Schema<InterviewSettings>(
@@ -70,23 +71,19 @@ const interviewSettingsSchema = new Schema<InterviewSettings>(
     interviewers: { type: [Schema.Types.Mixed], default: [] },
     questions: { type: [Schema.Types.Mixed], default: [] },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const jobSchema = new Schema<JobDoc>(
   {
-    employerId: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      index: true,
-    },
+    employerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
 
     company: { type: String, trim: true },
     companyName: { type: String, trim: true },
 
     title: { type: String, required: true, trim: true },
     about: { type: String },
+    description: { type: String }, 
 
     location: { type: String, trim: true },
     workType: { type: String, trim: true },
@@ -101,9 +98,7 @@ const jobSchema = new Schema<JobDoc>(
       type: [String],
       default: [],
       set: (arr: unknown) =>
-        Array.isArray(arr)
-          ? arr.map((s) => String(s).trim()).filter(Boolean)
-          : [],
+        Array.isArray(arr) ? arr.map((s) => String(s).trim()).filter(Boolean) : [],
     },
 
     interviewSettings: { type: interviewSettingsSchema },
@@ -113,14 +108,9 @@ const jobSchema = new Schema<JobDoc>(
     price: { type: Number },
     paymentDetails: { type: Schema.Types.Mixed },
 
-    status: {
-      type: String,
-      enum: ["draft", "open", "closed"],
-      default: "open",
-      index: true,
-    },
+    status: { type: String, enum: ["draft", "open", "closed"], default: "open", index: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const Job = model<JobDoc>("Job", jobSchema, "jobs");

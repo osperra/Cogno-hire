@@ -15,6 +15,7 @@ import {
   makeStyles,
   shorthands,
   tokens,
+  type PositioningProps,
 } from "@fluentui/react-components";
 import {
   Checkmark16Regular,
@@ -31,7 +32,7 @@ function mergeClassNames(
 const useDropdownMenuStyles = makeStyles({
   content: {
     zIndex: 50,
-    minWidth: "8rem",
+    minWidth: "10rem",
     maxHeight: "320px",
     backgroundColor: tokens.colorNeutralBackground1,
     color: tokens.colorNeutralForeground1,
@@ -42,9 +43,7 @@ const useDropdownMenuStyles = makeStyles({
     overflowX: "hidden",
     padding: tokens.spacingHorizontalXXS,
   },
-  list: {
-    padding: 0,
-  },
+  list: { padding: 0 },
   itemBase: {
     position: "relative",
     display: "flex",
@@ -56,7 +55,6 @@ const useDropdownMenuStyles = makeStyles({
     ...shorthands.borderRadius(tokens.borderRadiusSmall),
     ...shorthands.padding(tokens.spacingVerticalXS, tokens.spacingHorizontalS),
     outlineStyle: "none",
-
     "& svg": {
       pointerEvents: "none",
       flexShrink: 0,
@@ -77,9 +75,7 @@ const useDropdownMenuStyles = makeStyles({
   },
   itemDestructive: {
     color: tokens.colorPaletteRedForeground1,
-    "& svg": {
-      color: tokens.colorPaletteRedForeground1,
-    },
+    "& svg": { color: tokens.colorPaletteRedForeground1 },
     "&:hover": {
       backgroundColor: tokens.colorPaletteRedBackground1,
       color: tokens.colorPaletteRedForeground1,
@@ -129,25 +125,26 @@ const useDropdownMenuStyles = makeStyles({
     height: "14px",
     pointerEvents: "none",
   },
-  subTriggerChevron: {
-    marginLeft: "auto",
-  },
+  subTriggerChevron: { marginLeft: "auto" },
 });
 
+export type DropdownMenuProps = React.ComponentProps<typeof Menu>;
+export type DropdownMenuTriggerProps = React.ComponentProps<
+  typeof FluentMenuTrigger
+>;
+export type DropdownMenuContentProps = React.ComponentProps<typeof MenuPopover>;
 
-function DropdownMenu(props: React.ComponentProps<typeof Menu>) {
+export type DropdownMenuPositioning = PositioningProps;
+
+function DropdownMenu(props: DropdownMenuProps) {
   return <Menu data-slot="dropdown-menu" {...props} />;
 }
-
 
 function DropdownMenuPortal(props: React.HTMLAttributes<HTMLDivElement>) {
   return <div data-slot="dropdown-menu-portal" {...props} />;
 }
 
-
-function DropdownMenuTrigger(
-  props: React.ComponentProps<typeof FluentMenuTrigger>,
-) {
+function DropdownMenuTrigger(props: DropdownMenuTriggerProps) {
   return (
     <FluentMenuTrigger data-slot="dropdown-menu-trigger" {...props}>
       {props.children}
@@ -156,17 +153,12 @@ function DropdownMenuTrigger(
 }
 
 
-type DropdownMenuContentProps = React.ComponentProps<typeof MenuPopover> & {
-  sideOffset?: number; 
-};
-
 function DropdownMenuContent({
   className,
   children,
   ...props
 }: DropdownMenuContentProps) {
   const styles = useDropdownMenuStyles();
-
   return (
     <MenuPopover
       data-slot="dropdown-menu-content"
@@ -178,11 +170,9 @@ function DropdownMenuContent({
   );
 }
 
-
 function DropdownMenuGroup(props: React.ComponentProps<typeof MenuGroup>) {
   return <MenuGroup data-slot="dropdown-menu-group" {...props} />;
 }
-
 
 type DropdownMenuItemProps = React.ComponentProps<typeof MenuItem> & {
   inset?: boolean;
@@ -196,7 +186,6 @@ function DropdownMenuItem({
   ...props
 }: DropdownMenuItemProps) {
   const styles = useDropdownMenuStyles();
-
   return (
     <MenuItem
       data-slot="dropdown-menu-item"
@@ -212,11 +201,11 @@ function DropdownMenuItem({
   );
 }
 
-
-type DropdownMenuCheckboxItemProps =
-  React.ComponentProps<typeof MenuItemCheckbox> & {
-    checked?: boolean;
-  };
+type DropdownMenuCheckboxItemProps = React.ComponentProps<
+  typeof MenuItemCheckbox
+> & {
+  checked?: boolean;
+};
 
 function DropdownMenuCheckboxItem({
   className,
@@ -225,11 +214,9 @@ function DropdownMenuCheckboxItem({
   ...props
 }: DropdownMenuCheckboxItemProps) {
   const styles = useDropdownMenuStyles();
-
   return (
     <MenuItemCheckbox
       data-slot="dropdown-menu-checkbox-item"
-    
       className={mergeClassNames(styles.itemBase, styles.item, className)}
       {...props}
     >
@@ -241,10 +228,7 @@ function DropdownMenuCheckboxItem({
   );
 }
 
-
-function DropdownMenuRadioGroup(
-  props: React.ComponentProps<typeof MenuGroup>,
-) {
+function DropdownMenuRadioGroup(props: React.ComponentProps<typeof MenuGroup>) {
   return (
     <MenuGroup
       data-slot="dropdown-menu-radio-group"
@@ -254,11 +238,9 @@ function DropdownMenuRadioGroup(
   );
 }
 
-
-type DropdownMenuRadioItemProps =
-  React.ComponentProps<typeof MenuItemRadio> & {
-    checked?: boolean;
-  };
+type DropdownMenuRadioItemProps = React.ComponentProps<typeof MenuItemRadio> & {
+  checked?: boolean;
+};
 
 function DropdownMenuRadioItem({
   className,
@@ -267,7 +249,6 @@ function DropdownMenuRadioItem({
   ...props
 }: DropdownMenuRadioItemProps) {
   const styles = useDropdownMenuStyles();
-
   return (
     <MenuItemRadio
       data-slot="dropdown-menu-radio-item"
@@ -282,7 +263,6 @@ function DropdownMenuRadioItem({
   );
 }
 
-
 type DropdownMenuLabelProps = React.ComponentProps<typeof MenuGroupHeader> & {
   inset?: boolean;
 };
@@ -293,7 +273,6 @@ function DropdownMenuLabel({
   ...props
 }: DropdownMenuLabelProps) {
   const styles = useDropdownMenuStyles();
-
   return (
     <MenuGroupHeader
       data-slot="dropdown-menu-label"
@@ -307,12 +286,10 @@ function DropdownMenuLabel({
   );
 }
 
-
 function DropdownMenuSeparator(
   props: React.ComponentProps<typeof MenuDivider>,
 ) {
   const styles = useDropdownMenuStyles();
-
   return (
     <MenuDivider
       data-slot="dropdown-menu-separator"
@@ -322,14 +299,11 @@ function DropdownMenuSeparator(
   );
 }
 
-
-
 function DropdownMenuShortcut({
   className,
   ...props
 }: React.ComponentProps<"span">) {
   const styles = useDropdownMenuStyles();
-
   return (
     <span
       data-slot="dropdown-menu-shortcut"
@@ -339,10 +313,7 @@ function DropdownMenuShortcut({
   );
 }
 
-
-
 type DropdownMenuSubProps = React.HTMLAttributes<HTMLDivElement>;
-
 function DropdownMenuSub(props: DropdownMenuSubProps) {
   return <div data-slot="dropdown-menu-sub" {...props} />;
 }
@@ -356,7 +327,6 @@ function DropdownMenuSubTrigger({
   ...props
 }: DropdownMenuSubTriggerProps) {
   const styles = useDropdownMenuStyles();
-
   return (
     <MenuItem
       data-slot="dropdown-menu-sub-trigger"
@@ -375,7 +345,7 @@ function DropdownMenuSubTrigger({
   );
 }
 
-type DropdownMenuSubContentProps = DropdownMenuContentProps;
+type DropdownMenuSubContentProps = React.ComponentProps<typeof MenuPopover>;
 
 function DropdownMenuSubContent({
   className,
@@ -383,7 +353,6 @@ function DropdownMenuSubContent({
   ...props
 }: DropdownMenuSubContentProps) {
   const styles = useDropdownMenuStyles();
-
   return (
     <MenuPopover
       data-slot="dropdown-menu-sub-content"
