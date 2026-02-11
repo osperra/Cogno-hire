@@ -1,4 +1,9 @@
 // Server/src/routes/applications.ts (COMPLETE updated file)
+// ✅ Updates:
+// 1) Employer gets notification when a candidate applies (application_created)
+// 2) Candidate gets notification when employer changes hiring/interview status (application_status_changed)
+// NOTE: Candidate gets notification when new job is posted => implement in jobs route (not here)
+
 import { Router, type Request } from "express";
 import { z } from "zod";
 import multer from "multer";
@@ -8,6 +13,7 @@ import { storage } from "../config/cloudinary.js";
 import { Application } from "../models/Application.js";
 import { Document } from "../models/Document.js";
 import { Job } from "../models/Jobs.js";
+import { Notification } from "../models/Notification.js"; // ✅ NEW
 
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
 
@@ -35,6 +41,30 @@ type MulterAuthedRequest = Request & {
   file?: Express.Multer.File;
 };
 
+function safeObjectIdString(x: unknown) {
+  return typeof x === "string" && Types.ObjectId.isValid(x) ? x : "";
+}
+
+async function createNotification(params: {
+  userId: string;
+  type: "application_created" | "application_status_changed" | "job_created" | "general";
+  title: string;
+  message: string;
+  link?: string;
+  meta?: Record<string, unknown>;
+}) {
+  // userId in Notification model is typically ObjectId ref; pass string is fine for mongoose
+  return Notification.create({
+    userId: params.userId,
+    type: params.type,
+    title: params.title,
+    message: params.message,
+    link: params.link,
+    meta: params.meta,
+    isRead: false,
+  });
+}
+
 applicationsRouter.post(
   "/upload-resume",
   requireAuth,
@@ -43,8 +73,7 @@ applicationsRouter.post(
   async (req: MulterAuthedRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-      if (!req.file)
-        return res.status(400).json({ message: "Resume file is required" });
+      if (!req.file) return res.status(400).json({ message: "Resume file is required" });
 
       const jobId =
         typeof (req.body as Record<string, unknown>)?.jobId === "string"
@@ -101,16 +130,15 @@ applicationsRouter.post(
 
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
-        return res
-          .status(400)
-          .json({ message: "Invalid input", issues: parsed.error.issues });
+        return res.status(400).json({ message: "Invalid input", issues: parsed.error.issues });
       }
 
       if (!Types.ObjectId.isValid(parsed.data.jobId)) {
         return res.status(400).json({ message: "Invalid jobId" });
       }
 
-      const job = await Job.findById(parsed.data.jobId).select("_id").lean();
+      // ✅ Fetch employerId + title so we can notify employer
+      const job = await Job.findById(parsed.data.jobId).select("_id employerId title").lean();
       if (!job) return res.status(404).json({ message: "Job not found" });
 
       const exists = await Application.findOne({
@@ -120,8 +148,7 @@ applicationsRouter.post(
         .select("_id")
         .lean();
 
-      if (exists)
-        return res.status(409).json({ message: "You already applied for this job." });
+      if (exists) return res.status(409).json({ message: "You already applied for this job." });
 
       const created = await Application.create({
         jobId: parsed.data.jobId,
@@ -130,8 +157,8 @@ applicationsRouter.post(
         resumeUrl: parsed.data.resumeUrl?.trim() || undefined,
       });
 
-      const resumeDocId = parsed.data.resumeDocId;
-      if (resumeDocId && Types.ObjectId.isValid(resumeDocId)) {
+      const resumeDocId = safeObjectIdString(parsed.data.resumeDocId);
+      if (resumeDocId) {
         const doc = await Document.findById(resumeDocId).lean();
         if (doc && String(doc.ownerUserId) === String(req.user!.id)) {
           await Document.findByIdAndUpdate(resumeDocId, {
@@ -144,9 +171,32 @@ applicationsRouter.post(
         }
       }
 
-      return res
-        .status(201)
-        .json({ message: "Applied successfully", applicationId: created._id });
+      // ✅ EMPLOYER NOTIFICATION: someone applied to their job
+      try {
+        const employerId = String((job as any).employerId ?? "");
+        if (Types.ObjectId.isValid(employerId)) {
+          await createNotification({
+            userId: employerId,
+            type: "application_created",
+            title: "New application received",
+            message: `A candidate applied for "${String((job as any).title ?? "your job")}".`,
+            link: "/app/employer/applicants",
+            meta: {
+              jobId: String(job._id),
+              applicationId: String(created._id),
+              candidateId: String(req.user!.id),
+            },
+          });
+        }
+      } catch (e) {
+        console.error("NOTIFY_EMPLOYER_ON_APPLY_ERROR:", e);
+        // do not block application creation
+      }
+
+      return res.status(201).json({
+        message: "Applied successfully",
+        applicationId: created._id,
+      });
     } catch (e) {
       console.error("APPLY_ERROR:", e);
       return res.status(500).json({ message: "Server error" });
@@ -223,10 +273,7 @@ applicationsRouter.get(
 
       const tab = parsed.data.tab ?? "all";
       const q = (parsed.data.q ?? "").trim().toLowerCase();
-      const limit = Math.min(
-        Math.max(parseInt(parsed.data.limit ?? "200", 10) || 200, 1),
-        500
-      );
+      const limit = Math.min(Math.max(parseInt(parsed.data.limit ?? "200", 10) || 200, 1), 500);
 
       const match: Record<string, unknown> = { candidateId: req.user!.id };
 
@@ -358,10 +405,7 @@ applicationsRouter.get(
       const jobTitle = typeof req.query.jobTitle === "string" ? req.query.jobTitle.trim() : "";
       const interviewStatus =
         typeof req.query.interviewStatus === "string" ? req.query.interviewStatus.trim() : "";
-      const limit = Math.min(
-        Math.max(parseInt(String(req.query.limit || "200"), 10) || 200, 1),
-        500
-      );
+      const limit = Math.min(Math.max(parseInt(String(req.query.limit || "200"), 10) || 200, 1), 500);
 
       const jobIds = await getEmployerJobIds(req.user!.id);
       if (!jobIds.length) return res.json([]);
@@ -430,11 +474,12 @@ applicationsRouter.patch(
       return res.status(400).json({ message: "Invalid input", issues: parsed.error.issues });
     }
 
-    const app = await Application.findById(req.params.id).select("_id jobId").lean();
+    // ✅ need candidateId to notify candidate
+    const app = await Application.findById(req.params.id).select("_id jobId candidateId hiringStatus interviewStatus").lean();
     if (!app) return res.status(404).json({ message: "Application not found" });
 
-    const job = await Job.findById(app.jobId).select("_id employerId").lean();
-    if (!job || String(job.employerId) !== String(req.user!.id)) {
+    const job = await Job.findById(app.jobId).select("_id employerId title").lean();
+    if (!job || String((job as any).employerId) !== String(req.user!.id)) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -442,9 +487,48 @@ applicationsRouter.patch(
       req.params.id,
       { $set: parsed.data },
       { new: true, runValidators: true }
-    );
+    ).lean();
 
     if (!updated) return res.status(404).json({ message: "Application not found" });
+
+    // ✅ CANDIDATE NOTIFICATION: status changed (only if relevant fields changed)
+    try {
+      const candidateId = String((app as any).candidateId ?? "");
+      if (Types.ObjectId.isValid(candidateId)) {
+        const jobTitle = String((job as any).title ?? "your application");
+
+        const hiringChanged =
+          typeof parsed.data.hiringStatus === "string" &&
+          parsed.data.hiringStatus !== (app as any).hiringStatus;
+
+        const interviewChanged =
+          typeof parsed.data.interviewStatus === "string" &&
+          parsed.data.interviewStatus !== (app as any).interviewStatus;
+
+        if (hiringChanged || interviewChanged) {
+          const parts: string[] = [];
+          if (hiringChanged) parts.push(`Hiring status: ${String(parsed.data.hiringStatus)}`);
+          if (interviewChanged) parts.push(`Interview status: ${String(parsed.data.interviewStatus)}`);
+
+          await createNotification({
+            userId: candidateId,
+            type: "application_status_changed",
+            title: "Application update",
+            message: `${jobTitle} • ${parts.join(" • ")}`,
+            link: "/app/candidate/applications",
+            meta: {
+              jobId: String((job as any)._id),
+              applicationId: String((app as any)._id),
+              hiringStatus: parsed.data.hiringStatus,
+              interviewStatus: parsed.data.interviewStatus,
+            },
+          });
+        }
+      }
+    } catch (e) {
+      console.error("NOTIFY_CANDIDATE_STATUS_CHANGE_ERROR:", e);
+      // do not block update
+    }
 
     res.json(updated);
   }

@@ -32,6 +32,8 @@ type TopBarProps = {
   onProfileSettings?: () => void;
   onPreferences?: () => void;
   onSignOut?: () => void;
+
+  onNavigate?: (page: string, data?: Record<string, unknown>) => void;
 };
 
 type MeResponse = {
@@ -72,6 +74,43 @@ type NotificationItemUI = {
   link?: string;
 };
 
+type SearchEntity = "job" | "application" | "candidate" | "notification";
+
+type SearchItem = {
+  id: string;
+  type: SearchEntity;
+  title: string;
+  subtitle?: string;
+  url?: string;
+  meta?: Record<string, unknown>;
+};
+
+type SearchResponse = {
+  items: SearchItem[];
+};
+
+type JobListItem = {
+  _id?: string;
+  id?: string;
+  title?: string;
+  location?: string;
+};
+
+type ApplicationCandidate = {
+  _id?: string;
+  id?: string;
+  name?: string;
+  email?: string;
+};
+type ApplicationJob = { _id?: string; id?: string; title?: string };
+
+type ApplicationListItem = {
+  _id?: string;
+  id?: string;
+  candidateId?: string | ApplicationCandidate;
+  jobId?: string | ApplicationJob;
+};
+
 function roleBadgeColor(role: Role) {
   return role === "employer" ? "#0F5BFF" : "#16A34A";
 }
@@ -96,7 +135,6 @@ function timeAgoFromISO(iso: string): string {
   return `${day}d ago`;
 }
 
-// ✅ helper: maps API → UI
 function mapNotifsToUI(items: NotificationFromApi[]): NotificationItemUI[] {
   return items.map((n) => ({
     id: n._id,
@@ -108,6 +146,47 @@ function mapNotifsToUI(items: NotificationFromApi[]): NotificationItemUI[] {
   }));
 }
 
+function typePill(type: SearchEntity) {
+  if (type === "job")
+    return { label: "Job", bg: "rgba(15,91,255,0.10)", color: "#0F5BFF" };
+  if (type === "application")
+    return {
+      label: "Application",
+      bg: "rgba(249,115,22,0.12)",
+      color: "#F97316",
+    };
+  if (type === "candidate")
+    return { label: "Candidate", bg: "rgba(22,163,74,0.12)", color: "#16A34A" };
+  return {
+    label: "Notification",
+    bg: "rgba(107,114,128,0.12)",
+    color: "#6B7280",
+  };
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(id);
+  }, [value, delayMs]);
+
+  return debounced;
+}
+
+function getAppCandidate(x: ApplicationListItem["candidateId"]) {
+  if (!x) return { name: "Unknown", email: "-" };
+  if (typeof x === "string") return { name: "Unknown", email: "-" };
+  return { name: x.name ?? "Unknown", email: x.email ?? "-" };
+}
+
+function getAppJob(x: ApplicationListItem["jobId"]) {
+  if (!x) return { title: "Unknown Job" };
+  if (typeof x === "string") return { title: "Unknown Job" };
+  return { title: x.title ?? "Unknown Job" };
+}
+
 export function TopBar({
   title,
   role,
@@ -116,11 +195,13 @@ export function TopBar({
   onProfileSettings,
   onPreferences,
   onSignOut,
+  onNavigate,
 }: TopBarProps) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const searchWrapRef = useRef<HTMLDivElement | null>(null);
 
   const [me, setMe] = useState<MeResponse | null>(null);
   const [loadingMe, setLoadingMe] = useState(false);
@@ -129,7 +210,15 @@ export function TopBar({
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
 
-  // ✅ keyboard shortcut Cmd/Ctrl+K
+  const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 250);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string>("");
+  const [results, setResults] = useState<SearchItem[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const isMac = navigator.platform.toUpperCase().includes("MAC");
@@ -139,13 +228,25 @@ export function TopBar({
       if (comboPressed) {
         e.preventDefault();
         inputRef.current?.focus();
+        setSearchOpen(true);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // ✅ fetch /me once
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = searchWrapRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -170,29 +271,26 @@ export function TopBar({
 
   const acctLabel = useMemo(
     () => accountLabel(me?.role ?? role),
-    [me?.role, role]
+    [me?.role, role],
   );
   const userEmail = me?.email ?? "—";
   const userName = me?.name ?? acctLabel;
 
-  // ✅ ONE place to fetch notifications (+ unreadCount)
   const fetchNotifications = async () => {
     const data = await api<NotificationsResponse>(
-      "/api/notifications/me?unreadOnly=false&limit=20"
+      "/api/notifications/me?unreadOnly=false&limit=20",
     );
     setUnreadCount(data.unreadCount ?? 0);
     setNotifications(mapNotifsToUI(data.items ?? []));
   };
 
-  // ✅ lightweight fetch just for unread count (uses same endpoint but only reads unreadCount)
   const fetchUnreadCount = async () => {
     const data = await api<NotificationsResponse>(
-      "/api/notifications/me?unreadOnly=false&limit=1"
+      "/api/notifications/me?unreadOnly=false&limit=1",
     );
     setUnreadCount(data.unreadCount ?? 0);
   };
 
-  // ✅ initial unread badge load + polling (dynamic)
   useEffect(() => {
     let alive = true;
 
@@ -206,16 +304,12 @@ export function TopBar({
 
     const intervalId = window.setInterval(async () => {
       try {
-        // if panel is open, refresh full list; else only unread count
-        if (showNotifications) {
-          await fetchNotifications();
-        } else {
-          await fetchUnreadCount();
-        }
+        if (showNotifications) await fetchNotifications();
+        else await fetchUnreadCount();
       } catch {
-        // ignore network errors
+        // ignore
       }
-    }, 20000); // 20s
+    }, 20000);
 
     return () => {
       alive = false;
@@ -223,7 +317,6 @@ export function TopBar({
     };
   }, [showNotifications]);
 
-  // ✅ when panel opens, fetch full list
   useEffect(() => {
     let alive = true;
 
@@ -250,17 +343,169 @@ export function TopBar({
     try {
       await api<{ modifiedCount: number; message: string }>(
         "/api/notifications/read-all",
-        { method: "PATCH" }
+        {
+          method: "PATCH",
+        },
       );
 
-      // ✅ optimistic UI
       setNotifications((prev) => prev.map((n) => ({ ...n, isUnread: false })));
       setUnreadCount(0);
 
-      // ✅ resync (source of truth)
       await fetchUnreadCount();
     } catch {
       // ignore
+    }
+  };
+
+  const fetchSearch = async (q: string): Promise<SearchItem[]> => {
+    const safe = encodeURIComponent(q.trim());
+
+    const candidates: Array<() => Promise<SearchResponse>> = [
+      () => api<SearchResponse>(`/api/search?q=${safe}&limit=8`),
+      () => api<SearchResponse>(`/api/search/global?q=${safe}&limit=8`),
+      async () => {
+        const [jobs, apps] = await Promise.all([
+          api<JobListItem[]>(`/api/jobs?search=${safe}&limit=5`).catch(
+            () => [] as JobListItem[],
+          ),
+          api<ApplicationListItem[]>(
+            `/api/applications/employer?search=${safe}&limit=5`,
+          ).catch(() => [] as ApplicationListItem[]),
+        ]);
+
+        const jobItems: SearchItem[] = (jobs || []).map((j) => ({
+          id: String(j._id ?? j.id ?? ""),
+          type: "job",
+          title: String(j.title ?? "Untitled Job"),
+          subtitle: j.location ? String(j.location) : undefined,
+          meta: { jobId: j._id ?? j.id },
+        }));
+
+        const appItems: SearchItem[] = (apps || []).map((a) => {
+          const c = getAppCandidate(a.candidateId);
+          const j = getAppJob(a.jobId);
+
+          return {
+            id: String(a._id ?? a.id ?? ""),
+            type: "application",
+            title: `${c.name} • ${j.title}`,
+            subtitle: c.email || undefined,
+            meta: { applicationId: a._id ?? a.id },
+          };
+        });
+
+        return {
+          items: [...jobItems, ...appItems].filter((x) => x.id).slice(0, 8),
+        };
+      },
+    ];
+
+    let lastErr: unknown = null;
+
+    for (const fn of candidates) {
+      try {
+        const r = await fn();
+        if (r && Array.isArray(r.items)) return r.items;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+
+    throw lastErr instanceof Error ? lastErr : new Error("Search failed");
+  };
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      const q = debouncedQuery.trim();
+      if (!q) {
+        setResults([]);
+        setSearchError("");
+        setSearchLoading(false);
+        setActiveIndex(0);
+        return;
+      }
+
+      try {
+        setSearchLoading(true);
+        setSearchError("");
+        setSearchOpen(true);
+
+        const items = await fetchSearch(q);
+        if (!alive) return;
+
+        setResults(items);
+        setActiveIndex(0);
+      } catch (e) {
+        if (!alive) return;
+        setResults([]);
+        setSearchError(e instanceof Error ? e.message : "Search failed");
+      } finally {
+        if (alive) setSearchLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [debouncedQuery]);
+
+  const selectItem = (item: SearchItem) => {
+    setSearchOpen(false);
+
+    if (item.url) {
+      window.location.href = item.url;
+      return;
+    }
+
+    if (!onNavigate) return;
+
+    if (item.type === "job") {
+      onNavigate("job", { jobId: item.meta?.jobId ?? item.id });
+      return;
+    }
+    if (item.type === "application") {
+      onNavigate("applicants", {
+        applicationId: item.meta?.applicationId ?? item.id,
+      });
+      return;
+    }
+    if (item.type === "candidate") {
+      onNavigate("candidates", {
+        candidateId: item.meta?.candidateId ?? item.id,
+      });
+      return;
+    }
+    onNavigate("notifications", { id: item.id });
+  };
+
+  const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!searchOpen) {
+      if (e.key === "ArrowDown" && results.length > 0) setSearchOpen(true);
+      return;
+    }
+
+    if (e.key === "Escape") {
+      setSearchOpen(false);
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, Math.max(0, results.length - 1)));
+      return;
+    }
+
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(0, i - 1));
+      return;
+    }
+
+    if (e.key === "Enter") {
+      const item = results[activeIndex];
+      if (item) selectItem(item);
     }
   };
 
@@ -372,6 +617,7 @@ export function TopBar({
 
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <div
+            ref={searchWrapRef}
             style={{
               position: "relative",
               transition: "all 0.25s ease",
@@ -395,9 +641,15 @@ export function TopBar({
 
             <Input
               ref={inputRef}
+              value={query}
+              onChange={(_, data) => setQuery(data.value)}
               placeholder="Search anything... (⌘K)"
-              onFocus={() => setSearchFocused(true)}
+              onFocus={() => {
+                setSearchFocused(true);
+                setSearchOpen(true);
+              }}
               onBlur={() => setSearchFocused(false)}
+              onKeyDown={onSearchKeyDown}
               style={{
                 width: "100%",
                 paddingLeft: 36,
@@ -411,9 +663,157 @@ export function TopBar({
                 transition: "all 0.25s ease",
               }}
             />
+
+            {searchOpen &&
+              (query.trim().length > 0 ||
+                results.length > 0 ||
+                searchLoading ||
+                searchError) && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 44,
+                    left: 0,
+                    width: "100%",
+                    background: "#fff",
+                    border: "1px solid rgba(2,6,23,0.10)",
+                    borderRadius: 14,
+                    boxShadow: "0 16px 40px rgba(2,6,23,0.12)",
+                    overflow: "hidden",
+                    zIndex: 1200,
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "10px 12px",
+                      borderBottom: "1px solid rgba(2,6,23,0.06)",
+                    }}
+                  >
+                    <Text size={200} style={{ color: "#6B7280" }}>
+                      {searchLoading
+                        ? "Searching..."
+                        : searchError
+                          ? "Error"
+                          : results.length
+                            ? `${results.length} results`
+                            : "No results"}
+                    </Text>
+                  </div>
+
+                  {searchLoading && (
+                    <div
+                      style={{
+                        padding: 12,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <Spinner size="tiny" />
+                      <Text size={200} style={{ color: "#6B7280" }}>
+                        Fetching matches…
+                      </Text>
+                    </div>
+                  )}
+
+                  {!searchLoading && !!searchError && (
+                    <div style={{ padding: 12 }}>
+                      <Text size={200} style={{ color: "#dc2626" }}>
+                        {searchError}
+                      </Text>
+                    </div>
+                  )}
+
+                  {!searchLoading && !searchError && results.length > 0 && (
+                    <div style={{ maxHeight: 320, overflowY: "auto" }}>
+                      {results.map((r, idx) => {
+                        const pill = typePill(r.type);
+                        const active = idx === activeIndex;
+
+                        return (
+                          <div
+                            key={`${r.type}-${r.id}-${idx}`}
+                            onMouseEnter={() => setActiveIndex(idx)}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              selectItem(r);
+                            }}
+                            style={{
+                              padding: "10px 12px",
+                              cursor: "pointer",
+                              background: active
+                                ? "rgba(15,91,255,0.06)"
+                                : "#fff",
+                              borderBottom: "1px solid rgba(2,6,23,0.06)",
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: 10,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 11,
+                                padding: "2px 8px",
+                                borderRadius: 999,
+                                background: pill.bg,
+                                color: pill.color,
+                                fontWeight: 600,
+                                lineHeight: "16px",
+                                marginTop: 1,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {pill.label}
+                            </span>
+
+                            <div style={{ minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  color: "#111827",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                {r.title}
+                              </div>
+                              {r.subtitle && (
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    color: "#6B7280",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {r.subtitle}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {!searchLoading &&
+                    !searchError &&
+                    query.trim().length > 0 &&
+                    results.length === 0 && (
+                      <div style={{ padding: 12 }}>
+                        <Text size={200} style={{ color: "#6B7280" }}>
+                          No matches for “{query.trim()}”.
+                        </Text>
+                      </div>
+                    )}
+                </div>
+              )}
           </div>
 
-          {/* ✅ Badge is dynamic from DB */}
           <button
             type="button"
             onClick={() => setShowNotifications(true)}
@@ -481,7 +881,9 @@ export function TopBar({
             <MenuPopover>
               <MenuList>
                 <MenuItem onClick={onMyAccount}>My Account</MenuItem>
-                <MenuItem onClick={onProfileSettings}>Profile Settings</MenuItem>
+                <MenuItem onClick={onProfileSettings}>
+                  Profile Settings
+                </MenuItem>
                 <MenuItem onClick={onPreferences}>Preferences</MenuItem>
 
                 <MenuItem
@@ -590,9 +992,7 @@ export function TopBar({
                       padding: "12px 14px",
                       borderRadius: 16,
                       backgroundColor: n.isUnread ? "#EEF4FF" : "#ffffff",
-                      border: `1px solid ${
-                        n.isUnread ? "#BFDBFE" : "#E5E7EB"
-                      }`,
+                      border: `1px solid ${n.isUnread ? "#BFDBFE" : "#E5E7EB"}`,
                       boxShadow: "0 8px 20px rgba(15,23,42,0.04)",
                       cursor: n.link ? "pointer" : "default",
                     }}

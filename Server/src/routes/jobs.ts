@@ -3,6 +3,8 @@ import { z } from "zod";
 import { Types } from "mongoose";
 import { Job } from "../models/Jobs.js";
 import { Application } from "../models/Application.js";
+import { User } from "../models/User.js";
+import { Notification } from "../models/Notification.js";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth.js";
 
 export const jobsRouter = Router();
@@ -31,12 +33,77 @@ const techStackSchema = z
     return cleaned.length ? cleaned : undefined;
   });
 
+const jobInputSchema = z.object({
+  title: z.string().min(1).transform((s) => s.trim()),
+  about: z.string().optional(),
+  description: z.string().optional(),
+
+  company: z.string().optional(),
+  companyName: z.string().optional(),
+
+  location: z.string().optional(),
+  workType: z.string().optional(),
+
+  jobType: z.string().optional(),
+  salaryRange: salaryRangeInputSchema,
+
+  isActive: z.boolean().optional(),
+  workExperience: z.number().optional(),
+
+  techStack: techStackSchema,
+
+  interviewSettings: z
+    .object({
+      maxCandidates: z.number().optional(),
+      interviewDuration: z.number().optional(),
+      difficultyLevel: z.string().optional(),
+      language: z.string().optional(),
+      interviewers: z.array(z.unknown()).optional(),
+      questions: z.array(z.unknown()).optional(),
+    })
+    .optional(),
+
+  invitedCandidates: z.array(z.unknown()).optional(),
+  price: z.number().optional(),
+  paymentDetails: z.unknown().optional(),
+
+  status: z.enum(["draft", "open", "closed"]).optional(),
+});
+
+async function createCandidateJobNotifications(job: any) {
+  const candidates = await User.find({ role: "candidate" }).select("_id").lean();
+  if (!candidates.length) return;
+
+  const company = String(job.companyName ?? job.company ?? "Company");
+  const title = String(job.title ?? "New job");
+
+  const docs = candidates.map((c) => ({
+    userId: String(c._id),
+    type: "job_created" as const,
+    title: "New job posted",
+    message: `${company} posted "${title}".`,
+    link: `/app/candidate/jobs`,
+    meta: {
+      jobId: String(job._id),
+      company,
+      title,
+    },
+    isRead: false,
+  }));
+
+  await Notification.insertMany(docs, { ordered: false });
+}
+
+
 jobsRouter.get("/", async (req, res) => {
   const page = Math.max(1, Number(req.query.page ?? 1) || 1);
   const limit = Math.max(1, Math.min(50, Number(req.query.limit ?? 10) || 10));
   const skip = (page - 1) * limit;
 
-  const q = String(req.query.q ?? "").trim();
+  const q =
+    String(req.query.q ?? "").trim() ||
+    String(req.query.search ?? "").trim();
+
   const location = String(req.query.location ?? "").trim();
   const workType = String(req.query.workType ?? "").trim();
   const jobType = String(req.query.jobType ?? "").trim();
@@ -46,7 +113,7 @@ jobsRouter.get("/", async (req, res) => {
 
   const includeAll = String(req.query.includeAll ?? "") === "1";
 
-  const filter: any = {};
+  const filter: Record<string, unknown> = {};
 
   if (!includeAll) {
     filter.status = "open";
@@ -55,7 +122,7 @@ jobsRouter.get("/", async (req, res) => {
 
   if (q) {
     const rx = toRegex(q);
-    filter.$or = [
+    (filter as any).$or = [
       { title: rx },
       { about: rx },
       { description: rx },
@@ -70,18 +137,18 @@ jobsRouter.get("/", async (req, res) => {
   }
 
   if (location && location !== "all-locations") {
-    filter.$and = filter.$and ?? [];
-    filter.$and.push({
+    (filter as any).$and = (filter as any).$and ?? [];
+    (filter as any).$and.push({
       $or: [{ location: toRegex(location) }, { workType: toRegex(location) }],
     });
   }
 
-  if (workType) filter.workType = toRegex(workType);
-  if (jobType) filter.jobType = toRegex(jobType);
+  if (workType) (filter as any).workType = toRegex(workType);
+  if (jobType) (filter as any).jobType = toRegex(jobType);
 
   if (difficulty) {
-    filter.$and = filter.$and ?? [];
-    filter.$and.push({
+    (filter as any).$and = (filter as any).$and ?? [];
+    (filter as any).$and.push({
       $or: [
         { "interviewSettings.difficultyLevel": toRegex(difficulty) },
         { difficultyLevel: toRegex(difficulty) },
@@ -92,16 +159,16 @@ jobsRouter.get("/", async (req, res) => {
 
   if (minSalary) {
     const n = Number(minSalary);
-    if (Number.isFinite(n)) filter["salaryRange.start"] = { $gte: n };
+    if (Number.isFinite(n)) (filter as any)["salaryRange.start"] = { $gte: n };
   }
 
-  let sortObj: any = { createdAt: -1 };
+  let sortObj: Record<string, 1 | -1> = { createdAt: -1 };
   if (sort === "salary-high") {
     sortObj = {
       "salaryRange.end": -1,
       "salaryRange.start": -1,
       createdAt: -1,
-    };
+    } as any;
   }
 
   const [items, total] = await Promise.all([
@@ -121,7 +188,7 @@ jobsRouter.get(
       createdAt: -1,
     });
     res.json(jobs);
-  },
+  }
 );
 
 jobsRouter.get(
@@ -139,7 +206,7 @@ jobsRouter.get(
     if (!job) return res.status(404).json({ message: "Job not found" });
 
     return res.json(job);
-  },
+  }
 );
 
 jobsRouter.post(
@@ -172,7 +239,7 @@ jobsRouter.post(
     });
 
     return res.status(201).json(copy);
-  },
+  }
 );
 
 jobsRouter.delete(
@@ -196,7 +263,7 @@ jobsRouter.delete(
     }
 
     return res.json({ ok: true, id });
-  },
+  }
 );
 
 jobsRouter.get(
@@ -234,7 +301,7 @@ jobsRouter.get(
     }));
 
     return res.json(result);
-  },
+  }
 );
 
 jobsRouter.post(
@@ -242,44 +309,7 @@ jobsRouter.post(
   requireAuth,
   requireRole(["employer", "hr"]),
   async (req: AuthedRequest, res) => {
-    const schema = z.object({
-      title: z.string().min(1).transform((s) => s.trim()),
-      about: z.string().optional(),
-      description: z.string().optional(),
-
-      company: z.string().optional(),
-      companyName: z.string().optional(),
-
-      location: z.string().optional(),
-      workType: z.string().optional(),
-
-      jobType: z.string().optional(),
-      salaryRange: salaryRangeInputSchema,
-
-      isActive: z.boolean().optional(),
-      workExperience: z.number().optional(),
-
-      techStack: techStackSchema,
-
-      interviewSettings: z
-        .object({
-          maxCandidates: z.number().optional(),
-          interviewDuration: z.number().optional(),
-          difficultyLevel: z.string().optional(),
-          language: z.string().optional(),
-          interviewers: z.array(z.any()).optional(),
-          questions: z.array(z.any()).optional(),
-        })
-        .optional(),
-
-      invitedCandidates: z.array(z.any()).optional(),
-      price: z.number().optional(),
-      paymentDetails: z.any().optional(),
-
-      status: z.enum(["draft", "open", "closed"]).optional(),
-    });
-
-    const parsed = schema.safeParse(req.body);
+    const parsed = jobInputSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
         message: "Invalid input",
@@ -296,8 +326,18 @@ jobsRouter.post(
       salaryRange: normalizedSalaryRange,
     });
 
+    try {
+      const status = String((job as any).status ?? "");
+      const isActive = (job as any).isActive !== false;
+      if (status === "open" && isActive) {
+        await createCandidateJobNotifications(job);
+      }
+    } catch (e) {
+      console.error("JOB_CREATED_NOTIFY_CANDIDATES_ERROR:", e);
+    }
+
     res.status(201).json(job);
-  },
+  }
 );
 
 jobsRouter.patch(
@@ -305,48 +345,7 @@ jobsRouter.patch(
   requireAuth,
   requireRole(["employer", "hr"]),
   async (req: AuthedRequest, res) => {
-    const schema = z.object({
-      title: z
-        .string()
-        .min(1)
-        .optional()
-        .transform((s) => (s ? s.trim() : s)),
-      about: z.string().optional(),
-      description: z.string().optional(),
-
-      company: z.string().optional(),
-      companyName: z.string().optional(),
-
-      location: z.string().optional(),
-      workType: z.string().optional(),
-
-      jobType: z.string().optional(),
-      salaryRange: salaryRangeInputSchema,
-
-      isActive: z.boolean().optional(),
-      workExperience: z.number().optional(),
-
-      techStack: techStackSchema,
-
-      interviewSettings: z
-        .object({
-          maxCandidates: z.number().optional(),
-          interviewDuration: z.number().optional(),
-          difficultyLevel: z.string().optional(),
-          language: z.string().optional(),
-          interviewers: z.array(z.any()).optional(),
-          questions: z.array(z.any()).optional(),
-        })
-        .optional(),
-
-      invitedCandidates: z.array(z.any()).optional(),
-      price: z.number().optional(),
-      paymentDetails: z.any().optional(),
-
-      status: z.enum(["draft", "open", "closed"]).optional(),
-    });
-
-    const parsed = schema.safeParse(req.body);
+    const parsed = jobInputSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
         message: "Invalid input",
@@ -357,15 +356,34 @@ jobsRouter.patch(
     const sr = parsed.data.salaryRange;
     const normalizedSalaryRange = typeof sr === "string" ? undefined : sr;
 
+    const before = await Job.findOne({ _id: req.params.id, employerId: req.user!.id })
+      .select("_id status isActive title company companyName")
+      .lean();
+
     const updated = await Job.findOneAndUpdate(
       { _id: req.params.id, employerId: req.user!.id },
       { $set: { ...parsed.data, salaryRange: normalizedSalaryRange } },
-      { new: true },
+      { new: true }
     );
 
-    if (!updated)
-      return res.status(404).json({ message: "Job not found or not allowed" });
+    if (!updated) return res.status(404).json({ message: "Job not found or not allowed" });
+
+    try {
+      const wasVisible =
+        before && String((before as any).status) === "open" && (before as any).isActive !== false;
+
+      const nowVisible =
+        String((updated as any).status) === "open" && (updated as any).isActive !== false;
+
+      if (!wasVisible && nowVisible) {
+        await createCandidateJobNotifications(updated);
+      }
+    } catch (e) {
+      console.error("JOB_PATCH_NOTIFY_CANDIDATES_ERROR:", e);
+    }
 
     res.json(updated);
-  },
+  }
 );
+
+export default jobsRouter;

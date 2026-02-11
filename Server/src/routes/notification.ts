@@ -1,4 +1,3 @@
-// server/routes/notifications.ts
 import { Router } from "express";
 import { z } from "zod";
 import { Notification } from "../models/Notification.js";
@@ -6,16 +5,10 @@ import { requireAuth, AuthedRequest } from "../middleware/auth.js";
 
 const notificationsRouter = Router();
 
-/**
- * GET /api/notifications/me?unreadOnly=false&limit=20
- * returns: { items: Notification[], unreadCount: number }
- */
 notificationsRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
   const unreadOnly = String(req.query.unreadOnly ?? "false") === "true";
   const limitRaw = Number(req.query.limit ?? 30);
-  const limit = Number.isFinite(limitRaw)
-    ? Math.min(Math.max(limitRaw, 1), 100)
-    : 30;
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 30;
 
   const filter: Record<string, unknown> = { userId: req.user!.id };
   if (unreadOnly) filter.isRead = false;
@@ -36,9 +29,7 @@ notificationsRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
 notificationsRouter.post("/", requireAuth, async (req: AuthedRequest, res) => {
   const schema = z.object({
     userId: z.string().min(1),
-    type: z
-      .enum(["application_created", "application_status_changed", "job_created", "general"])
-      .optional(),
+    type: z.enum(["application_created", "application_status_changed", "job_created", "general"]).optional(),
     title: z.string().min(1),
     message: z.string().min(1),
     link: z.string().optional(),
@@ -80,10 +71,12 @@ notificationsRouter.patch("/read-all", requireAuth, async (req: AuthedRequest, r
     { $set: { isRead: true } }
   );
 
-  return res.json({
-    message: "All marked read",
-    modifiedCount: (result as any).modifiedCount ?? 0,
-  });
+  const modifiedCount =
+    typeof (result as { modifiedCount?: number }).modifiedCount === "number"
+      ? (result as { modifiedCount?: number }).modifiedCount!
+      : 0;
+
+  return res.json({ message: "All marked read", modifiedCount });
 });
 
 notificationsRouter.delete("/:id", requireAuth, async (req: AuthedRequest, res) => {

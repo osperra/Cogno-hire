@@ -1,9 +1,10 @@
 import { Router, Response } from "express";
 import { Types } from "mongoose";
-import { requireAuth, AuthedRequest } from "../middleware/auth";
-import { User } from "../models/User";
-import { Job } from "../models/Jobs"; 
-import { Application } from "../models/Application"; 
+import { requireAuth, AuthedRequest } from "../middleware/auth.js";
+import { User } from "../models/User.js";
+import { Job } from "../models/Jobs.js";
+import { Application } from "../models/Application.js";
+import { Notification } from "../models/Notification.js";
 
 const router = Router();
 
@@ -32,7 +33,17 @@ type DashboardApplication = {
   score: number | null;
 };
 
-function safeStr(v: any, fallback = ""): string {
+type RecentActivityItem = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  link?: string;
+  isRead: boolean;
+  createdAt: string;
+};
+
+function safeStr(v: unknown, fallback = ""): string {
   return typeof v === "string" && v.trim() ? v.trim() : fallback;
 }
 
@@ -53,7 +64,6 @@ function toCtc(job: any): string {
     if (min != null) return `${cur}${min}+`;
     if (max != null) return `Up to ${cur}${max}`;
   }
-
   return safeStr(job?.ctc, "-");
 }
 
@@ -63,13 +73,10 @@ function toDashboardJob(doc: any, idx: number): DashboardJob {
   const location = safeStr(doc?.location, "-");
   const type = safeStr(doc?.jobType, safeStr(doc?.type, "-"));
 
-  const match = Math.max(
-    60,
-    Math.min(99, 75 + ((idx * 7) % 20))
-  );
+  const match = Math.max(60, Math.min(99, 75 + ((idx * 7) % 20)));
 
   return {
-    id: idx + 1, 
+    id: idx + 1,
     company,
     companyLogo: safeStr(doc?.companyLogo, shortLogo(company)),
     title,
@@ -90,56 +97,49 @@ router.get(
 
       const userObjectId = new Types.ObjectId(userId);
 
-      const me = await User.findById(userObjectId).select("name email role").lean<{
-        _id: Types.ObjectId;
-        name: string;
-        email: string;
-        role: string;
-      }>();
+      const me = await User.findById(userObjectId)
+        .select("name email role")
+        .lean<{ _id: Types.ObjectId; name: string; email: string; role: string }>();
 
       if (!me) return res.status(404).json({ message: "User not found" });
 
-      const recommendedDocs = await Job.find({ isActive: true })
+      const recommendedDocs = await Job.find({ isActive: true, status: "open" })
         .sort({ createdAt: -1 })
         .limit(10)
         .lean();
 
       const invitedDocs = await Job.find({
         isActive: true,
+        status: "open",
         invitedCandidates: userObjectId,
       })
         .sort({ createdAt: -1 })
         .limit(10)
         .lean();
 
-      const recommendedJobs = recommendedDocs.map((d: any, i: number) =>
-        toDashboardJob(d, i)
-      );
+      const recommendedJobs = recommendedDocs.map((d: any, i: number) => toDashboardJob(d, i));
+      const invitedJobs = invitedDocs.map((d: any, i: number) => toDashboardJob(d, i));
 
-      const invitedJobs = invitedDocs.map((d: any, i: number) =>
-        toDashboardJob(d, i)
-      );
-
-  
       let recentApplications: DashboardApplication[] = [];
-
       try {
         const appDocs = await Application.find({ candidateId: userObjectId })
           .sort({ createdAt: -1 })
           .limit(10)
+          .populate("jobId", "title company companyName")
           .lean();
 
         recentApplications = appDocs.map((a: any, i: number) => {
-          const company = safeStr(a?.company, a?.companyName || "Company");
-          const title = safeStr(a?.title, a?.jobTitle || "Job");
-          const statusRaw = safeStr(a?.status, "Pending");
+          const job = a?.jobId || {};
+          const company = safeStr(job?.companyName, safeStr(job?.company, "Company"));
+          const title = safeStr(job?.title, "Job");
 
+          const statusRaw = safeStr(a?.status, safeStr(a?.hiringStatus, "Pending"));
           const status: ApplicationStatus =
             statusRaw === "Hired"
               ? "Hired"
               : statusRaw === "Interview Completed"
-              ? "Interview Completed"
-              : "Pending";
+                ? "Interview Completed"
+                : "Pending";
 
           const interviewStatus: InterviewStatus =
             safeStr(a?.interviewStatus) === "Completed" ? "Completed" : "Not Started";
@@ -149,23 +149,33 @@ router.get(
             company,
             companyLogo: safeStr(a?.companyLogo, shortLogo(company)),
             title,
-            appliedDate: (a?.createdAt ? new Date(a.createdAt).toISOString() : new Date().toISOString()),
+            appliedDate: a?.createdAt ? new Date(a.createdAt).toISOString() : new Date().toISOString(),
             status,
             interviewStatus,
-            score: typeof a?.score === "number" ? a.score : null,
+            score: typeof a?.score === "number" ? a.score : typeof a?.overallScore === "number" ? a.overallScore : null,
           };
         });
       } catch {
         recentApplications = [];
       }
 
-      const pendingInterviews = recentApplications.filter(
-        (a) => a.interviewStatus === "Not Started"
-      ).length;
+      const pendingInterviews = recentApplications.filter((a) => a.interviewStatus === "Not Started").length;
+      const offersReceived = recentApplications.filter((a) => a.status === "Hired").length;
 
-      const offersReceived = recentApplications.filter(
-        (a) => a.status === "Hired"
-      ).length;
+      const notifs = await Notification.find({ userId: userId })
+        .sort({ isRead: 1, createdAt: -1 })
+        .limit(10)
+        .lean();
+
+      const recentActivity: RecentActivityItem[] = notifs.map((n: any) => ({
+        id: String(n._id),
+        type: safeStr(n.type, "general"),
+        title: safeStr(n.title, "Notification"),
+        message: safeStr(n.message, ""),
+        link: typeof n.link === "string" ? n.link : undefined,
+        isRead: Boolean(n.isRead),
+        createdAt: n.createdAt ? new Date(n.createdAt).toISOString() : new Date().toISOString(),
+      }));
 
       return res.json({
         me: {
@@ -185,6 +195,8 @@ router.get(
         recommendedJobs,
         invitedJobs,
         recentApplications,
+
+        recentActivity,
       });
     } catch (err) {
       console.error("dashboard error:", err);

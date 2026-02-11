@@ -1,5 +1,4 @@
-// Server/src/index.ts
-import "dotenv/config"; // ✅ MUST be first so all imports can read .env
+import "dotenv/config"; 
 
 import express, { type Request, type Response } from "express";
 import cors from "cors";
@@ -24,6 +23,7 @@ import { reviewsRouter } from "./routes/reviews.js";
 import { onboardingRouter } from "./routes/onboarding.js";
 import { aiJobDescriptionRouter } from "./routes/aiJobDescriptionRouter.js";
 import { aiInterviewRouter } from "./routes/aiInterviewRouter.js";
+import { searchRouter } from "./routes/search.js";
 
 
 const app = express();
@@ -60,6 +60,8 @@ app.use("/api/company-profile", companyProfileRouter);
 app.use("/api/onboarding", onboardingRouter);
 app.use("/api/ai", aiJobDescriptionRouter);
 app.use("/api/ai", aiInterviewRouter);
+app.use("/api", searchRouter);
+
 
 
 const port = Number(process.env.PORT || 5000);
