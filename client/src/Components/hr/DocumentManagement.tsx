@@ -46,12 +46,7 @@ import {
 import { StatusPill, type StatusType } from "../ui/StatusPill";
 import { api } from "../../api/http";
 
-type DocTab =
-  | "all"
-  | "application"
-  | "verification"
-  | "onboarding"
-  | "employee";
+type DocTab = "all" | "application" | "verification" | "onboarding" | "employee";
 type DocStatus = "PENDING" | "VERIFIED" | "COMPLETED" | "SIGNED";
 
 type DocRow = {
@@ -316,11 +311,7 @@ function bytesToSize(bytes: number) {
 function dateText(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-  });
+  return d.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" });
 }
 
 const mapStatusToPill = (status: DocStatus): StatusType => {
@@ -336,12 +327,22 @@ const mapStatusToPill = (status: DocStatus): StatusType => {
   }
 };
 
+function safeErrorMessage(e: unknown) {
+  if (e instanceof Error) return e.message;
+  try {
+    return typeof e === "string" ? e : JSON.stringify(e);
+  } catch {
+    return "Unexpected error";
+  }
+}
+
 export function DocumentManagement() {
   const styles = useStyles();
 
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const [search, setSearch] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
   const [activeTab, setActiveTab] = useState<TabValue>("all" as DocTab);
 
   const [typeFilter, setTypeFilter] = useState("all-types");
@@ -349,16 +350,22 @@ export function DocumentManagement() {
   const [dateFilter, setDateFilter] = useState("any-date");
 
   const [docs, setDocs] = useState<DocRow[]>([]);
-  const [stats, setStats] = useState<Stats>({
-    total: 0,
-    verified: 0,
-    pending: 0,
-    requiresAction: 0,
-  });
+  const [stats, setStats] = useState<Stats>({ total: 0, verified: 0, pending: 0, requiresAction: 0 });
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string>("");
+
+  // Optional: if employer page is opened from an application context, pass applicationId via URL
+  const applicationIdFromUrl = useMemo(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("applicationId") || "";
+  }, []);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setSearchDebounced(search), 300);
+    return () => window.clearTimeout(t);
+  }, [search]);
 
   const typeOptions = useMemo(() => {
     const set = new Set<string>();
@@ -367,13 +374,7 @@ export function DocumentManagement() {
   }, [docs]);
 
   const tabCounts = useMemo(() => {
-    const c = {
-      all: 0,
-      application: 0,
-      verification: 0,
-      onboarding: 0,
-      employee: 0,
-    } as Record<DocTab, number>;
+    const c: Record<DocTab, number> = { all: 0, application: 0, verification: 0, onboarding: 0, employee: 0 };
     for (const d of docs) {
       c.all += 1;
       const cat = String(d.category || "").toLowerCase();
@@ -389,7 +390,7 @@ export function DocumentManagement() {
     const params = new URLSearchParams();
     params.set("tab", String(activeTab));
 
-    const q = search.trim();
+    const q = searchDebounced.trim();
     if (q) params.set("q", q);
 
     if (typeFilter !== "all-types") params.set("type", typeFilter);
@@ -408,6 +409,9 @@ export function DocumentManagement() {
     if (dateFilter === "7-days") params.set("days", "7");
     if (dateFilter === "30-days") params.set("days", "30");
 
+    // if employer is in application context, include it so backend can scope correctly
+    if (applicationIdFromUrl) params.set("applicationId", applicationIdFromUrl);
+
     params.set("limit", "500");
     return `/api/documents?${params.toString()}`;
   };
@@ -418,12 +422,16 @@ export function DocumentManagement() {
     try {
       const [rows, st] = await Promise.all([
         api<DocRow[]>(buildQuery()),
-        api<Stats>("/api/documents/stats"),
+        api<Stats>(
+          applicationIdFromUrl
+            ? `/api/documents/stats?applicationId=${encodeURIComponent(applicationIdFromUrl)}`
+            : "/api/documents/stats"
+        ),
       ]);
       setDocs(rows ?? []);
       setStats(st ?? { total: 0, verified: 0, pending: 0, requiresAction: 0 });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load documents");
+      setError(safeErrorMessage(e) || "Failed to load documents");
       setDocs([]);
       setStats({ total: 0, verified: 0, pending: 0, requiresAction: 0 });
     } finally {
@@ -434,7 +442,7 @@ export function DocumentManagement() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, search, typeFilter, statusFilter, dateFilter]);
+  }, [activeTab, searchDebounced, typeFilter, statusFilter, dateFilter, applicationIdFromUrl]);
 
   const openFilePicker = () => fileRef.current?.click();
 
@@ -447,31 +455,39 @@ export function DocumentManagement() {
 
       const ext = (file.name.split(".").pop() ?? "").toLowerCase();
       const isImg = ["jpg", "jpeg", "png"].includes(ext);
-      const isResume =
-        file.name.toLowerCase().includes("resume") || ext === "pdf";
+      const isPdf = ext === "pdf";
+      const nameLower = file.name.toLowerCase();
 
-      fd.append(
-        "type",
-        isResume ? "Resume" : isImg ? "Identification" : "Document"
-      );
-      fd.append("category", isResume ? "Application" : "Verification");
+      const isResume = nameLower.includes("resume") || isPdf;
+
+      // Match backend tabMap values: Application/Verification/Onboarding/Employee
+      const category = isResume ? "Application" : "Verification";
+      const type = isResume ? "Resume" : isImg ? "Identification" : "Document";
+
+      fd.append("type", type);
+      fd.append("category", category);
       fd.append("status", "PENDING");
+
+      // If employer is uploading in application context, attach applicationId
+      if (applicationIdFromUrl) fd.append("applicationId", applicationIdFromUrl);
 
       await api("/api/documents/upload", { method: "POST", body: fd });
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      setError(safeErrorMessage(e) || "Upload failed");
     } finally {
       setUploading(false);
     }
   };
 
-  const viewDoc = (d: DocRow) =>
-    window.open(d.fileUrl, "_blank", "noopener,noreferrer");
+  // Use backend redirect endpoint (enforces auth/ACL)
+  const viewDoc = (d: DocRow) => window.open(`/api/documents/file/${d._id}`, "_blank", "noopener,noreferrer");
 
   const downloadDoc = (d: DocRow) => {
+    // Use backend endpoint so auth works; download attribute may be ignored for cross-origin redirects,
+    // but it still works well for most cases.
     const a = document.createElement("a");
-    a.href = d.fileUrl;
+    a.href = `/api/documents/file/${d._id}`;
     a.download = d.name || "document";
     document.body.appendChild(a);
     a.click();
@@ -487,15 +503,15 @@ export function DocumentManagement() {
         body: JSON.stringify({ status: "VERIFIED" }),
       });
 
-      setDocs((prev) =>
-        prev.map((x) =>
-          x._id === d._id ? { ...x, status: updated.status } : x
-        )
+      setDocs((prev) => prev.map((x) => (x._id === d._id ? { ...x, status: updated.status } : x)));
+      const st = await api<Stats>(
+        applicationIdFromUrl
+          ? `/api/documents/stats?applicationId=${encodeURIComponent(applicationIdFromUrl)}`
+          : "/api/documents/stats"
       );
-      const st = await api<Stats>("/api/documents/stats");
       setStats(st);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Verify failed");
+      setError(safeErrorMessage(e) || "Verify failed");
     }
   };
 
@@ -504,10 +520,14 @@ export function DocumentManagement() {
     try {
       await api(`/api/documents/${d._id}`, { method: "DELETE" });
       setDocs((prev) => prev.filter((x) => x._id !== d._id));
-      const st = await api<Stats>("/api/documents/stats");
+      const st = await api<Stats>(
+        applicationIdFromUrl
+          ? `/api/documents/stats?applicationId=${encodeURIComponent(applicationIdFromUrl)}`
+          : "/api/documents/stats"
+      );
       setStats(st);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed");
+      setError(safeErrorMessage(e) || "Delete failed");
     }
   };
 
@@ -533,15 +553,7 @@ export function DocumentManagement() {
             Manage candidate documents, certificates, and verification records
           </span>
           {error ? (
-            <span
-              style={{
-                color: tokens.colorPaletteRedForeground1,
-                fontSize: 13,
-                marginTop: 6,
-              }}
-            >
-              {error}
-            </span>
+            <span style={{ color: tokens.colorPaletteRedForeground1, fontSize: 13, marginTop: 6 }}>{error}</span>
           ) : null}
         </div>
 
@@ -558,96 +570,48 @@ export function DocumentManagement() {
 
       <div className={styles.statsGrid}>
         <Card className={styles.statCard}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div className={styles.statLabel}>Total Documents</div>
-              <div className={styles.statValue}>
-                {loading ? "…" : stats.total}
-              </div>
+              <div className={styles.statValue}>{loading ? "…" : stats.total}</div>
             </div>
-            <div
-              className={styles.statIconBox}
-              style={{ backgroundColor: "#EFF6FF" }}
-            >
-              <DocumentText20Regular
-                style={{ color: "#0118D8", fontSize: 24 }}
-              />
+            <div className={styles.statIconBox} style={{ backgroundColor: "#EFF6FF" }}>
+              <DocumentText20Regular style={{ color: "#0118D8", fontSize: 24 }} />
             </div>
           </div>
         </Card>
 
         <Card className={styles.statCard}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div className={styles.statLabel}>Verified</div>
-              <div className={styles.statValue}>
-                {loading ? "…" : stats.verified}
-              </div>
+              <div className={styles.statValue}>{loading ? "…" : stats.verified}</div>
             </div>
-            <div
-              className={styles.statIconBox}
-              style={{ backgroundColor: "#ECFDF5" }}
-            >
-              <CheckmarkCircle20Regular
-                style={{ color: "#16A34A", fontSize: 24 }}
-              />
+            <div className={styles.statIconBox} style={{ backgroundColor: "#ECFDF5" }}>
+              <CheckmarkCircle20Regular style={{ color: "#16A34A", fontSize: 24 }} />
             </div>
           </div>
         </Card>
 
         <Card className={styles.statCard}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div className={styles.statLabel}>Pending Review</div>
-              <div className={styles.statValue}>
-                {loading ? "…" : stats.pending}
-              </div>
+              <div className={styles.statValue}>{loading ? "…" : stats.pending}</div>
             </div>
-            <div
-              className={styles.statIconBox}
-              style={{ backgroundColor: "#FFFBEB" }}
-            >
+            <div className={styles.statIconBox} style={{ backgroundColor: "#FFFBEB" }}>
               <Clock20Regular style={{ color: "#D97706", fontSize: 24 }} />
             </div>
           </div>
         </Card>
 
         <Card className={styles.statCard}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div className={styles.statLabel}>Requires Action</div>
-              <div className={styles.statValue}>
-                {loading ? "…" : stats.requiresAction}
-              </div>
+              <div className={styles.statValue}>{loading ? "…" : stats.requiresAction}</div>
             </div>
-            <div
-              className={styles.statIconBox}
-              style={{ backgroundColor: "#FEF2F2" }}
-            >
+            <div className={styles.statIconBox} style={{ backgroundColor: "#FEF2F2" }}>
               <Warning20Regular style={{ color: "#DC2626", fontSize: 24 }} />
             </div>
           </div>
@@ -672,9 +636,7 @@ export function DocumentManagement() {
             className={styles.filterButton}
             value={typeFilter}
             selectedOptions={[typeFilter]}
-            onOptionSelect={(_, data) =>
-              setTypeFilter(String(data.optionValue))
-            }
+            onOptionSelect={(_, data) => setTypeFilter(String(data.optionValue))}
           >
             {typeOptions.map((t) => (
               <Option key={t} value={t}>
@@ -687,9 +649,7 @@ export function DocumentManagement() {
             className={styles.filterButton}
             value={statusFilter}
             selectedOptions={[statusFilter]}
-            onOptionSelect={(_, data) =>
-              setStatusFilter(String(data.optionValue))
-            }
+            onOptionSelect={(_, data) => setStatusFilter(String(data.optionValue))}
           >
             <Option value="all-status">All Status</Option>
             <Option value="pending">Pending</Option>
@@ -702,20 +662,14 @@ export function DocumentManagement() {
             className={styles.filterButton}
             value={dateFilter}
             selectedOptions={[dateFilter]}
-            onOptionSelect={(_, data) =>
-              setDateFilter(String(data.optionValue))
-            }
+            onOptionSelect={(_, data) => setDateFilter(String(data.optionValue))}
           >
             <Option value="any-date">Any Date</Option>
             <Option value="7-days">Last 7 days</Option>
             <Option value="30-days">Last 30 days</Option>
           </Dropdown>
 
-          <Button
-            appearance="outline"
-            onClick={() => void load()}
-            disabled={loading || uploading}
-          >
+          <Button appearance="outline" onClick={() => void load()} disabled={loading || uploading}>
             {loading ? "Refreshing..." : "Refresh"}
           </Button>
         </div>
@@ -729,9 +683,7 @@ export function DocumentManagement() {
         >
           <Tab value="all">All Documents ({tabCounts.all})</Tab>
           <Tab value="application">Application ({tabCounts.application})</Tab>
-          <Tab value="verification">
-            Verification ({tabCounts.verification})
-          </Tab>
+          <Tab value="verification">Verification ({tabCounts.verification})</Tab>
           <Tab value="onboarding">Onboarding ({tabCounts.onboarding})</Tab>
           <Tab value="employee">Employee Records ({tabCounts.employee})</Tab>
         </TabList>
@@ -742,30 +694,15 @@ export function DocumentManagement() {
           <Table aria-label="Documents table" className={styles.table}>
             <TableHeader>
               <TableRow className={styles.tableHeaderRow}>
-                <TableHeaderCell
-                  className={styles.tableHeaderCell}
-                  style={{ width: "30%" }}
-                >
+                <TableHeaderCell className={styles.tableHeaderCell} style={{ width: "30%" }}>
                   Document Name
                 </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Type
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Category
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Uploaded By
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Upload Date
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Size
-                </TableHeaderCell>
-                <TableHeaderCell className={styles.tableHeaderCell}>
-                  Status
-                </TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Type</TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Category</TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Uploaded By</TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Upload Date</TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Size</TableHeaderCell>
+                <TableHeaderCell className={styles.tableHeaderCell}>Status</TableHeaderCell>
                 <TableHeaderCell className={styles.tableHeaderCell} />
               </TableRow>
             </TableHeader>
@@ -774,14 +711,7 @@ export function DocumentManagement() {
               {loading ? (
                 <TableRow>
                   <TableCell colSpan={8} className={styles.tableCell}>
-                    <Text
-                      style={{
-                        display: "block",
-                        textAlign: "center",
-                        padding: "16px 0",
-                        color: "#6B7280",
-                      }}
-                    >
+                    <Text style={{ display: "block", textAlign: "center", padding: "16px 0", color: "#6B7280" }}>
                       Loading documents...
                     </Text>
                   </TableCell>
@@ -792,12 +722,10 @@ export function DocumentManagement() {
                     <TableCell className={styles.docNameCell}>
                       <div className={styles.docNameRow}>
                         <div className={styles.docIconBox}>
-                          {doc.mimeType.startsWith("image/") ? (
+                          {doc.mimeType?.startsWith("image/") ? (
                             <Image20Regular style={{ color: "#0118D8" }} />
                           ) : (
-                            <DocumentPdf20Regular
-                              style={{ color: "#0118D8" }}
-                            />
+                            <DocumentPdf20Regular style={{ color: "#0118D8" }} />
                           )}
                         </div>
                         <div>
@@ -806,62 +734,39 @@ export function DocumentManagement() {
                       </div>
                     </TableCell>
 
-                    <TableCell className={styles.tableCell}>
-                      {doc.type}
-                    </TableCell>
+                    <TableCell className={styles.tableCell}>{doc.type}</TableCell>
 
                     <TableCell className={styles.tableCell}>
-                      <Badge
-                        appearance="outline"
-                        className={styles.categoryBadge}
-                      >
+                      <Badge appearance="outline" className={styles.categoryBadge}>
                         {doc.category}
                       </Badge>
                     </TableCell>
 
                     <TableCell className={styles.tableCell}>
-                      {doc.uploadedByUserId?.name ||
-                        doc.uploadedByUserId?.email ||
-                        "-"}
-                    </TableCell>
-                    <TableCell className={styles.tableCell}>
-                      {dateText(doc.createdAt)}
-                    </TableCell>
-                    <TableCell className={styles.tableCell}>
-                      {bytesToSize(doc.sizeBytes)}
+                      {doc.uploadedByUserId?.name || doc.uploadedByUserId?.email || "-"}
                     </TableCell>
 
+                    <TableCell className={styles.tableCell}>{dateText(doc.createdAt)}</TableCell>
+
+                    <TableCell className={styles.tableCell}>{bytesToSize(doc.sizeBytes)}</TableCell>
+
                     <TableCell className={styles.tableCell}>
-                      <StatusPill
-                        status={mapStatusToPill(doc.status)}
-                        label={doc.status}
-                        size="sm"
-                      />
+                      <StatusPill status={mapStatusToPill(doc.status)} label={doc.status} size="sm" />
                     </TableCell>
 
                     <TableCell className={styles.tableCell}>
                       <Menu>
                         <MenuTrigger disableButtonEnhancement>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            aria-label="More options"
-                          >
+                          <button type="button" className={styles.actionButton} aria-label="More options">
                             <MoreVerticalRegular />
                           </button>
                         </MenuTrigger>
                         <MenuPopover>
                           <MenuList>
-                            <MenuItem
-                              icon={<Eye20Regular />}
-                              onClick={() => viewDoc(doc)}
-                            >
+                            <MenuItem icon={<Eye20Regular />} onClick={() => viewDoc(doc)}>
                               View
                             </MenuItem>
-                            <MenuItem
-                              icon={<ArrowDownload20Regular />}
-                              onClick={() => downloadDoc(doc)}
-                            >
+                            <MenuItem icon={<ArrowDownload20Regular />} onClick={() => downloadDoc(doc)}>
                               Download
                             </MenuItem>
                             <MenuItem
@@ -873,9 +778,7 @@ export function DocumentManagement() {
                             </MenuItem>
                             <MenuItem
                               icon={<Delete20Regular />}
-                              style={{
-                                color: tokens.colorPaletteRedForeground1,
-                              }}
+                              style={{ color: tokens.colorPaletteRedForeground1 }}
                               onClick={() => void deleteDoc(doc)}
                             >
                               Delete
@@ -891,14 +794,7 @@ export function DocumentManagement() {
               {!loading && docs.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className={styles.tableCell}>
-                    <Text
-                      style={{
-                        display: "block",
-                        textAlign: "center",
-                        padding: "16px 0",
-                        color: "#6B7280",
-                      }}
-                    >
+                    <Text style={{ display: "block", textAlign: "center", padding: "16px 0", color: "#6B7280" }}>
                       No documents found.
                     </Text>
                   </TableCell>
@@ -911,18 +807,10 @@ export function DocumentManagement() {
 
       <Card className={styles.uploadCard} onClick={openFilePicker}>
         <div className={styles.uploadIconCircle}>
-          {uploading ? (
-            <Spinner size="small" />
-          ) : (
-            <CloudArrowUp20Regular style={{ color: "#0118D8", fontSize: 28 }} />
-          )}
+          {uploading ? <Spinner size="small" /> : <CloudArrowUp20Regular style={{ color: "#0118D8", fontSize: 28 }} />}
         </div>
-        <div className={styles.uploadTitle}>
-          Drop files here or click to upload
-        </div>
-        <div className={styles.uploadSubtitle}>
-          Supports: PDF, DOC, DOCX, JPG, PNG (Max 10MB)
-        </div>
+        <div className={styles.uploadTitle}>Drop files here or click to upload</div>
+        <div className={styles.uploadSubtitle}>Supports: PDF, DOC, DOCX, JPG, PNG (Max 10MB)</div>
         <Button
           appearance="primary"
           size="small"

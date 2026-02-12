@@ -3,53 +3,60 @@ import { Schema, model, Types } from "mongoose";
 export type DocumentStatus = "PENDING" | "VERIFIED" | "COMPLETED" | "SIGNED";
 
 export interface DocumentDoc {
-    _id: Types.ObjectId;
+  _id: Types.ObjectId;
 
-    ownerUserId: Types.ObjectId;
-    uploadedByUserId: Types.ObjectId;
+  ownerUserId: Types.ObjectId;
+  uploadedByUserId: Types.ObjectId;
 
-    jobId?: Types.ObjectId;
-    applicationId?: Types.ObjectId;
+  jobId?: Types.ObjectId;
+  applicationId?: Types.ObjectId;
 
-    name: string;
-    type: string;
-    category: string;
+  name: string;
+  type: string;
+  category: string;
 
-    mimeType: string;
-    sizeBytes: number;
+  mimeType: string;
+  sizeBytes: number;
 
-    gridFsId: Types.ObjectId;
-    bucketName: string;
+  // Cloudinary migration: make optional (legacy GridFS support)
+  gridFsId?: Types.ObjectId;
+  bucketName?: string;
 
-    fileUrl: string;
-    status: DocumentStatus;
+  fileUrl: string;
+  status: DocumentStatus;
 
-    createdAt: Date;
-    updatedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const docSchema = new Schema<DocumentDoc>(
-    {
-        ownerUserId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-        uploadedByUserId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+  {
+    ownerUserId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    uploadedByUserId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
 
-        jobId: { type: Schema.Types.ObjectId, ref: "Job" },
-        applicationId: { type: Schema.Types.ObjectId, ref: "Application" },
+    jobId: { type: Schema.Types.ObjectId, ref: "Job" },
+    applicationId: { type: Schema.Types.ObjectId, ref: "Application" },
 
-        name: { type: String, required: true },
-        type: { type: String, required: true, index: true },
-        category: { type: String, required: true, index: true },
+    name: { type: String, required: true },
+    type: { type: String, required: true, index: true },
+    category: { type: String, required: true, index: true },
 
-        mimeType: { type: String, required: true },
-        sizeBytes: { type: Number, required: true },
+    mimeType: { type: String, required: true },
+    sizeBytes: { type: Number, required: true },
 
-        gridFsId: { type: Schema.Types.ObjectId, required: true, index: true },
-        bucketName: { type: String, required: true, default: "docs" },
+    // was required:true -> must be optional now
+    gridFsId: { type: Schema.Types.ObjectId, required: false, index: true },
+    bucketName: { type: String, required: false, default: "docs" },
 
-        fileUrl: { type: String, required: true },
-        status: { type: String, enum: ["PENDING", "VERIFIED", "COMPLETED", "SIGNED"], default: "PENDING", index: true },
+    fileUrl: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ["PENDING", "VERIFIED", "COMPLETED", "SIGNED"],
+      default: "PENDING",
+      index: true,
     },
-    { timestamps: true }
+  },
+  { timestamps: true }
 );
 
 docSchema.index({ ownerUserId: 1, createdAt: -1 });
