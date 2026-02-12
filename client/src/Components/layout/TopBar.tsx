@@ -11,6 +11,7 @@ import {
   MenuList,
   MenuItem,
   Spinner,
+  tokens,
 } from "@fluentui/react-components";
 import {
   ChevronDownRegular,
@@ -34,6 +35,14 @@ type TopBarProps = {
   onSignOut?: () => void;
 
   onNavigate?: (page: string, data?: Record<string, unknown>) => void;
+
+  navigateTo?: (path: string) => void;
+
+  routes?: {
+    myAccount?: string;
+    profileSettings?: string;
+    preferences?: string;
+  };
 };
 
 type MeResponse = {
@@ -196,6 +205,8 @@ export function TopBar({
   onPreferences,
   onSignOut,
   onNavigate,
+  navigateTo,
+  routes,
 }: TopBarProps) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -219,6 +230,27 @@ export function TopBar({
   const [results, setResults] = useState<SearchItem[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const resolvedRoutes = useMemo(
+    () => ({
+      myAccount: routes?.myAccount ?? "/employer/account",
+      profileSettings: routes?.profileSettings ?? "/employer/profile",
+      preferences: routes?.preferences ?? "/employer/preferences",
+    }),
+    [routes],
+  );
+
+  const go = (path: string, fallback?: () => void) => {
+    if (fallback) {
+      fallback();
+      return;
+    }
+    if (navigateTo) {
+      navigateTo(path);
+      return;
+    }
+    window.location.href = path;
+  };
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const isMac = navigator.platform.toUpperCase().includes("MAC");
@@ -239,9 +271,8 @@ export function TopBar({
     const handler = (e: MouseEvent) => {
       const el = searchWrapRef.current;
       if (!el) return;
-      if (e.target instanceof Node && !el.contains(e.target)) {
+      if (e.target instanceof Node && !el.contains(e.target))
         setSearchOpen(false);
-      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -350,7 +381,6 @@ export function TopBar({
 
       setNotifications((prev) => prev.map((n) => ({ ...n, isUnread: false })));
       setUnreadCount(0);
-
       await fetchUnreadCount();
     } catch {
       // ignore
@@ -401,7 +431,6 @@ export function TopBar({
     ];
 
     let lastErr: unknown = null;
-
     for (const fn of candidates) {
       try {
         const r = await fn();
@@ -509,12 +538,22 @@ export function TopBar({
     }
   };
 
+  // ===== theme-aware colors via tokens =====
+  const searchBgIdle = tokens.colorNeutralBackground3;
+  const searchBgFocused = tokens.colorNeutralBackground1;
+  const searchText = tokens.colorNeutralForeground1;
+  const searchSubText = tokens.colorNeutralForeground3;
+  const surfaceBg = tokens.colorNeutralBackground1;
+  const surfaceBorder = tokens.colorNeutralStroke2;
+  const overlayBg = tokens.colorBackgroundOverlay;
+  const dangerText = tokens.colorPaletteRedForeground1;
+
   return (
     <>
       <header
         style={{
-          background: "#fff",
-          borderBottom: "1px solid #eee",
+          background: surfaceBg,
+          borderBottom: `1px solid ${surfaceBorder}`,
           height: 64,
           minHeight: 64,
           display: "flex",
@@ -525,6 +564,7 @@ export function TopBar({
           position: "sticky",
           top: 0,
           zIndex: 1000,
+          color: tokens.colorNeutralForeground1,
         }}
       >
         <div
@@ -584,7 +624,7 @@ export function TopBar({
             <div
               style={{
                 fontSize: 12,
-                color: "#6B7280",
+                color: searchSubText,
                 display: "flex",
                 alignItems: "center",
                 gap: 4,
@@ -598,11 +638,18 @@ export function TopBar({
                     key={`${crumb}-${index}`}
                     style={{ display: "flex", alignItems: "center", gap: 4 }}
                   >
-                    {index > 0 && <span style={{ color: "#9CA3AF" }}>/</span>}
+                    {index > 0 && (
+                      <span style={{ color: tokens.colorNeutralForeground3 }}>
+                        /
+                      </span>
+                    )}
                     <span
                       style={
                         isLast
-                          ? { fontWeight: 500, color: "#111827" }
+                          ? {
+                              fontWeight: 500,
+                              color: tokens.colorNeutralForeground1,
+                            }
                           : undefined
                       }
                     >
@@ -631,7 +678,7 @@ export function TopBar({
                 top: "50%",
                 transform: "translateY(-50%)",
                 fontSize: 16,
-                color: "#5B6475",
+                color: tokens.colorNeutralForeground3,
                 pointerEvents: "none",
                 zIndex: 1,
               }}
@@ -655,12 +702,15 @@ export function TopBar({
                 paddingLeft: 36,
                 height: 36,
                 borderRadius: 10,
-                borderColor: searchFocused ? "#0118D8" : "transparent",
-                backgroundColor: searchFocused ? "#ffffff" : "#F3F4F6",
+                borderColor: searchFocused
+                  ? tokens.colorBrandStroke1
+                  : "transparent",
+                backgroundColor: searchFocused ? searchBgFocused : searchBgIdle,
                 boxShadow: searchFocused
-                  ? "0 0 0 2px rgba(1, 24, 216, 0.35)"
+                  ? `0 0 0 2px ${tokens.colorBrandStroke2}`
                   : "none",
                 transition: "all 0.25s ease",
+                color: searchText,
               }}
             />
 
@@ -675,10 +725,10 @@ export function TopBar({
                     top: 44,
                     left: 0,
                     width: "100%",
-                    background: "#fff",
-                    border: "1px solid rgba(2,6,23,0.10)",
+                    background: surfaceBg,
+                    border: `1px solid ${surfaceBorder}`,
                     borderRadius: 14,
-                    boxShadow: "0 16px 40px rgba(2,6,23,0.12)",
+                    boxShadow: tokens.shadow16,
                     overflow: "hidden",
                     zIndex: 1200,
                   }}
@@ -686,10 +736,10 @@ export function TopBar({
                   <div
                     style={{
                       padding: "10px 12px",
-                      borderBottom: "1px solid rgba(2,6,23,0.06)",
+                      borderBottom: `1px solid ${surfaceBorder}`,
                     }}
                   >
-                    <Text size={200} style={{ color: "#6B7280" }}>
+                    <Text size={200} style={{ color: searchSubText }}>
                       {searchLoading
                         ? "Searching..."
                         : searchError
@@ -710,7 +760,7 @@ export function TopBar({
                       }}
                     >
                       <Spinner size="tiny" />
-                      <Text size={200} style={{ color: "#6B7280" }}>
+                      <Text size={200} style={{ color: searchSubText }}>
                         Fetching matches…
                       </Text>
                     </div>
@@ -718,7 +768,7 @@ export function TopBar({
 
                   {!searchLoading && !!searchError && (
                     <div style={{ padding: 12 }}>
-                      <Text size={200} style={{ color: "#dc2626" }}>
+                      <Text size={200} style={{ color: dangerText }}>
                         {searchError}
                       </Text>
                     </div>
@@ -742,9 +792,9 @@ export function TopBar({
                               padding: "10px 12px",
                               cursor: "pointer",
                               background: active
-                                ? "rgba(15,91,255,0.06)"
-                                : "#fff",
-                              borderBottom: "1px solid rgba(2,6,23,0.06)",
+                                ? tokens.colorNeutralBackground1Hover
+                                : surfaceBg,
+                              borderBottom: `1px solid ${surfaceBorder}`,
                               display: "flex",
                               alignItems: "flex-start",
                               gap: 10,
@@ -771,7 +821,7 @@ export function TopBar({
                                 style={{
                                   fontSize: 13,
                                   fontWeight: 600,
-                                  color: "#111827",
+                                  color: tokens.colorNeutralForeground1,
                                   whiteSpace: "nowrap",
                                   overflow: "hidden",
                                   textOverflow: "ellipsis",
@@ -783,7 +833,7 @@ export function TopBar({
                                 <div
                                   style={{
                                     fontSize: 12,
-                                    color: "#6B7280",
+                                    color: searchSubText,
                                     whiteSpace: "nowrap",
                                     overflow: "hidden",
                                     textOverflow: "ellipsis",
@@ -805,7 +855,7 @@ export function TopBar({
                     query.trim().length > 0 &&
                     results.length === 0 && (
                       <div style={{ padding: 12 }}>
-                        <Text size={200} style={{ color: "#6B7280" }}>
+                        <Text size={200} style={{ color: searchSubText }}>
                           No matches for “{query.trim()}”.
                         </Text>
                       </div>
@@ -826,6 +876,7 @@ export function TopBar({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              color: tokens.colorNeutralForeground1,
             }}
           >
             <Alert24Regular />
@@ -870,7 +921,7 @@ export function TopBar({
                   <Text weight="semibold" size={200}>
                     {acctLabel}
                   </Text>
-                  <Text size={100} style={{ color: "#6B7280" }}>
+                  <Text size={100} style={{ color: searchSubText }}>
                     {userEmail}
                   </Text>
                 </div>
@@ -880,17 +931,29 @@ export function TopBar({
 
             <MenuPopover>
               <MenuList>
-                <MenuItem onClick={onMyAccount}>My Account</MenuItem>
-                <MenuItem onClick={onProfileSettings}>
+                <MenuItem
+                  onClick={() => go(resolvedRoutes.myAccount, onMyAccount)}
+                >
+                  My Account
+                </MenuItem>
+                <MenuItem
+                  onClick={() =>
+                    go(resolvedRoutes.profileSettings, onProfileSettings)
+                  }
+                >
                   Profile Settings
                 </MenuItem>
-                <MenuItem onClick={onPreferences}>Preferences</MenuItem>
+                <MenuItem
+                  onClick={() => go(resolvedRoutes.preferences, onPreferences)}
+                >
+                  Preferences
+                </MenuItem>
 
                 <MenuItem
                   onClick={onSignOut}
                   style={{
-                    color: "#dc2626",
-                    borderTop: "1px solid #eee",
+                    color: tokens.colorPaletteRedForeground1,
+                    borderTop: `1px solid ${surfaceBorder}`,
                     marginTop: 4,
                     paddingTop: 8,
                   }}
@@ -908,7 +971,7 @@ export function TopBar({
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(15,23,42,0.35)",
+            backgroundColor: overlayBg,
             display: "flex",
             justifyContent: "flex-end",
             zIndex: 1300,
@@ -920,12 +983,13 @@ export function TopBar({
               height: "100vh",
               width: 360,
               maxWidth: "100%",
-              backgroundColor: "#FFF7F7",
-              boxShadow: "-8px 0 24px rgba(15,23,42,0.18)",
+              backgroundColor: surfaceBg,
+              boxShadow: tokens.shadow28,
               padding: "16px 16px 24px 16px",
               display: "flex",
               flexDirection: "column",
               boxSizing: "border-box",
+              color: tokens.colorNeutralForeground1,
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -954,9 +1018,9 @@ export function TopBar({
                     minWidth: 25,
                     height: 25,
                     padding: 0,
-                    border: "1px solid #4F46E5",
-                    color: "#4F46E5",
-                    backgroundColor: "#F9FAFF",
+                    border: `1px solid ${tokens.colorBrandStroke1}`,
+                    color: tokens.colorBrandForeground1,
+                    backgroundColor: tokens.colorNeutralBackground2,
                   }}
                   onClick={() => setShowNotifications(false)}
                 />
@@ -965,7 +1029,7 @@ export function TopBar({
 
             <Text
               size={200}
-              style={{ color: "#6B7280", fontSize: 12, marginBottom: 16 }}
+              style={{ color: searchSubText, fontSize: 12, marginBottom: 16 }}
             >
               You have <b>{unreadCount} unread notifications</b>
             </Text>
@@ -991,9 +1055,11 @@ export function TopBar({
                       position: "relative",
                       padding: "12px 14px",
                       borderRadius: 16,
-                      backgroundColor: n.isUnread ? "#EEF4FF" : "#ffffff",
-                      border: `1px solid ${n.isUnread ? "#BFDBFE" : "#E5E7EB"}`,
-                      boxShadow: "0 8px 20px rgba(15,23,42,0.04)",
+                      backgroundColor: n.isUnread
+                        ? tokens.colorNeutralBackground2
+                        : surfaceBg,
+                      border: `1px solid ${surfaceBorder}`,
+                      boxShadow: tokens.shadow4,
                       cursor: n.link ? "pointer" : "default",
                     }}
                     onClick={() => {
@@ -1009,7 +1075,7 @@ export function TopBar({
                           width: 8,
                           height: 8,
                           borderRadius: "999px",
-                          backgroundColor: "#1D4ED8",
+                          backgroundColor: tokens.colorBrandForeground1,
                         }}
                       />
                     )}
@@ -1017,7 +1083,7 @@ export function TopBar({
                       style={{
                         fontSize: 13,
                         fontWeight: 600,
-                        color: "#111827",
+                        color: tokens.colorNeutralForeground1,
                         marginBottom: 4,
                       }}
                     >
@@ -1026,20 +1092,22 @@ export function TopBar({
                     <div
                       style={{
                         fontSize: 12,
-                        color: "#4B5563",
+                        color: tokens.colorNeutralForeground2,
                         marginBottom: 8,
                       }}
                     >
                       {n.description}
                     </div>
-                    <div style={{ fontSize: 11, color: "#9CA3AF" }}>
+                    <div style={{ fontSize: 11, color: searchSubText }}>
                       {n.timeAgo}
                     </div>
                   </div>
                 ))}
 
                 {notifications.length === 0 && (
-                  <div style={{ padding: 12, color: "#6B7280", fontSize: 13 }}>
+                  <div
+                    style={{ padding: 12, color: searchSubText, fontSize: 13 }}
+                  >
                     No notifications.
                   </div>
                 )}

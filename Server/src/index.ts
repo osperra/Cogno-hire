@@ -1,4 +1,4 @@
-import "dotenv/config"; 
+import "dotenv/config";
 
 import express, { type Request, type Response } from "express";
 import cors from "cors";
@@ -24,6 +24,8 @@ import { onboardingRouter } from "./routes/onboarding.js";
 import { aiJobDescriptionRouter } from "./routes/aiJobDescriptionRouter.js";
 import { aiInterviewRouter } from "./routes/aiInterviewRouter.js";
 import { searchRouter } from "./routes/search.js";
+import { accountRouter } from "./routes/account.js";
+
 
 
 const app = express();
@@ -61,6 +63,9 @@ app.use("/api/onboarding", onboardingRouter);
 app.use("/api/ai", aiJobDescriptionRouter);
 app.use("/api/ai", aiInterviewRouter);
 app.use("/api", searchRouter);
+app.use("/api/account", accountRouter);
+
+
 
 
 
