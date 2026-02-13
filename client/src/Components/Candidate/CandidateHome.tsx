@@ -25,6 +25,8 @@ import {
   Warning20Regular,
   PlayRegular,
   DataHistogram20Regular,
+  Dismiss20Regular,
+  ChevronRight20Regular,
 } from "@fluentui/react-icons";
 
 import { AnimatedStats } from "../ui/AnimatedStats";
@@ -39,21 +41,50 @@ interface CandidateHomeProps {
   onNavigate: (page: string, data?: Record<string, unknown>) => void;
 }
 
-type ApplicationStatus = "Pending" | "Interview Completed" | "Hired";
+/** -----------------------------
+ *  Jobs types (reuse CandidateJobs API)
+ *  ----------------------------- */
+type SalaryRangeDb =
+  | string
+  | {
+      start?: number;
+      end?: number;
+      currency?: string;
+    };
 
-interface Application {
-  id: number;
-  company: string;
-  companyLogo: string;
+type InterviewSettingsDb = {
+  difficultyLevel?: string;
+};
+
+type JobFromDB = {
+  _id: string;
+  company?: string;
+  companyName?: string;
   title: string;
-  appliedDate: string;
-  status: ApplicationStatus;
-  interviewStatus: "Not Started" | "Completed";
-  score?: number | null;
-}
+  location?: string;
+  workType?: string;
+  jobType?: string;
+  salaryRange?: SalaryRangeDb;
+  workExperience?: number;
+  techStack?: string[];
+  skills?: string[];
+  interviewSettings?: InterviewSettingsDb;
+  difficultyLevel?: string;
+  difficulty?: string;
+  createdAt?: string;
+  status?: "draft" | "open" | "closed";
+  isActive?: boolean;
+};
 
-interface JobCardItem {
-  id: number;
+type JobsResponse = {
+  items: JobFromDB[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+type JobCardItem = {
+  id: string;
   company: string;
   companyLogo: string;
   title: string;
@@ -61,107 +92,99 @@ interface JobCardItem {
   type: string;
   ctc: string;
   match: number;
-}
+};
 
-type TabValue = "recommended" | "invited";
-type JsonObject = Record<string, unknown>;
+/** -----------------------------
+ *  Applications types (reuse CandidateApplications API)
+ *  ----------------------------- */
+type HiringStatusApi =
+  | "PENDING"
+  | "INVITED"
+  | "UNDER_REVIEW"
+  | "SHORTLISTED"
+  | "HIRED"
+  | "REJECTED";
 
-function isRecord(v: unknown): v is JsonObject {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-function getString(v: unknown): string {
-  return typeof v === "string" ? v.trim() : "";
-}
-function getNumber(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-function getPath(obj: unknown, path: string[]): unknown {
-  let cur: unknown = obj;
-  for (const key of path) {
-    if (!isRecord(cur)) return undefined;
-    cur = cur[key];
-  }
-  return cur;
-}
+type InterviewStatusApi = "PENDING" | "IN_PROGRESS" | "COMPLETED";
 
-function pickNameFromMe(me: unknown): string {
-  const direct =
-    getString(getPath(me, ["name"])) ||
-    getString(getPath(me, ["fullName"])) ||
-    getString(getPath(me, ["username"])) ||
-    getString(getPath(me, ["displayName"])) ||
-    getString(getPath(me, ["email"]));
-  if (direct) return direct;
+type JobPopulated =
+  | string
+  | {
+      _id: string;
+      title?: string;
+      company?: string;
+      location?: string;
+    };
 
-  const nested =
-    getString(getPath(me, ["user", "name"])) ||
-    getString(getPath(me, ["user", "fullName"])) ||
-    getString(getPath(me, ["user", "username"])) ||
-    getString(getPath(me, ["user", "displayName"])) ||
-    getString(getPath(me, ["user", "email"])) ||
-    getString(getPath(me, ["data", "name"])) ||
-    getString(getPath(me, ["data", "fullName"])) ||
-    getString(getPath(me, ["data", "username"])) ||
-    getString(getPath(me, ["data", "user", "name"])) ||
-    getString(getPath(me, ["profile", "name"])) ||
-    getString(getPath(me, ["profile", "fullName"]));
+type ApplicationFromApi = {
+  _id: string;
+  jobId: JobPopulated;
+  hiringStatus: HiringStatusApi;
+  interviewStatus: InterviewStatusApi;
+  overallScore?: number;
+  createdAt: string;
+};
 
-  return nested;
-}
+type CandidateCountsResponse = {
+  all: number;
+  pending: number;
+  hired: number;
+  rejected: number;
+};
 
-function getToken(): string | null {
-  return localStorage.getItem("token") || sessionStorage.getItem("token");
-}
+type ApplicationStatus =
+  | "Pending Interview"
+  | "Under Review"
+  | "Hired"
+  | "Rejected"
+  | "Shortlisted";
+type InterviewStatus = "Not Started" | "In Progress" | "Completed";
 
-function parseJwtPayload(token: string): JsonObject | null {
-  try {
-    const part = token.split(".")[1];
-    if (!part) return null;
+type Application = {
+  id: string;
+  company: string;
+  companyLogo: string;
+  title: string;
+  appliedDate: string;
+  /** Keep ISO for sorting without parsing formatted date */
+  createdAtIso: string;
+  status: ApplicationStatus;
+  interviewStatus: InterviewStatus;
+  score?: number | null;
+};
 
-    const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
+/** -----------------------------
+ *  Me + profile completion
+ *  ----------------------------- */
+type CandidateMe = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  headline?: string;
+  about?: string;
+  experienceLevel?: string;
+  skills?: string[];
+  resumeUrl?: string;
+  resumeDocId?: string;
+};
 
-    const parsed: unknown = JSON.parse(jsonPayload);
-    return isRecord(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
+type ProfileTaskKey =
+  | "experience"
+  | "resume"
+  | "skills"
+  | "headline"
+  | "location"
+  | "about";
 
-function pickNameFromToken(): string {
-  const token = getToken();
-  if (!token) return "";
-  const payload = parseJwtPayload(token);
-  if (!payload) return "";
-
-  return (
-    getString(payload["name"]) ||
-    getString(payload["fullName"]) ||
-    getString(payload["username"]) ||
-    getString(payload["email"]) ||
-    getString(payload["sub"])
-  );
-}
-
-function formatAppliedDate(v: string): string {
-  const looksIso = /^\d{4}-\d{2}-\d{2}T/.test(v);
-  if (!looksIso) return v;
-
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return v;
-
-  return d.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  });
-}
-
+type ProfileTask = {
+  key: ProfileTaskKey;
+  title: string;
+  subtitle: string;
+  done: boolean;
+  actionText: string;
+  onClick: () => void;
+};
 
 type DashboardStats = {
   totalApplications: number;
@@ -180,74 +203,16 @@ type CandidateDashboard = {
   recentApplications: Application[];
 };
 
-function safeArray(v: unknown): unknown[] {
-  return Array.isArray(v) ? v : [];
+/** -----------------------------
+ *  Helpers
+ *  ----------------------------- */
+type JsonObject = Record<string, unknown>;
+function isRecord(v: unknown): v is JsonObject {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
-
-function parseJobList(v: unknown): JobCardItem[] {
-  return safeArray(v)
-    .map((x) => {
-      if (!isRecord(x)) return null;
-
-      const id = getNumber(x["id"]);
-      const company = getString(x["company"]);
-      const companyLogo = getString(x["companyLogo"]);
-      const title = getString(x["title"]);
-      const location = getString(x["location"]);
-      const type = getString(x["type"]);
-      const ctc = getString(x["ctc"]);
-      const match = getNumber(x["match"]);
-
-      if (id == null || !company || !companyLogo || !title) return null;
-
-      return {
-        id,
-        company,
-        companyLogo,
-        title,
-        location: location || "-",
-        type: type || "-",
-        ctc: ctc || "-",
-        match: match ?? 0,
-      } as JobCardItem;
-    })
-    .filter(Boolean) as JobCardItem[];
+function getString(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
 }
-
-function parseApplications(v: unknown): Application[] {
-  return safeArray(v)
-    .map((x) => {
-      if (!isRecord(x)) return null;
-
-      const id = getNumber(x["id"]);
-      const company = getString(x["company"]);
-      const companyLogo = getString(x["companyLogo"]);
-      const title = getString(x["title"]);
-      const appliedDate = getString(x["appliedDate"]);
-      const status = getString(x["status"]) as ApplicationStatus;
-      const interviewStatus = getString(x["interviewStatus"]) as
-        | "Not Started"
-        | "Completed";
-
-      const scoreRaw = x["score"];
-      const score = getNumber(scoreRaw);
-
-      if (id == null || !company || !companyLogo || !title) return null;
-
-      return {
-        id,
-        company,
-        companyLogo,
-        title,
-        appliedDate: appliedDate || "-",
-        status: status || "Pending",
-        interviewStatus: interviewStatus || "Not Started",
-        score: scoreRaw === null ? null : score,
-      } as Application;
-    })
-    .filter(Boolean) as Application[];
-}
-
 function unwrapData(raw: unknown): JsonObject {
   const root = isRecord(raw) ? raw : {};
   const d1 = isRecord(root["data"]) ? (root["data"] as JsonObject) : null;
@@ -255,79 +220,218 @@ function unwrapData(raw: unknown): JsonObject {
   return (d2 || d1 || root) as JsonObject;
 }
 
-function parseDashboard(raw: unknown): CandidateDashboard {
-  const data = unwrapData(raw);
-
-  const me = data["me"] ?? data["user"] ?? data["profile"];
-  const displayName = pickNameFromMe(me) || pickNameFromToken();
-
-  const profileCompletion =
-    getNumber(data["profileCompletion"]) ??
-    getNumber(getPath(data, ["profile", "completion"])) ??
-    getNumber(getPath(data, ["profile", "profileCompletion"])) ??
-    0;
-
-  const recommendedJobs = parseJobList(
-    data["recommendedJobs"] ?? data["recommended"] ?? data["recommendations"]
+function getToken(): string | null {
+  return localStorage.getItem("token") || sessionStorage.getItem("token");
+}
+function parseJwtPayload(token: string): JsonObject | null {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(""),
+    );
+    const parsed: unknown = JSON.parse(jsonPayload);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function pickNameFromToken(): string {
+  const token = getToken();
+  if (!token) return "";
+  const payload = parseJwtPayload(token);
+  if (!payload) return "";
+  return (
+    getString(payload["name"]) ||
+    getString(payload["fullName"]) ||
+    getString(payload["username"]) ||
+    getString(payload["email"]) ||
+    getString(payload["sub"])
   );
+}
 
-  const invitedJobs = parseJobList(
-    data["invitedJobs"] ?? data["invited"] ?? data["invites"]
-  );
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "C";
+  const second = parts.length > 1 ? parts[1]?.[0] : parts[0]?.[1];
+  return (first + (second ?? "O")).toUpperCase();
+}
+function titleCase(s: string) {
+  return s
+    .replace(/[-_]/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+function salaryToText(sr?: SalaryRangeDb): string {
+  if (!sr) return "-";
+  if (typeof sr === "string") return sr.trim() || "-";
+  const start = typeof sr.start === "number" ? sr.start : undefined;
+  const end = typeof sr.end === "number" ? sr.end : undefined;
+  const cur = sr.currency ? String(sr.currency) : "";
+  if (start != null && end != null) return `${cur}${start} - ${cur}${end}`;
+  if (start != null) return `${cur}${start}+`;
+  if (end != null) return `${cur}Up to ${end}`;
+  return "-";
+}
 
-  const recentApplications = parseApplications(
-    data["recentApplications"] ?? data["applications"] ?? data["recent"]
-  );
-
-  const statsObj = isRecord(data["stats"]) ? (data["stats"] as JsonObject) : {};
-
-  const derivedTotal = recentApplications.length;
-  const derivedPending = recentApplications.filter(
-    (a) => a.interviewStatus === "Not Started"
-  ).length;
-  const derivedOffers = recentApplications.filter((a) => a.status === "Hired")
-    .length;
-
-  const stats: DashboardStats = {
-    totalApplications: getNumber(statsObj["totalApplications"]) ?? derivedTotal,
-    pendingInterviews: getNumber(statsObj["pendingInterviews"]) ?? derivedPending,
-    offersReceived: getNumber(statsObj["offersReceived"]) ?? derivedOffers,
-    newRecommendations:
-      getNumber(statsObj["newRecommendations"]) ?? recommendedJobs.length,
-    invitedCount: getNumber(statsObj["invitedCount"]) ?? invitedJobs.length,
-  };
+/** Same mapping style as CandidateJobs */
+function toHomeJobCard(j: JobFromDB): JobCardItem {
+  const company =
+    (j.companyName ?? j.company ?? "Company").toString().trim() || "Company";
+  const companyLogo = initials(company);
+  const location = (j.location ?? j.workType ?? "-").toString();
+  const type = j.jobType ? titleCase(String(j.jobType)) : "-";
+  const ctc = salaryToText(j.salaryRange);
 
   return {
-    displayName,
-    profileCompletion: Math.max(0, Math.min(100, profileCompletion)),
-    stats,
-    recommendedJobs,
-    invitedJobs,
-    recentApplications,
+    id: j._id,
+    company,
+    companyLogo,
+    title: j.title,
+    location,
+    type,
+    ctc,
+    match: 0, // keep 0 on Home (CandidateJobs computes AI match)
   };
 }
 
-async function tryFetchDashboard(): Promise<unknown> {
-  const candidates = ["/candidate/dashboard", "/api/candidate/dashboard"];
-  let lastError: unknown = null;
+/** Same mapping style as CandidateApplications */
+function formatDate(d: string) {
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return d;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+function getJob(jobId: JobPopulated) {
+  if (typeof jobId === "string")
+    return { title: "Unknown Job", company: "—", location: "—" };
+  return {
+    title: jobId.title ?? "Unknown Job",
+    company: jobId.company ?? "—",
+    location: jobId.location ?? "—",
+  };
+}
+function mapHiringToUI(h: HiringStatusApi): ApplicationStatus {
+  switch (h) {
+    case "HIRED":
+      return "Hired";
+    case "REJECTED":
+      return "Rejected";
+    case "SHORTLISTED":
+      return "Shortlisted";
+    case "UNDER_REVIEW":
+      return "Under Review";
+    case "INVITED":
+    case "PENDING":
+    default:
+      return "Pending Interview";
+  }
+}
+function mapInterviewToUI(i: InterviewStatusApi): InterviewStatus {
+  switch (i) {
+    case "COMPLETED":
+      return "Completed";
+    case "IN_PROGRESS":
+      return "In Progress";
+    case "PENDING":
+    default:
+      return "Not Started";
+  }
+}
+function toHomeApplication(a: ApplicationFromApi): Application {
+  const job = getJob(a.jobId);
+  return {
+    id: a._id,
+    company: job.company,
+    companyLogo: initials(job.company || "Company"),
+    title: job.title,
+    appliedDate: formatDate(a.createdAt),
+    createdAtIso: a.createdAt,
+    status: mapHiringToUI(a.hiringStatus),
+    interviewStatus: mapInterviewToUI(a.interviewStatus),
+    score: typeof a.overallScore === "number" ? a.overallScore : null,
+  };
+}
 
+/** Extract jobs from unknown API response (no any) */
+function extractJobItems(raw: unknown): JobFromDB[] {
+  // direct JobsResponse
+  if (isRecord(raw) && Array.isArray(raw["items"])) {
+    return (raw["items"] as unknown[])
+      .filter((x: unknown) => isRecord(x))
+      .map((x: unknown) => x as JobFromDB);
+  }
+
+  const data = unwrapData(raw);
+
+  const candidates: unknown[] = [];
+  if (Array.isArray(data["items"]))
+    candidates.push(...(data["items"] as unknown[]));
+  if (Array.isArray(data["jobs"]))
+    candidates.push(...(data["jobs"] as unknown[]));
+  if (Array.isArray(data["results"]))
+    candidates.push(...(data["results"] as unknown[]));
+
+  return candidates
+    .filter((x: unknown) => isRecord(x) && typeof x["_id"] === "string")
+    .map((x: unknown) => x as JobFromDB);
+}
+
+/** Me fetch (same idea as your other screens) */
+function normalizeMe(raw: unknown): CandidateMe {
+  const data = unwrapData(raw);
+  const me = (data["me"] ?? data["user"] ?? data["profile"] ?? data) as unknown;
+  const r = isRecord(me) ? me : isRecord(data) ? data : {};
+
+  const skillsRaw = r["skills"];
+  const skills = Array.isArray(skillsRaw)
+    ? skillsRaw.map((x: unknown) => String(x)).filter(Boolean)
+    : [];
+
+  return {
+    name: getString(r["name"]) || getString(r["fullName"]) || undefined,
+    email: getString(r["email"]) || undefined,
+    phone: getString(r["phone"]) || undefined,
+    location: getString(r["location"]) || undefined,
+    headline: getString(r["headline"]) || undefined,
+    about: getString(r["about"]) || undefined,
+    experienceLevel: getString(r["experienceLevel"]) || undefined,
+    skills,
+    resumeUrl: getString(r["resumeUrl"]) || undefined,
+    resumeDocId: getString(r["resumeDocId"]) || undefined,
+  };
+}
+async function tryFetchMe(): Promise<CandidateMe | null> {
+  const candidates = ["/api/candidates/me", "/candidates/me", "/me"];
   for (const path of candidates) {
     try {
-      const res = await api<unknown>(path, {
+      const raw = await api<unknown>(path, {
         method: "GET",
         cache: "no-store",
         credentials: "include",
         headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       });
-      return res;
-    } catch (e) {
-      lastError = e;
+      return normalizeMe(raw);
+    } catch {
+      // try next
     }
   }
-
-  throw lastError;
+  return null;
 }
 
+const PROFILE_BANNER_DISMISS_KEY = "candidate_home_profile_banner_dismissed";
+
+/** -----------------------------
+ *  Styles (unchanged)
+ *  ----------------------------- */
 const useStyles = makeStyles({
   root: {
     display: "flex",
@@ -339,12 +443,9 @@ const useStyles = makeStyles({
     paddingRight: "16px",
     paddingTop: "16px",
     paddingBottom: "24px",
-
     width: "100%",
     maxWidth: "2000px",
-
     margin: "0 auto",
-
     "@media (max-width: 768px)": {
       paddingLeft: "12px",
       paddingRight: "12px",
@@ -381,12 +482,19 @@ const useStyles = makeStyles({
     justifyContent: "space-between",
     alignItems: "flex-start",
     columnGap: tokens.spacingHorizontalXL,
+    "@media (max-width: 768px)": {
+      flexDirection: "column",
+      rowGap: "12px",
+    },
   },
   welcomeText: {
     maxWidth: "70%",
     display: "flex",
     flexDirection: "column",
     rowGap: "4px",
+    "@media (max-width: 768px)": {
+      maxWidth: "100%",
+    },
   },
   browseButton: {
     backgroundImage: "linear-gradient(90deg, #0118D8, #1B56FD)",
@@ -403,7 +511,7 @@ const useStyles = makeStyles({
     border: "1px solid rgba(2,6,23,0.08)",
     backgroundColor: tokens.colorNeutralBackground1,
     boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
-    width: "100%", 
+    width: "100%",
   },
 
   profileHeader: {
@@ -412,6 +520,10 @@ const useStyles = makeStyles({
     alignItems: "flex-start",
     marginBottom: tokens.spacingVerticalM,
     columnGap: tokens.spacingHorizontalXL,
+    "@media (max-width: 768px)": {
+      flexDirection: "column",
+      rowGap: "8px",
+    },
   },
 
   profileHeaderText: {
@@ -427,17 +539,10 @@ const useStyles = makeStyles({
     borderRadius: "9999px",
     backgroundColor: "#e0e7ff",
     overflow: "hidden",
-
     "& .fui-ProgressBar-bar": {
       backgroundColor: "#0044ff",
       borderRadius: "9999px",
     },
-  },
-  profileTaskContent: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-start",
-    rowGap: "1px",
   },
 
   profileTasksGrid: {
@@ -454,52 +559,86 @@ const useStyles = makeStyles({
     borderRadius: "12px",
     border: "1px solid rgba(2,6,23,0.08)",
     backgroundColor: "#FFF8F8",
+    transitionProperty: "transform, box-shadow, border-color",
+    transitionDuration: "160ms",
+    ":hover": {
+      transform: "translateY(-1px)",
+      boxShadow: "0 6px 18px rgba(2,6,23,0.08)",
+    },
   },
 
-  profileTaskIcon: {
-    marginTop: "2px",
+  profileTaskCardDone: {
+    backgroundColor: "#F8FAFC",
+    border: "1px solid rgba(2,6,23,0.06)",
+  },
+
+  profileTaskIcon: { marginTop: "2px", flexShrink: 0 },
+
+  profileTaskContent: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    rowGap: "2px",
+    flex: 1,
+    minWidth: 0,
+  },
+
+  taskRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
     flexShrink: 0,
+    marginLeft: "auto",
   },
 
   linkButton: {
     height: "auto",
-    marginTop: "4px",
+    marginTop: "6px",
     color: "#0118D8",
+    paddingLeft: 0,
   },
 
   statsGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: tokens.spacingHorizontalL,
-    width: "100%", 
+    width: "100%",
   },
 
   mainGrid: {
     display: "grid",
     gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
     gap: tokens.spacingHorizontalXL,
-    width: "100%", 
+    width: "100%",
+    "@media (max-width: 1000px)": { gridTemplateColumns: "1fr" },
+  },
+
+  tabsRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    width: "100%",
   },
 
   tabs: {
-    width: "30%",
-    paddingBottom: "4px",
-    marginBottom: "4px",
-    backgroundColor: "#FFFF",
-    borderRadius: "50px",
+    width: "fit-content",
+    backgroundColor: "#FFFFFF",
+    borderRadius: "999px",
+    padding: "6px",
+    border: "1px solid rgba(2,6,23,0.08)",
   },
 
-  tabsWrapper: {
-    marginTop: tokens.spacingVerticalM,
-    width: "100%", 
-  },
+  viewAllRight: { marginLeft: "auto" },
+
+  tabsWrapper: { width: "100%" },
 
   tabPanels: {
     marginTop: tokens.spacingVerticalM,
     display: "flex",
     flexDirection: "column",
     rowGap: tokens.spacingVerticalM,
-    width: "100%", 
+    width: "100%",
   },
 
   jobCard: {
@@ -522,6 +661,11 @@ const useStyles = makeStyles({
     justifyContent: "space-between",
     alignItems: "center",
     columnGap: tokens.spacingHorizontalXL,
+    "@media (max-width: 768px)": {
+      flexDirection: "column",
+      alignItems: "stretch",
+      rowGap: "12px",
+    },
   },
 
   jobHeaderLeft: {
@@ -571,6 +715,7 @@ const useStyles = makeStyles({
     display: "flex",
     alignItems: "center",
     columnGap: tokens.spacingHorizontalM,
+    "@media (max-width: 768px)": { justifyContent: "space-between" },
   },
 
   jobMatchContainer: {
@@ -584,9 +729,10 @@ const useStyles = makeStyles({
     display: "flex",
     flexWrap: "wrap",
     gap: tokens.spacingHorizontalM,
-    marginLeft: "50px",
+    marginLeft: "60px",
     color: "#5B6475",
     fontSize: tokens.fontSizeBase200,
+    "@media (max-width: 768px)": { marginLeft: 0 },
   },
 
   invitedCard: {
@@ -598,7 +744,7 @@ const useStyles = makeStyles({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: tokens.colorNeutralBackground1,
-    width: "100%", 
+    width: "100%",
   },
 
   invitedIconWrapper: {
@@ -615,9 +761,7 @@ const useStyles = makeStyles({
   browseAllJobsButton: {
     width: "auto",
     backgroundColor: "rgba(252, 241, 241, 1)",
-    ":hover": {
-      backgroundColor: "#E9DFC3",
-    },
+    ":hover": { backgroundColor: "#E9DFC3" },
   },
 
   applicationsCard: {
@@ -625,8 +769,9 @@ const useStyles = makeStyles({
     border: "1px solid rgba(2,6,23,0.08)",
     backgroundColor: tokens.colorNeutralBackground1,
     boxShadow: "0 1px 0 rgba(2,6,23,0.05), 0 6px 20px rgba(2,6,23,0.06)",
-    width: "100%", 
+    width: "100%",
     marginTop: tokens.spacingVerticalXXL,
+    padding: tokens.spacingHorizontalXL,
   },
 
   applicationsHeader: {
@@ -635,27 +780,15 @@ const useStyles = makeStyles({
     justifyContent: "space-between",
     marginBottom: tokens.spacingVerticalM,
   },
-  applicationsTable: {
-    minWidth: "980px",
-    borderCollapse: "collapse",
-  },
-  actionsCell: {
-    whiteSpace: "nowrap",
-  },
 
-  statusCell: {
-    whiteSpace: "nowrap",
-  },
+  applicationsTable: { minWidth: "980px", borderCollapse: "collapse" },
 
-  iconInline: {
-    marginRight: "6px",
-    fontSize: "16px",
-  },
+  actionsCell: { whiteSpace: "nowrap" },
+  statusCell: { whiteSpace: "nowrap" },
 
-  tableWrapper: {
-    width: "100%",
-    overflowX: "auto",
-  },
+  iconInline: { marginRight: "6px", fontSize: "16px" },
+
+  tableWrapper: { width: "100%", overflowX: "auto" },
   tableHeaderRow: {
     backgroundImage:
       "linear-gradient(90deg, rgba(1,24,216,0.06), rgba(27,86,253,0.06))",
@@ -680,28 +813,14 @@ const useStyles = makeStyles({
     flexShrink: 0,
   },
 
-  tableRowHover: {
-    ":hover": {
-      backgroundColor: "#F3F4F6",
-    },
-  },
-  scoreCell: {
-    whiteSpace: "nowrap",
-  },
+  tableRowHover: { ":hover": { backgroundColor: "#F3F4F6" } },
+  scoreCell: { whiteSpace: "nowrap" },
 
-  mobileLabel: {
-    display: "none",
-  },
+  mobileLabel: { display: "none" },
 
   "@media (max-width: 900px)": {
-    tableWrapper: {
-      overflowX: "visible",
-    },
-
-    tableHeaderRow: {
-      display: "none",
-    },
-
+    tableWrapper: { overflowX: "visible" },
+    tableHeaderRow: { display: "none" },
     tableRowHover: {
       display: "flex",
       flexDirection: "column",
@@ -710,7 +829,6 @@ const useStyles = makeStyles({
       border: "1px solid rgba(2, 6, 23, 0.08)",
       marginBottom: "12px",
       backgroundColor: "#FFFFFF",
-
       "& td": {
         display: "flex",
         justifyContent: "space-between",
@@ -718,12 +836,8 @@ const useStyles = makeStyles({
         padding: "8px 0",
         borderBottom: "1px solid #F1F1F1",
       },
-
-      "& td:last-child": {
-        borderBottom: "none",
-      },
+      "& td:last-child": { borderBottom: "none" },
     },
-
     mobileLabel: {
       display: "inline-block",
       fontWeight: 600,
@@ -735,12 +849,25 @@ const useStyles = makeStyles({
   },
 });
 
+type TabValue = "recommended" | "invited";
+
 export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
   const styles = useStyles();
 
   const [selectedTab, setSelectedTab] = React.useState<TabValue>("recommended");
   const [loading, setLoading] = React.useState<boolean>(true);
   const [softError, setSoftError] = React.useState<string>("");
+
+  const [me, setMe] = React.useState<CandidateMe | null>(null);
+
+  const [profileBannerDismissed, setProfileBannerDismissed] =
+    React.useState<boolean>(() => {
+      try {
+        return localStorage.getItem(PROFILE_BANNER_DISMISS_KEY) === "1";
+      } catch {
+        return false;
+      }
+    });
 
   const [dashboard, setDashboard] = React.useState<CandidateDashboard>(() => ({
     displayName: "",
@@ -757,57 +884,222 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
     recentApplications: [],
   }));
 
+  const dismissProfileBanner = () => {
+    setProfileBannerDismissed(true);
+    try {
+      localStorage.setItem(PROFILE_BANNER_DISMISS_KEY, "1");
+    } catch {
+      // ignore
+    }
+  };
+
+  const computeProfileCompletion = React.useCallback(
+    (m: CandidateMe | null) => {
+      const hasSkills = (m?.skills?.length ?? 0) >= 5;
+      const hasResume = Boolean(m?.resumeUrl || m?.resumeDocId);
+      const hasExperience = Boolean(
+        m?.experienceLevel && m.experienceLevel.trim(),
+      );
+      const hasHeadline = Boolean(m?.headline && m.headline.trim());
+      const hasLocation = Boolean(m?.location && m.location.trim());
+      const hasAbout = Boolean(m?.about && m.about.trim());
+
+      const total = 6;
+      const done = [
+        hasSkills,
+        hasResume,
+        hasExperience,
+        hasHeadline,
+        hasLocation,
+        hasAbout,
+      ].filter(Boolean).length;
+
+      return Math.round((done / total) * 100);
+    },
+    [],
+  );
+
+  const fetchRecommendedJobs = React.useCallback(async () => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("limit", "2");
+    params.set("sort", "recent");
+    params.set("includeAll", "1");
+
+    const url = `/api/jobs?${params.toString()}`;
+    const res = await api<JobsResponse>(url, {
+      cache: "no-store",
+      credentials: "include",
+    });
+
+    const items = res?.items ?? [];
+    return items.map(toHomeJobCard);
+  }, []);
+
+  const fetchInvitedJobs = React.useCallback(async () => {
+    /**
+     * Backend-specific:
+     * If you already have an invited jobs route, replace these candidates.
+     */
+    const candidates = [
+      () => {
+        const p = new URLSearchParams();
+        p.set("page", "1");
+        p.set("limit", "2");
+        p.set("includeAll", "1");
+        p.set("invited", "1");
+        return `/api/jobs?${p.toString()}`;
+      },
+      () => "/api/jobs/invited?limit=2",
+      () => "/api/candidate/jobs/invited?limit=2",
+    ];
+
+    let lastErr: unknown = null;
+    for (const makeUrl of candidates) {
+      try {
+        const url = makeUrl();
+        const raw = await api<unknown>(url, {
+          cache: "no-store",
+          credentials: "include",
+        });
+
+        const items = extractJobItems(raw);
+        return items.slice(0, 2).map(toHomeJobCard);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+
+    throw lastErr;
+  }, []);
+
+  const fetchRecentApplications = React.useCallback(async () => {
+    const qs = new URLSearchParams();
+    qs.set("tab", "all");
+
+    const data = await api<ApplicationFromApi[]>(
+      `/api/applications/me?${qs.toString()}`,
+      { cache: "no-store", credentials: "include" },
+    );
+
+    const list = (data ?? []).map(toHomeApplication);
+
+    // newest first using ISO timestamp (NOT formatted date)
+    const sorted = [...list].sort((a, b) => {
+      const da = new Date(a.createdAtIso).getTime();
+      const db = new Date(b.createdAtIso).getTime();
+      if (Number.isNaN(da) || Number.isNaN(db)) return 0;
+      return db - da;
+    });
+
+    return sorted.slice(0, 5);
+  }, []);
+
+  const fetchCounts =
+    React.useCallback(async (): Promise<CandidateCountsResponse> => {
+      try {
+        const c = await api<CandidateCountsResponse>(
+          "/api/applications/candidate/counts",
+          { cache: "no-store", credentials: "include" },
+        );
+        return {
+          all: c?.all ?? 0,
+          pending: c?.pending ?? 0,
+          hired: c?.hired ?? 0,
+          rejected: c?.rejected ?? 0,
+        };
+      } catch {
+        return { all: 0, pending: 0, hired: 0, rejected: 0 };
+      }
+    }, []);
+
+  const refreshAll = React.useCallback(async () => {
+    const m = await tryFetchMe();
+    const displayName = m?.name?.trim() || pickNameFromToken();
+
+    const profileCompletion = computeProfileCompletion(m);
+
+    const [recommended, recentApps, counts] = await Promise.all([
+      fetchRecommendedJobs().catch(() => [] as JobCardItem[]),
+      fetchRecentApplications().catch(() => [] as Application[]),
+      fetchCounts(),
+    ]);
+
+    let invited: JobCardItem[] = [];
+    let invitedCount = 0;
+    try {
+      invited = await fetchInvitedJobs();
+      invitedCount = invited.length;
+    } catch {
+      invited = [];
+      invitedCount = 0;
+    }
+
+    const pendingInterviews = recentApps.filter(
+      (a) => a.interviewStatus !== "Completed",
+    ).length;
+
+    setMe(m);
+    setDashboard({
+      displayName,
+      profileCompletion,
+      stats: {
+        totalApplications: counts.all || recentApps.length,
+        pendingInterviews,
+        offersReceived:
+          counts.hired || recentApps.filter((a) => a.status === "Hired").length,
+        newRecommendations: recommended.length,
+        invitedCount,
+      },
+      recommendedJobs: recommended,
+      invitedJobs: invited,
+      recentApplications: recentApps,
+    });
+  }, [
+    computeProfileCompletion,
+    fetchCounts,
+    fetchInvitedJobs,
+    fetchRecentApplications,
+    fetchRecommendedJobs,
+  ]);
+
   React.useEffect(() => {
     let alive = true;
+    let t: number | undefined;
 
     (async () => {
       try {
         setLoading(true);
         setSoftError("");
-
-        const raw = await tryFetchDashboard();
-        const parsed = parseDashboard(raw);
-
-        if (alive) setDashboard(parsed);
+        await refreshAll();
       } catch {
-        try {
-          const me = await api<unknown>("/me", {
-            method: "GET",
-            cache: "no-store",
-            credentials: "include",
-            headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-          });
-
-          const name = pickNameFromMe(me) || pickNameFromToken();
-
-          if (alive) {
-            setDashboard((prev) => ({ ...prev, displayName: name }));
-            setSoftError(
-              "Dashboard data not available yet (API route missing / auth / server error)."
-            );
-          }
-        } catch {
-          if (alive) {
-            setDashboard((prev) => ({
-              ...prev,
-              displayName: pickNameFromToken(),
-            }));
-            setSoftError(
-              "Dashboard data not available yet (API route missing / auth / server error)."
-            );
-          }
+        if (alive) {
+          setSoftError(
+            "Home data not available yet (API route missing / auth / server error).",
+          );
+          setDashboard((prev) => ({
+            ...prev,
+            displayName: prev.displayName || pickNameFromToken(),
+          }));
         }
       } finally {
         if (alive) setLoading(false);
       }
+
+      t = window.setInterval(() => {
+        refreshAll().catch(() => {
+          // keep soft
+        });
+      }, 25000);
     })();
 
     return () => {
       alive = false;
+      if (t) window.clearInterval(t);
     };
-  }, []);
+  }, [refreshAll]);
 
-  const name = dashboard.displayName || "User";
+  const name = dashboard.displayName || me?.name || "User";
   const profileCompletion = dashboard.profileCompletion;
 
   const stats = dashboard.stats;
@@ -822,6 +1114,71 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
 
   const jobsToShowLimited = jobsToShow.slice(0, 2);
 
+  const tasks: ProfileTask[] = React.useMemo(() => {
+    const hasSkills = (me?.skills?.length ?? 0) >= 5;
+    const hasResume = Boolean(me?.resumeUrl || me?.resumeDocId);
+    const hasExperience = Boolean(
+      me?.experienceLevel && me.experienceLevel.trim(),
+    );
+    const hasHeadline = Boolean(me?.headline && me.headline.trim());
+    const hasLocation = Boolean(me?.location && me.location.trim());
+    const hasAbout = Boolean(me?.about && me.about.trim());
+
+    return [
+      {
+        key: "experience",
+        title: "Add work experience",
+        subtitle: "Add your experience level to help matching.",
+        done: hasExperience,
+        actionText: hasExperience ? "Done" : "Add now",
+        onClick: () => onNavigate("profile-settings"),
+      },
+      {
+        key: "resume",
+        title: "Upload your resume",
+        subtitle: "Recruiters prefer profiles with resumes.",
+        done: hasResume,
+        actionText: hasResume ? "Done" : "Upload",
+        onClick: () => onNavigate("profile-settings"),
+      },
+      {
+        key: "skills",
+        title: "Add skills",
+        subtitle: "Aim for 8–12 skills. Minimum 5 recommended.",
+        done: hasSkills,
+        actionText: hasSkills ? "Done" : "Add now",
+        onClick: () => onNavigate("profile-settings"),
+      },
+      {
+        key: "headline",
+        title: "Add a headline",
+        subtitle: "Example: Fullstack Developer | React | Node",
+        done: hasHeadline,
+        actionText: hasHeadline ? "Done" : "Add",
+        onClick: () => onNavigate("profile-settings"),
+      },
+      {
+        key: "location",
+        title: "Add location",
+        subtitle: "Improves local job recommendations.",
+        done: hasLocation,
+        actionText: hasLocation ? "Done" : "Add",
+        onClick: () => onNavigate("profile-settings"),
+      },
+      {
+        key: "about",
+        title: "Add about summary",
+        subtitle: "2–3 lines about your work and impact.",
+        done: hasAbout,
+        actionText: hasAbout ? "Done" : "Add",
+        onClick: () => onNavigate("profile-settings"),
+      },
+    ];
+  }, [me, onNavigate]);
+
+  const incompleteTasks = tasks.filter((t) => !t.done);
+  const tasksToShow = incompleteTasks.slice(0, 3);
+
   return (
     <div className={styles.root}>
       <Card className={styles.welcomeCard} appearance="filled">
@@ -834,7 +1191,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
               size={600}
               style={{ color: "#0B1220" }}
             >
-              Welcome back, {name}! 👋
+              Welcome back, {name}!
             </Text>
 
             <Text size={300} style={{ color: "#5B6475" }}>
@@ -871,106 +1228,94 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
 
       <FeatureHighlight />
 
-      <Card className={styles.profileCard} appearance="outline">
-        <div className={styles.profileHeader}>
-          <div className={styles.profileHeaderText}>
-            <Text
-              as="h3"
-              weight="semibold"
-              size={500}
-              style={{ color: "#0B1220" }}
+      {!profileBannerDismissed ? (
+        <Card className={styles.profileCard} appearance="outline">
+          <div className={styles.profileHeader}>
+            <div className={styles.profileHeaderText}>
+              <Text
+                as="h3"
+                weight="semibold"
+                size={500}
+                style={{ color: "#0B1220" }}
+              >
+                Complete Your Profile
+              </Text>
+              <Text size={300} style={{ color: "#5B6475" }}>
+                {profileCompletion}% complete – Finish the remaining items to
+                get better matches
+              </Text>
+            </div>
+
+            <Button
+              appearance="subtle"
+              size="small"
+              icon={<Dismiss20Regular />}
+              onClick={dismissProfileBanner}
             >
-              Complete Your Profile
-            </Text>
-            <Text size={300} style={{ color: "#5B6475" }}>
-              {profileCompletion}% complete – Add more details to get better job
-              matches
-            </Text>
+              Dismiss
+            </Button>
           </div>
 
-          <Button appearance="subtle" size="small">
-            <h4> Dismiss</h4>
-          </Button>
-        </div>
+          <ProgressBar
+            value={profileCompletion}
+            max={100}
+            thickness="large"
+            className={styles.profileProgress}
+          />
 
-        <ProgressBar
-          value={profileCompletion}
-          max={100}
-          thickness="large"
-          className={styles.profileProgress}
-        />
-
-        <div className={styles.profileTasksGrid}>
-          <div className={styles.profileTaskCard}>
-            <div className={styles.profileTaskIcon}>
-              <Warning20Regular style={{ color: "#F59E0B" }} />
-            </div>
-
-            <div className={styles.profileTaskContent}>
-              <Text
-                weight="semibold"
-                size={300}
-                style={{ color: "#0B1220", marginBottom: 2 }}
+          <div className={styles.profileTasksGrid}>
+            {(tasksToShow.length ? tasksToShow : tasks.slice(0, 3)).map((t) => (
+              <div
+                key={t.key}
+                className={`${styles.profileTaskCard} ${
+                  t.done ? styles.profileTaskCardDone : ""
+                }`}
               >
-                Add work experience
-              </Text>
-              <Button
-                appearance="transparent"
-                size="small"
-                className={styles.linkButton}
-              >
-                Add now →
-              </Button>
-            </div>
+                <div className={styles.profileTaskIcon}>
+                  {t.done ? (
+                    <CheckmarkCircle20Regular style={{ color: "#16A34A" }} />
+                  ) : (
+                    <Warning20Regular style={{ color: "#F59E0B" }} />
+                  )}
+                </div>
+
+                <div className={styles.profileTaskContent}>
+                  <Text
+                    weight="semibold"
+                    size={300}
+                    style={{ color: "#0B1220", marginBottom: 2 }}
+                    title={t.title}
+                  >
+                    {t.title}
+                  </Text>
+                  <Text size={200} style={{ color: "#5B6475" }}>
+                    {t.subtitle}
+                  </Text>
+
+                  {!t.done ? (
+                    <Button
+                      appearance="transparent"
+                      size="small"
+                      className={styles.linkButton}
+                      onClick={t.onClick}
+                    >
+                      {t.actionText} <ChevronRight20Regular />
+                    </Button>
+                  ) : null}
+                </div>
+
+                <div className={styles.taskRight}>
+                  <StatusPill
+                    status={t.done ? "success" : "warning"}
+                    label={t.done ? "Done" : "Pending"}
+                    size="sm"
+                  />
+                </div>
+              </div>
+            ))}
           </div>
-
-          <div className={styles.profileTaskCard}>
-            <div className={styles.profileTaskIcon}>
-              <Warning20Regular style={{ color: "#F59E0B" }} />
-            </div>
-
-            <div className={styles.profileTaskContent}>
-              <Text
-                weight="semibold"
-                size={300}
-                style={{ color: "#0B1220", marginBottom: 2 }}
-              >
-                Upload your resume
-              </Text>
-              <Button
-                appearance="transparent"
-                size="small"
-                className={styles.linkButton}
-              >
-                Upload →
-              </Button>
-            </div>
-          </div>
-
-          <div className={styles.profileTaskCard}>
-            <div className={styles.profileTaskIcon}>
-              <Warning20Regular style={{ color: "#F59E0B" }} />
-            </div>
-
-            <div className={styles.profileTaskContent}>
-              <Text
-                weight="semibold"
-                size={300}
-                style={{ color: "#0B1220", marginBottom: 2 }}
-              >
-                Add skills & certifications
-              </Text>
-              <Button
-                appearance="transparent"
-                size="small"
-                className={styles.linkButton}
-              >
-                Add now →
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      ) : null}
 
       <div className={styles.statsGrid}>
         <AnimatedStats
@@ -1002,25 +1347,30 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      <div className={styles.root}>
-        <div className={styles.tabs}>
-          <TabList
-            selectedValue={selectedTab}
-            onTabSelect={(_, data) => setSelectedTab(data.value as TabValue)}
-            appearance="transparent"
-          >
-            <Tab value="recommended">Recommended for You</Tab>
-            <Tab value="invited">Invited to Apply ({invitedCount})</Tab>
-          </TabList>
-        </div>
+      <div className={styles.tabsWrapper}>
+        <div className={styles.tabsRow}>
+          <div className={styles.tabs}>
+            <TabList
+              selectedValue={selectedTab}
+              onTabSelect={(_, data) => setSelectedTab(data.value as TabValue)}
+              appearance="transparent"
+            >
+              <Tab value="recommended">Recommended for You</Tab>
+              <Tab value="invited">Invited to Apply ({invitedCount})</Tab>
+            </TabList>
+          </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
-          <Button appearance="subtle" size="small" onClick={() => onNavigate("jobs")}>
-            <h4>View All</h4>
+          <Button
+            appearance="subtle"
+            size="small"
+            className={styles.viewAllRight}
+            onClick={() => onNavigate("jobs")}
+          >
+            View All
           </Button>
         </div>
 
-        <div className={styles.tabsWrapper}>
+        <div className={styles.tabPanels}>
           {loading ? (
             <div
               style={{
@@ -1034,47 +1384,44 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
               <Text style={{ color: "#5B6475" }}>Loading your dashboard…</Text>
             </div>
           ) : selectedTab === "invited" && jobsToShowLimited.length === 0 ? (
-            <div className={styles.tabPanels}>
-              <Card className={styles.invitedCard} appearance="outline">
-                <div>
-                  <div className={styles.invitedIconWrapper}>
-                    <Briefcase20Regular
-                      style={{ fontSize: 32, color: "#0B1220" }}
-                    />
-                  </div>
-                  <Text
-                    as="h3"
-                    weight="semibold"
-                    size={300}
-                    style={{ color: "#020202ff", marginBottom: 4 }}
-                  >
-                    No Direct Invitations Yet
-                  </Text>
-                  <Text
-                    size={400}
-                    style={{
-                      color: "#5B6475",
-                      marginBottom: tokens.spacingVerticalL,
-                      maxWidth: 420,
-                      marginInline: "auto",
-                      display: "block",
-                    }}
-                  >
-                    When employers specifically invite you to apply for their
-                    open positions, they'll appear here.
-                  </Text>
-                  <Button
-                    appearance="outline"
-                    onClick={() => onNavigate("jobs")}
-                    className={styles.browseAllJobsButton}
-                  >
-                    Browse All Jobs
-                  </Button>
+            <Card className={styles.invitedCard} appearance="outline">
+              <div>
+                <div className={styles.invitedIconWrapper}>
+                  <Briefcase20Regular
+                    style={{ fontSize: 32, color: "#0B1220" }}
+                  />
                 </div>
-              </Card>
-            </div>
+                <Text
+                  as="h3"
+                  weight="semibold"
+                  size={300}
+                  style={{ color: "#020202ff", marginBottom: 4 }}
+                >
+                  No Direct Invitations Yet
+                </Text>
+                <Text
+                  size={400}
+                  style={{
+                    color: "#5B6475",
+                    marginBottom: tokens.spacingVerticalL,
+                    maxWidth: 420,
+                    marginInline: "auto",
+                    display: "block",
+                  }}
+                >
+                  When employers invite you to apply, they’ll appear here.
+                </Text>
+                <Button
+                  appearance="outline"
+                  onClick={() => onNavigate("jobs")}
+                  className={styles.browseAllJobsButton}
+                >
+                  Browse All Jobs
+                </Button>
+              </div>
+            </Card>
           ) : (
-            <div className={styles.tabPanels}>
+            <>
               {jobsToShowLimited.map((job) => (
                 <Card
                   key={job.id}
@@ -1110,10 +1457,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
 
                       <Button
                         appearance="primary"
-                        style={{
-                          backgroundColor: "#0118D8",
-                          border: "none",
-                        }}
+                        style={{ backgroundColor: "#0118D8", border: "none" }}
                         onClick={(e) => {
                           e.stopPropagation();
                           onNavigate("job-details", { jobId: job.id });
@@ -1131,7 +1475,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                   </div>
                 </Card>
               ))}
-            </div>
+            </>
           )}
 
           <Card className={styles.applicationsCard} appearance="outline">
@@ -1149,7 +1493,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                 size="small"
                 onClick={() => onNavigate("applications")}
               >
-                <h4>View All</h4>
+                View All
               </Button>
             </div>
 
@@ -1180,7 +1524,10 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                             <div className={styles.companyLogo}>
                               {app.companyLogo}
                             </div>
-                            <Text weight="semibold" style={{ color: "#0B1220" }}>
+                            <Text
+                              weight="semibold"
+                              style={{ color: "#0B1220" }}
+                            >
                               {app.company}
                             </Text>
                           </div>
@@ -1196,7 +1543,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                             Applied Date
                           </span>
                           <Text style={{ color: "#5B6475" }}>
-                            {formatAppliedDate(app.appliedDate)}
+                            {app.appliedDate}
                           </Text>
                         </TableCell>
 
@@ -1206,9 +1553,9 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                             status={
                               app.status === "Hired"
                                 ? "success"
-                                : app.status === "Interview Completed"
-                                ? "info"
-                                : "warning"
+                                : app.status === "Rejected"
+                                  ? "danger"
+                                  : "info"
                             }
                             label={app.status}
                             size="sm"
@@ -1231,7 +1578,8 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
 
                         <TableCell className={styles.actionsCell}>
                           <span className={styles.mobileLabel}>Actions</span>
-                          {app.interviewStatus === "Not Started" ? (
+                          {app.interviewStatus === "Not Started" ||
+                          app.interviewStatus === "In Progress" ? (
                             <Button
                               size="small"
                               appearance="primary"
@@ -1246,14 +1594,18 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                               }
                             >
                               <PlayRegular className={styles.iconInline} />
-                              Start Interview
+                              {app.interviewStatus === "In Progress"
+                                ? "Continue"
+                                : "Start Interview"}
                             </Button>
                           ) : (
                             <Button
                               size="small"
                               appearance="outline"
                               onClick={() =>
-                                onNavigate("results", { applicationId: app.id })
+                                onNavigate("results", {
+                                  applicationId: app.id,
+                                })
                               }
                             >
                               <DataHistogram20Regular

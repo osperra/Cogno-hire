@@ -65,16 +65,16 @@ function getQueryParam(locationSearch: string, key: string) {
   return sp.get(key) ?? "";
 }
 
-export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({
-  onNavigate,
-}) => {
+function isAllowedResume(file: File) {
+  const ext = (file.name.split(".").pop() ?? "").toLowerCase();
+  return ["pdf", "doc", "docx"].includes(ext);
+}
+
+export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({ onNavigate }) => {
   const styles = useStyles();
   const location = useLocation();
 
-  const jobId = useMemo(
-    () => getQueryParam(location.search, "jobId"),
-    [location.search]
-  );
+  const jobId = useMemo(() => getQueryParam(location.search, "jobId"), [location.search]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -94,17 +94,31 @@ export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({
   const uploadResume = async (file: File) => {
     setError("");
     setSuccess("");
-    setUploading(true);
 
+    if (!jobId) {
+      setError("Missing jobId. Please go back and click Apply again.");
+      return;
+    }
+
+    if (!isAllowedResume(file)) {
+      setError("Invalid file type. Upload only PDF/DOC/DOCX.");
+      return;
+    }
+
+    setUploading(true);
     try {
       const fd = new FormData();
-      fd.append("resume", file);
+      fd.append("file", file);
+
+      fd.append("type", "Resume");
+      fd.append("category", "Application");
+      fd.append("status", "PENDING");
       fd.append("jobId", jobId);
 
-      const res = await api<UploadResumeResponse>(
-        "/api/applications/upload-resume",
-        { method: "POST", body: fd }
-      );
+      const res = await api<UploadResumeResponse>("/api/applications/upload-resume", {
+        method: "POST",
+        body: fd,
+      });
 
       setResumeUrl(res.resumeUrl);
       setResumeDocId(res.resumeDocId);
@@ -132,7 +146,7 @@ export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({
       const payload = {
         jobId,
         coverLetter: coverLetter.trim() || undefined,
-        resumeDocId: resumeDocId || undefined,
+        resumeDocId: resumeDocId || undefined, 
       };
 
       const res = await api<ApplyResponse>("/api/applications", {
@@ -183,11 +197,7 @@ export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({
                 {uploading ? "Uploading..." : "Upload Resume"}
               </Button>
 
-              <Input
-                value={resumeName || (resumeUrl ? "Uploaded" : "")}
-                placeholder="No file selected"
-                readOnly
-              />
+              <Input value={resumeName || (resumeUrl ? "Uploaded" : "")} placeholder="No file selected" readOnly />
             </div>
 
             <input
@@ -217,22 +227,13 @@ export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({
         </div>
 
         <div style={{ marginTop: 16 }} className={styles.footer}>
-          <Button
-            appearance="outline"
-            onClick={() => onNavigate("jobs")}
-            disabled={uploading || submitting}
-          >
+          <Button appearance="outline" onClick={() => onNavigate("jobs")} disabled={uploading || submitting}>
             Back to Jobs
           </Button>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             {uploading || submitting ? <Spinner size="small" /> : null}
-            <Button
-              appearance="primary"
-              className={styles.primaryButton}
-              onClick={submit}
-              disabled={!canSubmit}
-            >
+            <Button appearance="primary" className={styles.primaryButton} onClick={submit} disabled={!canSubmit}>
               {submitting ? "Submitting..." : "Submit Application"}
             </Button>
           </div>

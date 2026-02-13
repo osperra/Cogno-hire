@@ -356,7 +356,6 @@ export function DocumentManagement() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string>("");
 
-  // Optional: if employer page is opened from an application context, pass applicationId via URL
   const applicationIdFromUrl = useMemo(() => {
     const p = new URLSearchParams(window.location.search);
     return p.get("applicationId") || "";
@@ -409,7 +408,6 @@ export function DocumentManagement() {
     if (dateFilter === "7-days") params.set("days", "7");
     if (dateFilter === "30-days") params.set("days", "30");
 
-    // if employer is in application context, include it so backend can scope correctly
     if (applicationIdFromUrl) params.set("applicationId", applicationIdFromUrl);
 
     params.set("limit", "500");
@@ -460,7 +458,6 @@ export function DocumentManagement() {
 
       const isResume = nameLower.includes("resume") || isPdf;
 
-      // Match backend tabMap values: Application/Verification/Onboarding/Employee
       const category = isResume ? "Application" : "Verification";
       const type = isResume ? "Resume" : isImg ? "Identification" : "Document";
 
@@ -468,7 +465,6 @@ export function DocumentManagement() {
       fd.append("category", category);
       fd.append("status", "PENDING");
 
-      // If employer is uploading in application context, attach applicationId
       if (applicationIdFromUrl) fd.append("applicationId", applicationIdFromUrl);
 
       await api("/api/documents/upload", { method: "POST", body: fd });
@@ -480,12 +476,9 @@ export function DocumentManagement() {
     }
   };
 
-  // Use backend redirect endpoint (enforces auth/ACL)
   const viewDoc = (d: DocRow) => window.open(`/api/documents/file/${d._id}`, "_blank", "noopener,noreferrer");
 
   const downloadDoc = (d: DocRow) => {
-    // Use backend endpoint so auth works; download attribute may be ignored for cross-origin redirects,
-    // but it still works well for most cases.
     const a = document.createElement("a");
     a.href = `/api/documents/file/${d._id}`;
     a.download = d.name || "document";

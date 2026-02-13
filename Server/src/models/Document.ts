@@ -18,7 +18,6 @@ export interface DocumentDoc {
   mimeType: string;
   sizeBytes: number;
 
-  // Cloudinary migration: make optional (legacy GridFS support)
   gridFsId?: Types.ObjectId;
   bucketName?: string;
 
@@ -44,7 +43,6 @@ const docSchema = new Schema<DocumentDoc>(
     mimeType: { type: String, required: true },
     sizeBytes: { type: Number, required: true },
 
-    // was required:true -> must be optional now
     gridFsId: { type: Schema.Types.ObjectId, required: false, index: true },
     bucketName: { type: String, required: false, default: "docs" },
 

@@ -11,7 +11,6 @@ import { EmployerDashboard } from "../Employer/EmployerDashboard";
 import { EmployerJobs } from "../Employer/EmployerJobs";
 import { EmployerJobDetails } from "../Employer/EmployerJobDetails";
 import { EmployerJobEdit } from "../Employer/EmployerJobEdit";
-
 import { EmployerCreateJob } from "../Employer/EmployerCreateJob";
 import { EmployerApplicants } from "../Employer/EmployerApplicants";
 import { CompanyProfile } from "../Employer/CompanyProfile";
@@ -22,7 +21,6 @@ import { CandidateJobs } from "../Candidate/CandidateJobs";
 import { CandidateApplications } from "../Candidate/CandidateApplications";
 import { CandidateNotifications } from "../Candidate/CandidateNotifications";
 import { InterviewRoom } from "../Interview/InterviewRoom";
-
 import { CandidateApplyForm } from "../Candidate/CandidateApplyForm";
 import { CandidateInterviewResults } from "../Candidate/CandidateInterviewResults";
 
@@ -35,6 +33,10 @@ import { AIJobDescriptionGenerator } from "../hr/AIJobDescriptionGenerator";
 import MyAccount from "../Employer/MyAccount";
 import ProfileSettings from "../Employer/ProfileSettings";
 import Preferences from "../Employer/Preferences";
+
+import CandidateMyAccount from "../Candidate/CandidateMyAccount";
+import CandidateProfileSettings from "../Candidate/CandidateProfileSettings";
+import CandidatePreferences from "../Candidate/CandidatePreferences";
 
 export type Role = "employer" | "candidate";
 type MeResponse = { _id: string; name: string; email: string; role: Role };
@@ -65,8 +67,11 @@ export const ROUTES = {
   candidateNotifications: "/app/candidate/notifications",
   candidateInterview: "/app/candidate/interview",
   candidateResults: "/app/candidate/results",
-
   candidateApply: "/app/candidate/apply",
+
+  candidateMyAccount: "/app/candidate/account",
+  candidateProfileSettings: "/app/candidate/profile",
+  candidatePreferences: "/app/candidate/preferences",
 } as const;
 
 const useStyles = makeStyles({
@@ -116,59 +121,49 @@ function metaForPath(pathname: string): PageMeta {
 
   if (startsWithPath(pathname, ROUTES.employerMyAccount))
     return { title: "My Account", breadcrumbs: ["Account"] };
-
   if (startsWithPath(pathname, ROUTES.employerProfileSettings))
     return { title: "Profile Settings", breadcrumbs: ["Account", "Profile"] };
-
   if (startsWithPath(pathname, ROUTES.employerPreferences))
     return { title: "Preferences", breadcrumbs: ["Account", "Preferences"] };
 
-  if (startsWithPath(pathname, ROUTES.employerDashboard)) return { title: "Dashboard" };
+  if (startsWithPath(pathname, ROUTES.candidateMyAccount))
+    return { title: "My Account", breadcrumbs: ["Account"] };
+  if (startsWithPath(pathname, ROUTES.candidateProfileSettings))
+    return { title: "Profile Settings", breadcrumbs: ["Account", "Profile"] };
+  if (startsWithPath(pathname, ROUTES.candidatePreferences))
+    return { title: "Preferences", breadcrumbs: ["Account", "Preferences"] };
 
+  if (startsWithPath(pathname, ROUTES.employerDashboard)) return { title: "Dashboard" };
   if (startsWithPath(pathname, ROUTES.employerCreateJob))
     return { title: "Create Job", breadcrumbs: ["Jobs", "Create"] };
-
   if (startsWithPath(pathname, ROUTES.employerJobs))
     return { title: "Jobs", breadcrumbs: ["Jobs"] };
-
   if (startsWithPath(pathname, ROUTES.employerApplicants))
     return { title: "Applicants", breadcrumbs: ["Applicants"] };
-
   if (startsWithPath(pathname, ROUTES.employerCompany))
     return { title: "Company Profile", breadcrumbs: ["Company"] };
-
   if (startsWithPath(pathname, ROUTES.employerAnalytics))
     return { title: "Interview Analytics", breadcrumbs: ["Analytics"] };
-
   if (startsWithPath(pathname, ROUTES.employerPipeline))
     return { title: "Candidate Pipeline", breadcrumbs: ["Pipeline"] };
-
   if (startsWithPath(pathname, ROUTES.employerDocuments))
     return { title: "Documents", breadcrumbs: ["Documents"] };
-
   if (startsWithPath(pathname, ROUTES.employerReviews))
     return { title: "Performance Reviews", breadcrumbs: ["Reviews"] };
-
   if (startsWithPath(pathname, ROUTES.employerOnboarding))
     return { title: "Onboarding", breadcrumbs: ["Onboarding"] };
-
   if (startsWithPath(pathname, ROUTES.employerAIJobDescription))
     return { title: "AI Job Description", breadcrumbs: ["AI JD"] };
 
   if (startsWithPath(pathname, ROUTES.candidateHome)) return { title: "Home" };
-
   if (startsWithPath(pathname, ROUTES.candidateJobs))
     return { title: "Find Jobs", breadcrumbs: ["Find Jobs"] };
-
   if (startsWithPath(pathname, ROUTES.candidateApplications))
     return { title: "Applications", breadcrumbs: ["Applications"] };
-
   if (startsWithPath(pathname, ROUTES.candidateNotifications))
     return { title: "Notifications", breadcrumbs: ["Notifications"] };
-
   if (startsWithPath(pathname, ROUTES.candidateInterview))
     return { title: "Interview Room", breadcrumbs: ["Interview"] };
-
   if (startsWithPath(pathname, ROUTES.candidateApply))
     return { title: "Apply", breadcrumbs: ["Find Jobs", "Apply"] };
 
@@ -194,7 +189,7 @@ export default function AppLayout() {
         if (location.pathname === "/app" || location.pathname === "/app/") {
           navigate(
             data.role === "employer" ? ROUTES.employerDashboard : ROUTES.candidateHome,
-            { replace: true },
+            { replace: true }
           );
         }
       } catch {
@@ -209,9 +204,7 @@ export default function AppLayout() {
     };
   }, [location.pathname, navigate]);
 
-  const role: Role =
-    me?.role ?? ((localStorage.getItem("role") as Role) || "candidate");
-
+  const role: Role = me?.role ?? ((localStorage.getItem("role") as Role) || "candidate");
   const pageMeta = useMemo(() => metaForPath(location.pathname), [location.pathname]);
 
   const onNavigate = (to: string, data?: Record<string, unknown>) => {
@@ -252,6 +245,10 @@ export default function AppLayout() {
       if (to === "applications") return navigate(ROUTES.candidateApplications);
       if (to === "notifications") return navigate(ROUTES.candidateNotifications);
       if (to === "interview-room") return navigate(ROUTES.candidateInterview);
+
+      if (to === "my-account") return navigate(ROUTES.candidateMyAccount);
+      if (to === "profile-settings") return navigate(ROUTES.candidateProfileSettings);
+      if (to === "preferences") return navigate(ROUTES.candidatePreferences);
     }
 
     navigate(role === "employer" ? ROUTES.employerDashboard : ROUTES.candidateHome);
@@ -274,6 +271,10 @@ export default function AppLayout() {
     if (startsWithPath(p, ROUTES.employerMyAccount)) return <MyAccount />;
     if (startsWithPath(p, ROUTES.employerProfileSettings)) return <ProfileSettings />;
     if (startsWithPath(p, ROUTES.employerPreferences)) return <Preferences />;
+
+    if (startsWithPath(p, ROUTES.candidateMyAccount)) return <CandidateMyAccount onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.candidateProfileSettings)) return <CandidateProfileSettings />;
+    if (startsWithPath(p, ROUTES.candidatePreferences)) return <CandidatePreferences />;
 
     if (startsWithPath(p, ROUTES.employerDashboard)) return <EmployerDashboard onNavigate={onNavigate} />;
     if (startsWithPath(p, ROUTES.employerCreateJob)) return <EmployerCreateJob onNavigate={onNavigate} />;
@@ -313,6 +314,19 @@ export default function AppLayout() {
     );
   };
 
+  const topbarRoutes =
+    role === "employer"
+      ? {
+          myAccount: ROUTES.employerMyAccount,
+          profileSettings: ROUTES.employerProfileSettings,
+          preferences: ROUTES.employerPreferences,
+        }
+      : {
+          myAccount: ROUTES.candidateMyAccount,
+          profileSettings: ROUTES.candidateProfileSettings,
+          preferences: ROUTES.candidatePreferences,
+        };
+
   return (
     <div className={styles.appRoot}>
       <Sidebar userRole={role} currentPage={location.pathname} onNavigate={onNavigate} />
@@ -323,11 +337,7 @@ export default function AppLayout() {
           role={role}
           breadcrumbs={pageMeta.breadcrumbs}
           navigateTo={(path) => navigate(path)}
-          routes={{
-            myAccount: ROUTES.employerMyAccount,
-            profileSettings: ROUTES.employerProfileSettings,
-            preferences: ROUTES.employerPreferences,
-          }}
+          routes={topbarRoutes}
           onSignOut={() => {
             localStorage.removeItem("token");
             localStorage.removeItem("role");
