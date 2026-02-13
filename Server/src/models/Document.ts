@@ -1,3 +1,4 @@
+// Server/src/models/Document.ts
 import { Schema, model, Types } from "mongoose";
 
 export type DocumentStatus = "PENDING" | "VERIFIED" | "COMPLETED" | "SIGNED";
@@ -28,10 +29,20 @@ export interface DocumentDoc {
   updatedAt: Date;
 }
 
-const docSchema = new Schema<DocumentDoc>(
+const documentSchema = new Schema<DocumentDoc>(
   {
-    ownerUserId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    uploadedByUserId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    ownerUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    uploadedByUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
 
     jobId: { type: Schema.Types.ObjectId, ref: "Job" },
     applicationId: { type: Schema.Types.ObjectId, ref: "Application" },
@@ -47,6 +58,7 @@ const docSchema = new Schema<DocumentDoc>(
     bucketName: { type: String, required: false, default: "docs" },
 
     fileUrl: { type: String, required: true },
+
     status: {
       type: String,
       enum: ["PENDING", "VERIFIED", "COMPLETED", "SIGNED"],
@@ -57,8 +69,13 @@ const docSchema = new Schema<DocumentDoc>(
   { timestamps: true }
 );
 
-docSchema.index({ ownerUserId: 1, createdAt: -1 });
-docSchema.index({ jobId: 1, createdAt: -1 });
-docSchema.index({ applicationId: 1, createdAt: -1 });
+documentSchema.index({ ownerUserId: 1, createdAt: -1 });
+documentSchema.index({ jobId: 1, createdAt: -1 });
+documentSchema.index({ applicationId: 1, createdAt: -1 });
 
-export const Document = model<DocumentDoc>("Document", docSchema, "documents");
+// ✅ single model export (default)
+const Document = model<DocumentDoc>("Document", documentSchema, "documents");
+export default Document;
+
+// ✅ optional named export (if you want both styles)
+export { Document };

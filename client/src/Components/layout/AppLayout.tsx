@@ -17,7 +17,7 @@ import { CompanyProfile } from "../Employer/CompanyProfile";
 import { InterviewAnalytics } from "../Employer/InterviewAnalytics";
 
 import { CandidateHome } from "../Candidate/CandidateHome";
-import { CandidateJobs } from "../Candidate/CandidateJobs";
+import CandidateJobs from "../Candidate/CandidateJobs"; 
 import { CandidateApplications } from "../Candidate/CandidateApplications";
 import { CandidateNotifications } from "../Candidate/CandidateNotifications";
 import { InterviewRoom } from "../Interview/InterviewRoom";
@@ -189,7 +189,7 @@ export default function AppLayout() {
         if (location.pathname === "/app" || location.pathname === "/app/") {
           navigate(
             data.role === "employer" ? ROUTES.employerDashboard : ROUTES.candidateHome,
-            { replace: true }
+            { replace: true },
           );
         }
       } catch {
@@ -272,16 +272,21 @@ export default function AppLayout() {
     if (startsWithPath(p, ROUTES.employerProfileSettings)) return <ProfileSettings />;
     if (startsWithPath(p, ROUTES.employerPreferences)) return <Preferences />;
 
-    if (startsWithPath(p, ROUTES.candidateMyAccount)) return <CandidateMyAccount onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.candidateMyAccount))
+      return <CandidateMyAccount onNavigate={onNavigate} />;
     if (startsWithPath(p, ROUTES.candidateProfileSettings)) return <CandidateProfileSettings />;
     if (startsWithPath(p, ROUTES.candidatePreferences)) return <CandidatePreferences />;
 
-    if (startsWithPath(p, ROUTES.employerDashboard)) return <EmployerDashboard onNavigate={onNavigate} />;
-    if (startsWithPath(p, ROUTES.employerCreateJob)) return <EmployerCreateJob onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.employerDashboard))
+      return <EmployerDashboard onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.employerCreateJob))
+      return <EmployerCreateJob onNavigate={onNavigate} />;
     if (startsWithPath(p, ROUTES.employerJobs)) return <EmployerJobs />;
-    if (startsWithPath(p, ROUTES.employerApplicants)) return <EmployerApplicants onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.employerApplicants))
+      return <EmployerApplicants onNavigate={onNavigate} />;
     if (startsWithPath(p, ROUTES.employerCompany)) return <CompanyProfile />;
-    if (startsWithPath(p, ROUTES.employerAnalytics)) return <InterviewAnalytics onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.employerAnalytics))
+      return <InterviewAnalytics onNavigate={onNavigate} />;
 
     if (startsWithPath(p, ROUTES.employerPipeline)) return <CandidatePipeline />;
     if (startsWithPath(p, ROUTES.employerDocuments)) return <DocumentManagement />;
@@ -290,8 +295,10 @@ export default function AppLayout() {
     if (startsWithPath(p, ROUTES.employerAIJobDescription)) return <AIJobDescriptionGenerator />;
 
     if (startsWithPath(p, ROUTES.candidateHome)) return <CandidateHome onNavigate={onNavigate} />;
-    if (startsWithPath(p, ROUTES.candidateJobs)) return <CandidateJobs onNavigate={onNavigate} />;
-    if (startsWithPath(p, ROUTES.candidateApplications)) return <CandidateApplications onNavigate={onNavigate} />;
+    if (startsWithPath(p, ROUTES.candidateJobs))
+      return <CandidateJobs onNavigate={onNavigate} />; 
+    if (startsWithPath(p, ROUTES.candidateApplications))
+      return <CandidateApplications onNavigate={onNavigate} />;
     if (startsWithPath(p, ROUTES.candidateNotifications)) return <CandidateNotifications />;
     if (startsWithPath(p, ROUTES.candidateApply)) return <CandidateApplyForm onNavigate={onNavigate} />;
 

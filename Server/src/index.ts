@@ -25,8 +25,6 @@ import { aiJobDescriptionRouter } from "./routes/aiJobDescriptionRouter.js";
 import { aiInterviewRouter } from "./routes/aiInterviewRouter.js";
 import { searchRouter } from "./routes/search.js";
 import { accountRouter } from "./routes/account.js";
-
-// ✅ MUST be .js for node16/nodenext
 import aiMatchRouter from "./routes/aiMatchRouter.js";
 
 const app = express();
@@ -65,8 +63,6 @@ app.use("/api/ai", aiJobDescriptionRouter);
 app.use("/api/ai", aiInterviewRouter);
 app.use("/api", searchRouter);
 app.use("/api/account", accountRouter);
-
-// ✅ AI match routes mounted here:
 app.use("/api/ai", aiMatchRouter);
 
 const port = Number(process.env.PORT || 5000);

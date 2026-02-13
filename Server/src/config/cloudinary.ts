@@ -13,6 +13,7 @@ cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "",
   api_key: process.env.CLOUDINARY_API_KEY || "",
   api_secret: process.env.CLOUDINARY_API_SECRET || "",
+  secure: true,
 });
 
 if (
@@ -21,19 +22,33 @@ if (
   !process.env.CLOUDINARY_API_SECRET
 ) {
   throw new Error(
-    "Cloudinary env missing. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in Server/.env"
+    "Cloudinary env missing. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in .env"
   );
+}
+
+function getResourceType(file: Express.Multer.File): "raw" | "image" {
+  const mt = (file.mimetype || "").toLowerCase();
+
+  if (mt.startsWith("image/")) return "image";
+
+  return "raw";
 }
 
 export const storage = new CloudinaryStorage({
   cloudinary,
-  params: async (_req, file) => ({
-    folder: "cogno-hire",
-    resource_type: "auto",
-    public_id: `${Date.now()}-${file.originalname.replace(/[^\w.-]+/g, "-")}`,
-    allowed_formats: ["jpg", "png", "jpeg", "pdf", "doc", "docx", "webp"],
-  }),
-});
-export { cloudinary };
+  params: async (_req, file) => {
+    const resourceType = getResourceType(file);
 
+    const safeName = file.originalname.replace(/[^\w.-]+/g, "-");
+
+    return {
+      folder: "cogno-hire",
+      resource_type: resourceType, 
+      public_id: `${Date.now()}-${safeName}`,
+      allowed_formats: ["jpg", "png", "jpeg", "pdf", "doc", "docx", "webp"],
+    };
+  },
+});
+
+export { cloudinary };
 export default cloudinary;

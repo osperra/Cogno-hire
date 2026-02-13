@@ -10,6 +10,7 @@ import { Job } from "../models/Jobs.js";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
 import { storage } from "../config/cloudinary.js";
 
+
 export const documentsRouter = Router();
 
 const upload = multer({

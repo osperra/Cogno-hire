@@ -1,6 +1,6 @@
-import mongoose from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
-const UserSchema = new mongoose.Schema(
+const UserSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     email: {
@@ -32,11 +32,20 @@ const UserSchema = new mongoose.Schema(
     github: { type: String, trim: true },
     portfolio: { type: String, trim: true },
 
-    resumeUrl: { type: String, trim: true },
-    resumeDocId: { type: mongoose.Schema.Types.ObjectId, ref: "Document" },
+    resumeUrl: { type: String, trim: true }, 
+    resumeDocId: { type: Schema.Types.ObjectId, ref: "Document" },
     resumeFileName: { type: String, trim: true },
+
+    resumePublicId: { type: String, trim: true, index: true },
+    resumeFormat: { type: String, trim: true, default: "pdf" }, 
+    resumeResourceType: {
+      type: String,
+      enum: ["raw", "image", "video"],
+      default: "raw",
+    },
   },
   { timestamps: true }
 );
 
-export const User = mongoose.models.User || mongoose.model("User", UserSchema, "users");
+export const User =
+  mongoose.models.User || mongoose.model("User", UserSchema, "users");

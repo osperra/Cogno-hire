@@ -107,9 +107,8 @@ type CandidateMe = {
   email?: string;
 
   resumeUrl?: string;
-  resumePublicId?: string;
-  resumeFormat?: string;
-  resumeResourceType?: "raw" | "image";
+  resumeDocId?: string;
+  resumeFileName?: string;
   resumeText?: string;
 
   headline?: string;
@@ -118,12 +117,6 @@ type CandidateMe = {
   experienceLevel?: string;
   location?: string;
 };
-
-function asResumeResourceType(v: unknown): "raw" | "image" | undefined {
-  const s = getString(v).toLowerCase();
-  if (s === "raw" || s === "image") return s;
-  return undefined;
-}
 
 function normalizeMe(raw: unknown): CandidateMe {
   const data = unwrapData(raw);
@@ -140,9 +133,8 @@ function normalizeMe(raw: unknown): CandidateMe {
     email: getString(r["email"]) || undefined,
 
     resumeUrl: getString(r["resumeUrl"]) || undefined,
-    resumePublicId: getString(r["resumePublicId"]) || undefined,
-    resumeFormat: getString(r["resumeFormat"]) || undefined,
-    resumeResourceType: asResumeResourceType(r["resumeResourceType"]),
+    resumeDocId: getString(r["resumeDocId"]) || undefined,
+    resumeFileName: getString(r["resumeFileName"]) || undefined,
     resumeText: getString(r["resumeText"]) || undefined,
 
     headline: getString(r["headline"]) || undefined,
@@ -191,7 +183,7 @@ function titleCase(s: string) {
     .replace(/[-_]/g, " ")
     .trim()
     .replace(/\s+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    .replace(/\b\w/g, (c) => c.toUpperCase()); 
 }
 
 function normalizeDifficulty(v: unknown): "Easy" | "Medium" | "Hard" {
@@ -332,6 +324,7 @@ async function tryComputeJobMatches(args: {
 }
 
 type ResumeTextSource = "resume" | "profile" | "none";
+
 async function tryGetResumeTextFromBackend(
   me: CandidateMe,
 ): Promise<{ text: string; source: ResumeTextSource }> {
@@ -339,17 +332,15 @@ async function tryGetResumeTextFromBackend(
     return { text: me.resumeText.trim(), source: "resume" };
   }
 
-  if (me.resumePublicId || me.resumeUrl) {
+  if (me.resumeDocId) {
     try {
       const raw = await api<unknown>("/api/ai/resume/extract", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          resumePublicId: me.resumePublicId,
-          resumeUrl: me.resumeUrl,
-          resumeFormat: me.resumeFormat,
-          resumeResourceType: me.resumeResourceType || "raw",
+          resumeDocId: me.resumeDocId,
+          resumeFileName: me.resumeFileName,
         }),
       });
 
@@ -361,7 +352,30 @@ async function tryGetResumeTextFromBackend(
 
       if (txt.trim()) return { text: txt.trim(), source: "resume" };
     } catch (e) {
-      console.error("RESUME_EXTRACT_FAILED:", e);
+      console.error("RESUME_EXTRACT_FAILED_DOCID:", e);
+    }
+  }
+
+  if (me.resumeUrl) {
+    try {
+      const raw = await api<unknown>("/api/ai/resume/extract", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resumeUrl: me.resumeUrl,
+        }),
+      });
+
+      const data = unwrapData(raw);
+      const txt =
+        getString(data["resumeText"]) ||
+        getString(data["text"]) ||
+        getString(data["content"]);
+
+      if (txt.trim()) return { text: txt.trim(), source: "resume" };
+    } catch (e) {
+      console.error("RESUME_EXTRACT_FAILED_URL:", e);
     }
   }
 
@@ -467,7 +481,7 @@ const useStyles = makeStyles({
   },
 });
 
-export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
+const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
   const styles = useStyles();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -490,7 +504,7 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
 
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchMap, setMatchMap] = useState<Record<string, number>>({});
-  const [matchSource, setMatchSource] = useState<ResumeTextSource>("none"); // ✅ NEW
+  const [matchSource, setMatchSource] = useState<ResumeTextSource>("none");
 
   const matchReqIdRef = useRef(0);
 
@@ -563,7 +577,6 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
       const res = await api<JobsResponse>(url);
 
       const items = res?.items ?? [];
-
       setTotal(res?.total ?? items.length);
       setPage(res?.page ?? nextPage);
 
@@ -624,11 +637,7 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
       if (!me) return;
       if (!jobsRaw.length) return;
 
-      if (
-        !(me.resumeText && me.resumeText.trim()) &&
-        !me.resumePublicId &&
-        !me.resumeUrl
-      ) {
+      if (!me.resumeDocId && !me.resumeUrl && !(me.resumeText && me.resumeText.trim())) {
         setMatchSource("none");
         setMatchMap({});
         return;
@@ -728,14 +737,8 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
             <div className={styles.searchInputWrapper}>
               <Input
                 className={styles.searchInput}
-                contentBefore={
-                  <Search20Regular style={{ color: "#5B6475", fontSize: 16 }} />
-                }
-                placeholder={
-                  loading
-                    ? "Loading jobs..."
-                    : "Search by title, company, or skills..."
-                }
+                contentBefore={<Search20Regular style={{ color: "#5B6475", fontSize: 16 }} />}
+                placeholder={loading ? "Loading jobs..." : "Search by title, company, or skills..."}
                 value={searchQuery}
                 onChange={(_, data) => {
                   setSearchQuery(data.value);
@@ -781,16 +784,10 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
                   key={chip.label}
                   type="button"
                   onClick={() => toggleFilter(chip.label)}
-                  className={
-                    selected
-                      ? `${styles.chipBase} ${styles.chipSelected}`
-                      : styles.chipBase
-                  }
+                  className={selected ? `${styles.chipBase} ${styles.chipSelected}` : styles.chipBase}
                 >
                   {chip.label}
-                  <span style={{ marginLeft: 4, opacity: 0.7 }}>
-                    ({chip.count})
-                  </span>
+                  <span style={{ marginLeft: 4, opacity: 0.7 }}>({chip.count})</span>
                 </button>
               );
             })}
@@ -802,9 +799,7 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
         <div className={styles.matchHint}>
           <Text className={styles.resultsText}>
             Showing{" "}
-            <span className={styles.resultsStrong}>
-              {loading ? "…" : filtered.length}
-            </span>{" "}
+            <span className={styles.resultsStrong}>{loading ? "…" : filtered.length}</span>{" "}
             jobs
             {total ? (
               <>
@@ -863,13 +858,12 @@ export const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
             }
           }}
         >
-          {loadingMore
-            ? "Loading..."
-            : hasMore
-              ? "Load More Jobs"
-              : "No more jobs"}
+          {loadingMore ? "Loading..." : hasMore ? "Load More Jobs" : "No more jobs"}
         </Button>
       </div>
     </div>
   );
 };
+
+export default CandidateJobs;
+export { CandidateJobs };
