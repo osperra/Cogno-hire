@@ -41,9 +41,6 @@ interface CandidateHomeProps {
   onNavigate: (page: string, data?: Record<string, unknown>) => void;
 }
 
-/** -----------------------------
- *  Jobs types (reuse CandidateJobs API)
- *  ----------------------------- */
 type SalaryRangeDb =
   | string
   | {
@@ -94,9 +91,6 @@ type JobCardItem = {
   match: number;
 };
 
-/** -----------------------------
- *  Applications types (reuse CandidateApplications API)
- *  ----------------------------- */
 type HiringStatusApi =
   | "PENDING"
   | "INVITED"
@@ -146,16 +140,12 @@ type Application = {
   companyLogo: string;
   title: string;
   appliedDate: string;
-  /** Keep ISO for sorting without parsing formatted date */
   createdAtIso: string;
   status: ApplicationStatus;
   interviewStatus: InterviewStatus;
   score?: number | null;
 };
 
-/** -----------------------------
- *  Me + profile completion
- *  ----------------------------- */
 type CandidateMe = {
   name?: string;
   email?: string;
@@ -203,9 +193,7 @@ type CandidateDashboard = {
   recentApplications: Application[];
 };
 
-/** -----------------------------
- *  Helpers
- *  ----------------------------- */
+
 type JsonObject = Record<string, unknown>;
 function isRecord(v: unknown): v is JsonObject {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -279,7 +267,6 @@ function salaryToText(sr?: SalaryRangeDb): string {
   return "-";
 }
 
-/** Same mapping style as CandidateJobs */
 function toHomeJobCard(j: JobFromDB): JobCardItem {
   const company =
     (j.companyName ?? j.company ?? "Company").toString().trim() || "Company";
@@ -296,11 +283,10 @@ function toHomeJobCard(j: JobFromDB): JobCardItem {
     location,
     type,
     ctc,
-    match: 0, // keep 0 on Home (CandidateJobs computes AI match)
+    match: 0, 
   };
 }
 
-/** Same mapping style as CandidateApplications */
 function formatDate(d: string) {
   const date = new Date(d);
   if (Number.isNaN(date.getTime())) return d;
@@ -361,9 +347,7 @@ function toHomeApplication(a: ApplicationFromApi): Application {
   };
 }
 
-/** Extract jobs from unknown API response (no any) */
 function extractJobItems(raw: unknown): JobFromDB[] {
-  // direct JobsResponse
   if (isRecord(raw) && Array.isArray(raw["items"])) {
     return (raw["items"] as unknown[])
       .filter((x: unknown) => isRecord(x))
@@ -385,7 +369,6 @@ function extractJobItems(raw: unknown): JobFromDB[] {
     .map((x: unknown) => x as JobFromDB);
 }
 
-/** Me fetch (same idea as your other screens) */
 function normalizeMe(raw: unknown): CandidateMe {
   const data = unwrapData(raw);
   const me = (data["me"] ?? data["user"] ?? data["profile"] ?? data) as unknown;
@@ -429,9 +412,6 @@ async function tryFetchMe(): Promise<CandidateMe | null> {
 
 const PROFILE_BANNER_DISMISS_KEY = "candidate_home_profile_banner_dismissed";
 
-/** -----------------------------
- *  Styles (unchanged)
- *  ----------------------------- */
 const useStyles = makeStyles({
   root: {
     display: "flex",
@@ -937,10 +917,6 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
   }, []);
 
   const fetchInvitedJobs = React.useCallback(async () => {
-    /**
-     * Backend-specific:
-     * If you already have an invited jobs route, replace these candidates.
-     */
     const candidates = [
       () => {
         const p = new URLSearchParams();
@@ -984,7 +960,6 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
 
     const list = (data ?? []).map(toHomeApplication);
 
-    // newest first using ISO timestamp (NOT formatted date)
     const sorted = [...list].sort((a, b) => {
       const da = new Date(a.createdAtIso).getTime();
       const db = new Date(b.createdAtIso).getTime();
@@ -1088,7 +1063,6 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
 
       t = window.setInterval(() => {
         refreshAll().catch(() => {
-          // keep soft
         });
       }, 25000);
     })();

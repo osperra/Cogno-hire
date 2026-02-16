@@ -43,9 +43,27 @@ export const storage = new CloudinaryStorage({
 
     return {
       folder: "cogno-hire",
-      resource_type: resourceType, 
+      resource_type: resourceType,
+      type: "upload",
+      access_mode: "public",
       public_id: `${Date.now()}-${safeName}`,
       allowed_formats: ["jpg", "png", "jpeg", "pdf", "doc", "docx", "webp"],
+    };
+  },
+});
+
+export const resumeStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (_req, file) => {
+    const safeName = file.originalname.replace(/[^\w.-]+/g, "-");
+
+    return {
+      folder: "cogno-hire",
+      resource_type: "raw",
+      type: "upload",
+      access_mode: "public",
+      public_id: `${Date.now()}-${safeName}`,
+      allowed_formats: ["pdf", "doc", "docx"],
     };
   },
 });

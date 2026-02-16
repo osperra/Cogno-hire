@@ -8,7 +8,7 @@ import { Job } from "../models/Jobs.js";
 import { Application } from "../models/Application.js";
 import { User } from "../models/User.js";
 import { Document } from "../models/Document.js";
-import { storage } from "../config/cloudinary.js";
+import { resumeStorage } from "../config/cloudinary.js";
 
 export const candidatesRouter = Router();
 
@@ -105,7 +105,7 @@ function isResumeAllowed(file: Express.Multer.File) {
 
 
 const uploadResume = multer({
-  storage,
+  storage: resumeStorage,
   limits: { fileSize: 10 * 1024 * 1024 }, 
   fileFilter: (_req, file, cb) => {
     const ok =
@@ -248,6 +248,12 @@ candidatesRouter.post(
         mimeType: req.file.mimetype,
         sizeBytes: req.file.size,
         fileUrl,
+        cloudinaryPublicId: (req.file as any).filename || (req.file as any).public_id,
+        cloudinaryResourceType: (req.file as any).resource_type,
+        cloudinaryDeliveryType: (req.file as any).type,
+        cloudinaryFormat: (req.file as any).format,
+        cloudinaryVersion: (req.file as any).version,
+        cloudinaryAccessMode: (req.file as any).access_mode,
         status: "PENDING",
         bucketName: "docs",
       });

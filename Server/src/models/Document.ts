@@ -23,6 +23,14 @@ export interface DocumentDoc {
   bucketName?: string;
 
   fileUrl: string;
+
+  cloudinaryPublicId?: string;
+  cloudinaryResourceType?: "raw" | "image" | "video";
+  cloudinaryDeliveryType?: string; 
+  cloudinaryFormat?: string;
+  cloudinaryVersion?: number;
+  cloudinaryAccessMode?: string; 
+
   status: DocumentStatus;
 
   createdAt: Date;
@@ -59,6 +67,17 @@ const documentSchema = new Schema<DocumentDoc>(
 
     fileUrl: { type: String, required: true },
 
+    cloudinaryPublicId: { type: String, required: false },
+    cloudinaryResourceType: {
+      type: String,
+      required: false,
+      enum: ["raw", "image", "video"],
+    },
+    cloudinaryDeliveryType: { type: String, required: false },
+    cloudinaryFormat: { type: String, required: false },
+    cloudinaryVersion: { type: Number, required: false },
+    cloudinaryAccessMode: { type: String, required: false },
+
     status: {
       type: String,
       enum: ["PENDING", "VERIFIED", "COMPLETED", "SIGNED"],
@@ -73,9 +92,7 @@ documentSchema.index({ ownerUserId: 1, createdAt: -1 });
 documentSchema.index({ jobId: 1, createdAt: -1 });
 documentSchema.index({ applicationId: 1, createdAt: -1 });
 
-// ✅ single model export (default)
 const Document = model<DocumentDoc>("Document", documentSchema, "documents");
 export default Document;
 
-// ✅ optional named export (if you want both styles)
 export { Document };

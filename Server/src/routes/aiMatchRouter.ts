@@ -19,12 +19,6 @@ type JobMatchInput = {
 
 type ResolvedResume = {
   base64: string;
-
-
-
-
-
-  
   mimeType: string;
   cacheKey: string;
 };
