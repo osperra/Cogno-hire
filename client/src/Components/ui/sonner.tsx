@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 function useTheme(): { theme?: "light" | "dark" | "system" } {
   if (typeof window === "undefined") {

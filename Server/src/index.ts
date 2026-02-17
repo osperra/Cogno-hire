@@ -1,13 +1,10 @@
 import "dotenv/config";
-
 import express, { type Request, type Response } from "express";
 import cors from "cors";
 import path from "path";
 import { connectDB } from "./config/db.js";
-
 import { fetch } from "undici";
 (globalThis as any).fetch = fetch;
-
 import authRouter from "./routes/auth.js";
 import { jobsRouter } from "./routes/jobs.js";
 import { applicationsRouter } from "./routes/applications.js";
@@ -36,20 +33,15 @@ app.use(
     credentials: true,
   })
 );
-
 app.use(express.json());
-
 app.use("/api/documents", documentsRouter);
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
-
 app.use(meRoutes);
 app.use(candidateDashboardRoutes);
-
 app.get("/health", (_: Request, res: Response) => res.json({ ok: true }));
 app.get("/", (_req: Request, res: Response) =>
   res.json({ ok: true, name: "CognoHire API" })
 );
-
 app.use("/api/auth", authRouter);
 app.use("/api/jobs", jobsRouter);
 app.use("/api/applications", applicationsRouter);

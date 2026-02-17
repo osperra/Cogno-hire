@@ -200,7 +200,6 @@ async function downloadByPublicIdBestEffort(args: {
   const fmt = args.resumeFormat || "pdf";
   const rt = (args.resumeResourceType as any) || "raw";
   const preferred = args.resumeDeliveryType || "authenticated";
-
   const order: Array<"authenticated" | "private" | "upload"> =
     preferred === "upload"
       ? ["upload", "authenticated", "private"]
@@ -360,10 +359,8 @@ async function resolveResumeSource(args: {
       const fileUrl = String(doc.fileUrl);
       const buf = await downloadAsBufferFromUrl(fileUrl);
       const base64 = buf.toString("base64");
-
       const mimeFromDoc = String(doc.mimeType || "").trim() || "";
       const guessedByName = guessMimeFromFormatOrUrl(nameHint || fileUrl);
-
       const mimeType =
         mimeFromDoc && mimeFromDoc !== "application/octet-stream"
           ? mimeFromDoc
@@ -403,10 +400,8 @@ async function resolveResumeSource(args: {
     const buf = await downloadAsBufferFromUrl(url);
     const base64 = buf.toString("base64");
     const nameHint = fileNameFromUrl(url);
-
     const byFormat = guessMimeFromFormatOrUrl(args.resumeFormat || "");
     const byName = guessMimeFromFormatOrUrl(nameHint || url);
-
     const mimeType =
       byFormat !== "application/octet-stream"
         ? byFormat
@@ -550,17 +545,12 @@ router.post("/jobs/match-batch", requireAuth, async (req: AuthedRequest, res: Re
     }
 
     const candidateId = new mongoose.Types.ObjectId(userId);
-
     const cleanJobs = jobs.filter((j) => j && j.id && j.title).slice(0, 30);
-
     const resumeHash = sha256(normalizeResumeForHash(resumeText));
-
-    // Build jobHash map
     const jobMeta = cleanJobs.map((j) => {
       const jobHash = sha256(normalizeJobForHash(j));
       return { job: j, jobHash };
     });
-
     const cachedDocs = await JobMatchCache.find({
       candidateId,
       resumeHash,
@@ -569,12 +559,10 @@ router.post("/jobs/match-batch", requireAuth, async (req: AuthedRequest, res: Re
     })
       .select("jobId jobHash match provider")
       .lean();
-
     const cacheKeyToMatch = new Map<string, { match: number; provider?: string }>();
     for (const d of cachedDocs as any[]) {
       cacheKeyToMatch.set(`${d.jobId}::${d.jobHash}`, { match: d.match, provider: d.provider });
     }
-
     const matches: Record<string, number> = {};
     const missing: Array<{ job: JobMatchInput; jobHash: string }> = [];
 
@@ -590,7 +578,6 @@ router.post("/jobs/match-batch", requireAuth, async (req: AuthedRequest, res: Re
 
     for (let i = 0; i < missing.length; i += CHUNK) {
       const chunk = missing.slice(i, i + CHUNK);
-
       const payloadForPrompt = chunk.map((x) => ({
         id: x.job.id,
         title: x.job.title,

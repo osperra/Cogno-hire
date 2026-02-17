@@ -28,16 +28,12 @@ type TopBarProps = {
   title: string;
   role: Role;
   breadcrumbs?: string[];
-
   onMyAccount?: () => void;
   onProfileSettings?: () => void;
   onPreferences?: () => void;
   onSignOut?: () => void;
-
   onNavigate?: (page: string, data?: Record<string, unknown>) => void;
-
   navigateTo?: (path: string) => void;
-
   routes?: {
     myAccount?: string;
     profileSettings?: string;
@@ -84,7 +80,6 @@ type NotificationItemUI = {
 };
 
 type SearchEntity = "job" | "application" | "candidate" | "notification";
-
 type SearchItem = {
   id: string;
   type: SearchEntity;
@@ -93,11 +88,9 @@ type SearchItem = {
   url?: string;
   meta?: Record<string, unknown>;
 };
-
 type SearchResponse = {
   items: SearchItem[];
 };
-
 type JobListItem = {
   _id?: string;
   id?: string;
@@ -210,26 +203,20 @@ export function TopBar({
 }: TopBarProps) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-
   const inputRef = useRef<HTMLInputElement | null>(null);
   const searchWrapRef = useRef<HTMLDivElement | null>(null);
-
   const [me, setMe] = useState<MeResponse | null>(null);
   const [loadingMe, setLoadingMe] = useState(false);
-
   const [notifications, setNotifications] = useState<NotificationItemUI[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
-
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 250);
-
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string>("");
   const [results, setResults] = useState<SearchItem[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
-
   const resolvedRoutes = useMemo(
     () => ({
       myAccount: routes?.myAccount ?? "/employer/account",
@@ -406,14 +393,17 @@ export function TopBar({
       () => api<SearchResponse>(`/api/search?q=${safe}&limit=8`),
       () => api<SearchResponse>(`/api/search/global?q=${safe}&limit=8`),
       async () => {
-        const [jobs, apps] = await Promise.all([
-          api<JobListItem[]>(`/api/jobs?search=${safe}&limit=5`).catch(
+        const [jobsRes, appsRes] = await Promise.all([
+          api<{ items: JobListItem[] } | JobListItem[]>(`/api/jobs?search=${safe}&limit=5`).catch(
             () => [] as JobListItem[],
           ),
-          api<ApplicationListItem[]>(
+          api<{ items: ApplicationListItem[] } | ApplicationListItem[]>(
             `/api/applications/employer?search=${safe}&limit=5`,
           ).catch(() => [] as ApplicationListItem[]),
         ]);
+
+        const jobs = Array.isArray(jobsRes) ? jobsRes : (jobsRes?.items || []);
+        const apps = Array.isArray(appsRes) ? appsRes : (appsRes?.items || []);
 
         const jobItems: SearchItem[] = (jobs || []).map((j) => ({
           id: String(j._id ?? j.id ?? ""),

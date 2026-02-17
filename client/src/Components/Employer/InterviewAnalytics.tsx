@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Button,
   Card,
@@ -21,16 +22,15 @@ import {
 } from "@fluentui/react-icons";
 
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+  Tooltip,
 } from "recharts";
 import { api } from "../../api/http";
-
 interface InterviewAnalyticsProps {
   onNavigate: (page: string) => void;
 }
@@ -58,6 +58,11 @@ interface AnalyticsData {
   improvements: ImprovementItem[];
   jobTitle: string;
   createdAt: string;
+  transcript?: { role: string; content: string; ts: number }[];
+  candidateName?: string;
+  candidateEmail?: string;
+  applicationId?: string;
+  highlights?: { type: string; label: string; content: string }[];
 }
 
 const useStyles = makeStyles({
@@ -257,6 +262,47 @@ const useStyles = makeStyles({
     ...shorthands.border("1px", "solid", "rgba(2,6,23,0.08)"),
     padding: "24px",
     backgroundColor: "#FFFFFF",
+    display: "flex",
+    flexDirection: "column",
+  },
+
+  feedbackCard: {
+    ...shorthands.borderRadius("20px"),
+    ...shorthands.border("none"),
+    background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
+    padding: "24px",
+    position: "relative",
+    overflow: "hidden",
+    "::before": {
+      content: '""',
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: "4px",
+      height: "100%",
+      backgroundColor: "#0118D8",
+    },
+  },
+
+  feedbackBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    columnGap: "6px",
+    backgroundColor: "#FFFFFF",
+    ...shorthands.padding("4px", "12px"),
+    ...shorthands.borderRadius("99px"),
+    ...shorthands.border("1px", "solid", "rgba(1, 24, 216, 0.1)"),
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    color: "#0118D8",
+    marginBottom: "16px",
+  },
+
+  feedbackContent: {
+    fontSize: "1rem",
+    color: "#334155",
+    lineHeight: 1.7,
+    fontWeight: 400,
   },
 
   sectionTitle: {
@@ -348,7 +394,7 @@ const useStyles = makeStyles({
   statusPillGreen: {
     backgroundColor: "#e3ffeeff",
     color: "#1a5a28ff",
-},
+  },
 
   statusPillBlue: {
     backgroundColor: "#d9e5ffff",
@@ -499,30 +545,156 @@ const useStyles = makeStyles({
       backgroundColor: "#FEF2F2",
     },
   },
+
+  highlightCard: {
+    ...shorthands.borderRadius("16px"),
+    ...shorthands.border("1px", "solid", "rgba(2,6,23,0.08)"),
+    padding: "20px",
+    backgroundColor: "#FFFFFF",
+    display: "flex",
+    flexDirection: "column",
+    rowGap: "12px",
+    transition: "transform 0.2s ease-in-out",
+    ":hover": {
+      transform: "translateY(-4px)",
+      boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+    },
+  },
+  highlightIconCircle: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "10px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  highlightTypeQuestion: {
+    backgroundColor: "#F0F9FF",
+    color: "#0284C7",
+  },
+  highlightTypeAnswer: {
+    backgroundColor: "#F0FDF4",
+    color: "#16A34A",
+  },
+  highlightLabel: {
+    fontSize: "0.75rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    color: "#64748B",
+  },
 });
 
 export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
   const styles = useStyles();
-
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const handleStatusUpdate = async (newStatus: string) => {
+    const appId = data?.applicationId || location.state?.applicationId;
+    if (!appId) {
+      alert("Application ID not found. Cannot update status.");
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      await api(`/api/applications/${appId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ hiringStatus: newStatus }),
+      });
+      alert(`Candidate status updated to ${newStatus}`);
+    } catch (e) {
+      console.error("Failed to update status", e);
+      alert("Failed to update status. Please try again.");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleDownloadReport = () => {
+    if (!data) return;
+    const reportText = `
+Interview Analytics Report
+--------------------------
+Candidate: ${data.candidateName || "N/A"}
+Email: ${data.candidateEmail || "N/A"}
+Job: ${data.jobTitle || "N/A"}
+Date: ${new Date(data.createdAt).toLocaleDateString()}
+Overall Score: ${data.overallScore}%
+Feedback Summary:
+${data.feedback}
+Skills Breakdown:
+${data.skills?.map((s) => `- ${s.skill}: ${s.score}%`).join("\n") || "No skills recorded."}
+Key Strengths:
+${data.strengths?.map((s) => `- ${s.title}: ${s.description}`).join("\n") || "No strengths recorded."}
+Areas for Improvement:
+${data.improvements?.map((s) => `- ${s.title}: ${s.description}`).join("\n") || "No improvements recorded."}
+Interview Highlights:
+${data.transcript?.map((t) => `[${t.role.toUpperCase()}] ${t.content}`).join("\n\n") || "No transcript available."}
+    `.trim();
+
+    const blob = new Blob([reportText], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Interview_Report_${data.candidateName?.replace(/\s+/g, "_") || "Candidate"}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await api<AnalyticsData>("/api/ai/analytics");
-        setData(res);
+        const state = (location.state || {}) as {
+          applicationId?: string;
+          jobId?: string;
+          candidateId?: string;
+        };
+        const applicationId = state.applicationId;
+        const jobId = state.jobId;
+        const candidateId = state.candidateId;
+
+        let url = "/api/ai/analytics";
+        if (applicationId) {
+          url = `/api/ai/interview/result/${applicationId}`;
+        } else if (jobId && candidateId) {
+          url = `/api/ai/analytics?jobId=${jobId}&candidateId=${candidateId}`;
+        }
+
+        const res = await api<AnalyticsData | { results: AnalyticsData[] }>(
+          url,
+        );
+
+        let resultData: AnalyticsData;
+        if ("results" in res && Array.isArray(res.results)) {
+          resultData = res.results[0];
+        } else {
+          resultData = res as AnalyticsData;
+        }
+
+        if (!resultData.applicationId && applicationId) {
+          resultData.applicationId = applicationId;
+        }
+
+        setData(resultData);
       } catch (e) {
         console.error("Failed to fetch analytics", e);
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [location.state]);
 
   if (loading) {
     return (
-      <div className={styles.root} style={{ alignItems: "center", justifyContent: "center" }}>
+      <div
+        className={styles.root}
+        style={{ alignItems: "center", justifyContent: "center" }}
+      >
         <Spinner label="Loading analytics..." />
       </div>
     );
@@ -535,7 +707,7 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
           <Button
             appearance="subtle"
             size="small"
-            onClick={() => onNavigate("Applicants")}
+            onClick={() => onNavigate("applicants")}
             icon={<ArrowLeft20Regular />}
             className={styles.backButton}
           />
@@ -552,8 +724,15 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
     );
   }
 
-  const { overallScore, feedback, skills, strengths, improvements, jobTitle, createdAt } = data;
-
+  const {
+    overallScore,
+    feedback,
+    skills,
+    strengths,
+    improvements,
+    jobTitle,
+    createdAt,
+  } = data;
   const dateStr = new Date(createdAt).toLocaleDateString();
 
   return (
@@ -562,7 +741,7 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
         <Button
           appearance="subtle"
           size="small"
-          onClick={() => onNavigate("Applicants")}
+          onClick={() => onNavigate("applicants")}
           icon={<ArrowLeft20Regular />}
           className={styles.backButton}
         />
@@ -573,13 +752,19 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
           </span>
         </div>
         <div className={styles.headerActions}>
-          <Button appearance="outline" className={styles.downloadButton}>
+          <Button
+            appearance="outline"
+            className={styles.downloadButton}
+            onClick={handleDownloadReport}
+          >
             Download Report
           </Button>
           <Button
             appearance="primary"
             className={styles.primaryGreenButton}
             icon={<CheckmarkCircle20Regular />}
+            onClick={() => handleStatusUpdate("HIRED")}
+            disabled={updating}
           >
             Mark as Hired
           </Button>
@@ -588,16 +773,28 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
 
       <Card className={styles.candidateCard}>
         <div className={styles.candidateRow}>
-          <div className={styles.candidateAvatar}>SC</div>
+          <div className={styles.candidateAvatar}>
+            {data.candidateName
+              ? data.candidateName
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()
+              : "SC"}
+          </div>
 
           <div className={styles.candidateMain}>
             <div className={styles.candidateHeaderRow}>
               <div>
-                <div className={styles.candidateName}>Candidate</div>
+                <div className={styles.candidateName}>
+                  {data.candidateName || "Candidate"}
+                </div>
                 <div className={styles.candidateMetaRow}>
                   <div className={styles.metaItem}>
                     <Mail20Regular />
-                    <span>candidate@example.com</span>
+                    <span>
+                      {data.candidateEmail || "candidate@example.com"}
+                    </span>
                   </div>
                   <div className={styles.metaItem}>
                     <Briefcase20Regular />
@@ -629,38 +826,117 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
 
       <div className={styles.twoColumnGrid}>
         <Card className={styles.sectionCard}>
-          <div className={styles.sectionTitle}>Skills Breakdown</div>
+          <div className={styles.sectionTitle}>Skills Assessment</div>
           <div className={styles.chartWrapper}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
+              <RadarChart
+                cx="50%"
+                cy="50%"
+                outerRadius="80%"
                 data={skills || []}
-                layout="vertical"
-                margin={{ top: 16, right: 16, left: 16, bottom: 8 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                <XAxis type="number" domain={[0, 100]} hide />
-                <YAxis dataKey="skill" type="category" width={100} tick={{ fontSize: 12 }} />
+                <PolarGrid stroke="#E2E8F0" />
+                <PolarAngleAxis
+                  dataKey="skill"
+                  tick={{ fill: "#64748B", fontSize: 12 }}
+                />
+                <PolarRadiusAxis angle={30} domain={[0, 100]} hide />
+                <Radar
+                  name="Score"
+                  dataKey="score"
+                  stroke="#2563EB"
+                  fill="#3B82F6"
+                  fillOpacity={0.8}
+                />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "#FFFFFF",
-                    border: "1px solid rgba(2,6,23,0.08)",
+                    border: "none",
                     borderRadius: 8,
-                    fontSize: 12,
+                    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
                   }}
                 />
-                <Bar dataKey="score" fill="#0118D8" radius={[0, 4, 4, 0]} barSize={20} />
-              </BarChart>
+              </RadarChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
-        <Card className={styles.sectionCard}>
-          <div className={styles.sectionTitle}>Feedback Summary</div>
-          <p style={{ fontSize: "0.9rem", color: "#4B5563", lineHeight: 1.5 }}>
-            {feedback}
-          </p>
+        <Card className={styles.feedbackCard}>
+          <div className={styles.feedbackBadge}>
+            <ChatMultiple20Regular />
+            <span>AI ANALYSIS INSIGHTS</span>
+          </div>
+          <div className={styles.sectionTitle} style={{ marginBottom: "12px" }}>
+            Executive Summary
+          </div>
+          <p className={styles.feedbackContent}>{feedback}</p>
         </Card>
       </div>
+
+      {data.highlights && data.highlights.length > 0 && (
+        <>
+          <div
+            className={styles.sectionTitle}
+            style={{ marginTop: "8px", marginBottom: "4px" }}
+          >
+            Interview Highlights
+          </div>
+          <div className={styles.twoColumnGrid}>
+            {data.highlights.map(
+              (
+                h: { type: string; label: string; content: string },
+                idx: number,
+              ) => (
+                <div key={idx} className={styles.highlightCard}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      columnGap: "12px",
+                    }}
+                  >
+                    <div
+                      className={`${styles.highlightIconCircle} ${h.type === "question" ? styles.highlightTypeQuestion : styles.highlightTypeAnswer}`}
+                    >
+                      {h.type === "question" ? (
+                        <ChatMultiple20Regular />
+                      ) : (
+                        <CheckmarkCircle20Regular />
+                      )}
+                    </div>
+                    <div>
+                      <div className={styles.highlightLabel}>
+                        {h.type === "question"
+                          ? "Mandatory Question"
+                          : "Exceptional Answer"}
+                      </div>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          color: "#1E293B",
+                          fontSize: "0.95rem",
+                        }}
+                      >
+                        {h.label}
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.9rem",
+                      color: "#475569",
+                      fontStyle: "italic",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    "{h.content}"
+                  </div>
+                </div>
+              ),
+            )}
+          </div>
+        </>
+      )}
 
       <div className={styles.twoColumnGrid}>
         <Card className={styles.sectionCard}>
@@ -715,102 +991,50 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
         </div>
 
         <div className={styles.transcriptBody}>
-          <div className={styles.transcriptRow}>
-            <div className={styles.transcriptMessageRow}>
-              <div className={`${styles.avatarSmall} ${styles.avatarAi}`}>
-                AI
-              </div>
-              <div style={{ flex: 1 }}>
-                <div className={styles.transcriptMeta}>10:32 AM</div>
-                <div className={styles.transcriptText}>
-                  Can you explain how you would optimize a React application
-                  that&apos;s experiencing performance issues?
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className={styles.transcriptRow}>
-            <div className={styles.transcriptMessageRow}>
-              <div
-                className={`${styles.avatarSmall} ${styles.avatarCandidate}`}
-              >
-                SC
-              </div>
-              <div style={{ flex: 1 }}>
-                <div className={styles.transcriptBubble}>
-                  <div className={styles.transcriptMeta}>10:33 AM</div>
-                  <div className={styles.transcriptText}>
-                    I would start by using React DevTools Profiler to identify
-                    which components are causing re-renders. Then I&apos;d apply
-                    techniques like <code>React.memo</code> for component
-                    memoization, <code>useMemo</code> for expensive
-                    calculations, and <code>useCallback</code> for function
-                    references. I&apos;d also consider code splitting with{" "}
-                    <code>React.lazy</code> and <code>Suspense</code> to reduce
-                    the initial bundle size. Finally, I&apos;d optimize any list
-                    rendering with proper keys and virtualization if dealing
-                    with large datasets.
+          {data.transcript && data.transcript.length > 0 ? (
+            data.transcript.map((msg, idx) => (
+              <div key={idx} className={styles.transcriptRow}>
+                <div className={styles.transcriptMessageRow}>
+                  <div
+                    className={`${styles.avatarSmall} ${msg.role === "ai" ? styles.avatarAi : styles.avatarCandidate}`}
+                  >
+                    {msg.role === "ai"
+                      ? "AI"
+                      : data.candidateName
+                        ? data.candidateName
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .toUpperCase()
+                        : "C"}
                   </div>
-                  <div className={styles.statusRow}>
-                    <span
-                      className={`${styles.statusPillBase} ${styles.statusPillGreen}`}
-                    >
-                      Excellent Answer
-                    </span>
+                  <div style={{ flex: 1 }}>
+                    <div className={styles.transcriptMeta}>
+                      {new Date(msg.ts).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                    {msg.role === "candidate" ? (
+                      <div className={styles.transcriptBubble}>
+                        <div className={styles.transcriptText}>
+                          {msg.content}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={styles.transcriptText}>{msg.content}</div>
+                    )}
                   </div>
                 </div>
               </div>
+            ))
+          ) : (
+            <div
+              style={{ textAlign: "center", color: "#6B7280", padding: "20px" }}
+            >
+              No transcript available for this session.
             </div>
-          </div>
-
-          <div className={styles.transcriptRow}>
-            <div className={styles.transcriptMessageRow}>
-              <div className={`${styles.avatarSmall} ${styles.avatarAi}`}>
-                AI
-              </div>
-              <div style={{ flex: 1 }}>
-                <div className={styles.transcriptMeta}>10:35 AM</div>
-                <div className={styles.transcriptText}>
-                  Great answer! Now, can you describe a challenging bug
-                  you&apos;ve encountered and how you resolved it?
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className={styles.transcriptRow}>
-            <div className={styles.transcriptMessageRow}>
-              <div
-                className={`${styles.avatarSmall} ${styles.avatarCandidate}`}
-              >
-                SC
-              </div>
-              <div style={{ flex: 1 }}>
-                <div className={styles.transcriptBubble}>
-                  <div className={styles.transcriptMeta}>10:37 AM</div>
-                  <div className={styles.transcriptText}>
-                    One of the most challenging bugs was an intermittent state
-                    issue in a complex form with nested components. The state
-                    would occasionally not update correctly. After extensive
-                    debugging, I discovered it was a closure issue with event
-                    handlers that were capturing stale values. I resolved it by
-                    restructuring the component hierarchy and using{" "}
-                    <code>useCallback</code> with proper dependencies. This
-                    taught me the importance of understanding React&apos;s
-                    rendering lifecycle deeply.
-                  </div>
-                  <div className={styles.statusRow}>
-                    <span
-                      className={`${styles.statusPillBase} ${styles.statusPillBlue}`}
-                    >
-                      Good Answer
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </Card>
 
@@ -836,13 +1060,28 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
               success in this position.
             </div>
             <div className={styles.recommendationButtonsRow}>
-              <Button appearance="primary" className={styles.shortlistButton}>
+              <Button
+                appearance="primary"
+                className={styles.shortlistButton}
+                onClick={() => handleStatusUpdate("SHORTLISTED")}
+                disabled={updating}
+              >
                 Move to Shortlist
               </Button>
-              <Button appearance="outline" className={styles.scheduleButton}>
+              <Button
+                appearance="outline"
+                className={styles.scheduleButton}
+                onClick={() => handleStatusUpdate("INVITED")}
+                disabled={updating}
+              >
                 Schedule Follow-up
               </Button>
-              <Button appearance="outline" className={styles.rejectButton}>
+              <Button
+                appearance="outline"
+                className={styles.rejectButton}
+                onClick={() => handleStatusUpdate("REJECTED")}
+                disabled={updating}
+              >
                 Reject
               </Button>
             </div>

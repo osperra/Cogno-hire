@@ -18,6 +18,13 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "../ui/sheet";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -225,6 +232,15 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
     rejected: 0,
   });
 
+  const [candidateSheetOpen, setCandidateSheetOpen] = useState(false);
+  const [jobSheetOpen, setJobSheetOpen] = useState(false);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [candidateData, setCandidateData] = useState<Record<string, unknown> | null>(null);
+  const [jobData, setJobData] = useState<Record<string, unknown> | null>(null);
+  const [loadingCandidate, setLoadingCandidate] = useState(false);
+  const [loadingJob, setLoadingJob] = useState(false);
+
   const jobOptions = useMemo(() => {
     const set = new Set<string>();
     rows.forEach((r) => set.add(r.job));
@@ -344,6 +360,40 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to update status";
       setError(msg);
+    }
+  }
+
+  async function handleViewCandidate(candidateId: string) {
+    setSelectedCandidateId(candidateId);
+    setCandidateSheetOpen(true);
+    setLoadingCandidate(true);
+    setCandidateData(null);
+
+    try {
+      const data = await apiJson<Record<string, unknown>>(`/api/candidates/profile/${candidateId}`);
+      setCandidateData(data);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load candidate";
+      setError(msg);
+    } finally {
+      setLoadingCandidate(false);
+    }
+  }
+
+  async function handleViewJob(jobId: string) {
+    setSelectedJobId(jobId);
+    setJobSheetOpen(true);
+    setLoadingJob(true);
+    setJobData(null);
+
+    try {
+      const data = await apiJson<Record<string, unknown>>(`/api/jobs/${jobId}`);
+      setJobData(data);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to load job";
+      setError(msg);
+    } finally {
+      setLoadingJob(false);
     }
   }
 
@@ -660,7 +710,7 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
                               </DropdownMenuItem>
 
                               <DropdownMenuItem
-                                onClick={() => onNavigate("candidate", { candidateId: a.candidateId })}
+                                onClick={() => handleViewCandidate(a.candidateId)}
                               >
                                 <span style={{ display: "flex", alignItems: "center" }}>
                                   <ContactCard20Regular style={{ marginRight: 8 }} />
@@ -668,7 +718,7 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
                                 </span>
                               </DropdownMenuItem>
 
-                              <DropdownMenuItem onClick={() => onNavigate("job", { jobId: a.jobId })}>
+                              <DropdownMenuItem onClick={() => handleViewJob(a.jobId)}>
                                 <span style={{ display: "flex", alignItems: "center" }}>
                                   <Briefcase20Regular style={{ marginRight: 8 }} />
                                   <span>View Job</span>
@@ -685,6 +735,288 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Candidate Details Sheet */}
+      <Sheet open={candidateSheetOpen} onOpenChange={setCandidateSheetOpen}>
+        <SheetContent side="right" style={{ width: "500px", maxWidth: "90vw", overflow: "auto", padding: "24px" }}>
+          <SheetHeader>
+            <SheetTitle>Candidate Profile</SheetTitle>
+            <SheetDescription>View candidate information and details</SheetDescription>
+          </SheetHeader>
+
+          {loadingCandidate && (
+            <div style={{ padding: "24px", textAlign: "center", color: "#5B6475" }}>
+              Loading candidate profile...
+            </div>
+          )}
+
+          {!loadingCandidate && candidateData && (
+            <div style={{ padding: "24px 0", display: "flex", flexDirection: "column", gap: "24px" }}>
+              <div>
+                <div style={{ fontSize: "18px", fontWeight: 700, color: "#0B1220", marginBottom: "4px" }}>
+                  {String(candidateData.name || "Unknown")}
+                </div>
+                {candidateData.headline && (
+                  <div style={{ fontSize: "14px", color: "#5B6475", marginBottom: "8px" }}>
+                    {String(candidateData.headline)}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ borderTop: "1px solid rgba(2,6,23,0.08)", paddingTop: "16px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "#0B1220", marginBottom: "12px" }}>
+                  Contact Information
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {candidateData.email && (
+                    <div style={{ fontSize: "13px" }}>
+                      <span style={{ color: "#6B7280", width: "80px", display: "inline-block" }}>Email:</span>
+                      <span style={{ color: "#0B1220" }}>{String(candidateData.email)}</span>
+                    </div>
+                  )}
+                  {candidateData.phone && (
+                    <div style={{ fontSize: "13px" }}>
+                      <span style={{ color: "#6B7280", width: "80px", display: "inline-block" }}>Phone:</span>
+                      <span style={{ color: "#0B1220" }}>{String(candidateData.phone)}</span>
+                    </div>
+                  )}
+                  {candidateData.location && (
+                    <div style={{ fontSize: "13px" }}>
+                      <span style={{ color: "#6B7280", width: "80px", display: "inline-block" }}>Location:</span>
+                      <span style={{ color: "#0B1220" }}>{String(candidateData.location)}</span>
+                    </div>
+                  )}
+                  {candidateData.experienceLevel && (
+                    <div style={{ fontSize: "13px" }}>
+                      <span style={{ color: "#6B7280", width: "80px", display: "inline-block" }}>Level:</span>
+                      <span style={{ color: "#0B1220" }}>{String(candidateData.experienceLevel)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {candidateData.about && (
+                <div style={{ borderTop: "1px solid rgba(2,6,23,0.08)", paddingTop: "20px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "#0B1220", marginBottom: "8px" }}>
+                    About
+                  </div>
+                  <div style={{ fontSize: "13px", color: "#475569", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                    {String(candidateData.about)}
+                  </div>
+                </div>
+              )}
+
+              {Array.isArray(candidateData.skills) && candidateData.skills.length > 0 && (
+                <div style={{ borderTop: "1px solid rgba(2,6,23,0.08)", paddingTop: "20px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "#0B1220", marginBottom: "12px" }}>
+                    Skills
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {(candidateData.skills as unknown[]).map((skill: unknown, idx: number) => (
+                      <span
+                        key={idx}
+                        style={{
+                          backgroundColor: "#E9DFC3",
+                          color: "#0B1220",
+                          border: "1px solid #E9DFC3",
+                          borderRadius: "999px",
+                          padding: "6px 10px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {String(skill)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(candidateData.linkedin || candidateData.github || candidateData.portfolio) && (
+                <div style={{ borderTop: "1px solid rgba(2,6,23,0.08)", paddingTop: "20px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "#0B1220", marginBottom: "12px" }}>
+                    Links
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {candidateData.linkedin && (
+                      <a
+                        href={String(candidateData.linkedin)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: "13px", color: "#0118D8", textDecoration: "none" }}
+                      >
+                        LinkedIn Profile →
+                      </a>
+                    )}
+                    {candidateData.github && (
+                      <a
+                        href={String(candidateData.github)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: "13px", color: "#0118D8", textDecoration: "none" }}
+                      >
+                        GitHub Profile →
+                      </a>
+                    )}
+                    {candidateData.portfolio && (
+                      <a
+                        href={String(candidateData.portfolio)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: "13px", color: "#0118D8", textDecoration: "none" }}
+                      >
+                        Portfolio →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {candidateData.resumeUrl && (
+                <div style={{ borderTop: "1px solid rgba(2,6,23,0.08)", paddingTop: "20px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "#0B1220", marginBottom: "12px" }}>
+                    Resume
+                  </div>
+                  <a
+                    href={String(candidateData.resumeUrl)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: "13px",
+                      color: "#0118D8",
+                      textDecoration: "none",
+                      display: "inline-block",
+                    }}
+                  >
+                    {candidateData.resumeFileName
+                      ? String(candidateData.resumeFileName)
+                      : "View Resume"} →
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Job Details Sheet */}
+      <Sheet open={jobSheetOpen} onOpenChange={setJobSheetOpen}>
+        <SheetContent side="right" style={{ width: "500px", maxWidth: "90vw", overflow: "auto", padding: "24px" }}>
+          <SheetHeader>
+            <SheetTitle>Job Details</SheetTitle>
+            <SheetDescription>View job description and requirements</SheetDescription>
+          </SheetHeader>
+
+          {loadingJob && (
+            <div style={{ padding: "24px", textAlign: "center", color: "#5B6475" }}>
+              Loading job details...
+            </div>
+          )}
+
+          {!loadingJob && jobData && (
+            <div style={{ padding: "24px 0", display: "flex", flexDirection: "column", gap: "24px" }}>
+              <div>
+                <div style={{ fontSize: "18px", fontWeight: 700, color: "#0B1220", marginBottom: "4px" }}>
+                  {String(jobData.title || "Untitled Job")}
+                </div>
+                <div style={{ fontSize: "14px", color: "#5B6475" }}>
+                  {[jobData.location, jobData.workType, jobData.jobType]
+                    .filter(Boolean)
+                    .map(String)
+                    .join(" • ")}
+                </div>
+              </div>
+
+              <div style={{ borderTop: "1px solid rgba(2,6,23,0.08)", paddingTop: "16px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "#0B1220", marginBottom: "8px" }}>
+                  Description
+                </div>
+                <div style={{ fontSize: "13px", color: "#475569", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                  {String(jobData.description || jobData.about || "No description available")}
+                </div>
+              </div>
+
+              {Array.isArray(jobData.techStack) && jobData.techStack.length > 0 && (
+                <div style={{ borderTop: "1px solid rgba(2,6,23,0.08)", paddingTop: "20px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "#0B1220", marginBottom: "12px" }}>
+                    Tech Stack
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {(jobData.techStack as unknown[]).map((tech: unknown, idx: number) => (
+                      <span
+                        key={idx}
+                        style={{
+                          backgroundColor: "#E9DFC3",
+                          color: "#0B1220",
+                          border: "1px solid #E9DFC3",
+                          borderRadius: "999px",
+                          padding: "6px 10px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {String(tech)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ borderTop: "1px solid rgba(2,6,23,0.08)", paddingTop: "16px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "#0B1220", marginBottom: "12px" }}>
+                  Job Details
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {jobData.salaryRange && (
+                    <div style={{ fontSize: "13px" }}>
+                      <span style={{ color: "#6B7280", width: "120px", display: "inline-block" }}>Salary:</span>
+                      <span style={{ color: "#0B1220" }}>
+                        {typeof jobData.salaryRange === "string"
+                          ? jobData.salaryRange
+                          : typeof jobData.salaryRange === "object" && jobData.salaryRange
+                          ? `${(jobData.salaryRange as Record<string, unknown>).currency || ""}${
+                              (jobData.salaryRange as Record<string, unknown>).start || ""
+                            } - ${(jobData.salaryRange as Record<string, unknown>).currency || ""}${
+                              (jobData.salaryRange as Record<string, unknown>).end || ""
+                            }`
+                          : "-"}
+                      </span>
+                    </div>
+                  )}
+                  {jobData.workExperience && (
+                    <div style={{ fontSize: "13px" }}>
+                      <span style={{ color: "#6B7280", width: "120px", display: "inline-block" }}>Experience:</span>
+                      <span style={{ color: "#0B1220" }}>{String(jobData.workExperience)}+ years</span>
+                    </div>
+                  )}
+                  {jobData.interviewSettings &&
+                    typeof jobData.interviewSettings === "object" &&
+                    (jobData.interviewSettings as Record<string, unknown>).interviewDuration && (
+                      <div style={{ fontSize: "13px" }}>
+                        <span style={{ color: "#6B7280", width: "120px", display: "inline-block" }}>
+                          Interview Duration:
+                        </span>
+                        <span style={{ color: "#0B1220" }}>
+                          {String((jobData.interviewSettings as Record<string, unknown>).interviewDuration)} minutes
+                        </span>
+                      </div>
+                    )}
+                  {jobData.interviewSettings &&
+                    typeof jobData.interviewSettings === "object" &&
+                    (jobData.interviewSettings as Record<string, unknown>).difficultyLevel && (
+                      <div style={{ fontSize: "13px" }}>
+                        <span style={{ color: "#6B7280", width: "120px", display: "inline-block" }}>Difficulty:</span>
+                        <span style={{ color: "#0B1220" }}>
+                          {String((jobData.interviewSettings as Record<string, unknown>).difficultyLevel)}
+                        </span>
+                      </div>
+                    )}
+                </div>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

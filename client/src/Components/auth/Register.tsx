@@ -45,7 +45,6 @@ export function Register() {
 
       if (!res.ok) throw new Error(data?.message || "Registration failed");
 
-      // If backend returns token on register, auto-login:
       if (data.token && data.user?.role) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("role", data.user.role);
@@ -56,7 +55,6 @@ export function Register() {
         return;
       }
 
-      // If backend doesn’t auto-login, go to login
       nav("/login");
     } catch (err: unknown) {
       const msg =

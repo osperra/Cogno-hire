@@ -338,24 +338,18 @@ function safeErrorMessage(e: unknown) {
 
 export function DocumentManagement() {
   const styles = useStyles();
-
   const fileRef = useRef<HTMLInputElement | null>(null);
-
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
   const [activeTab, setActiveTab] = useState<TabValue>("all" as DocTab);
-
   const [typeFilter, setTypeFilter] = useState("all-types");
   const [statusFilter, setStatusFilter] = useState("all-status");
   const [dateFilter, setDateFilter] = useState("any-date");
-
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, verified: 0, pending: 0, requiresAction: 0 });
-
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string>("");
-
   const applicationIdFromUrl = useMemo(() => {
     const p = new URLSearchParams(window.location.search);
     return p.get("applicationId") || "";

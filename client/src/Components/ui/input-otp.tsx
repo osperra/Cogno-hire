@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import { makeStyles, shorthands, tokens } from "@fluentui/react-components";
 import { Subtract16Regular } from "@fluentui/react-icons";
@@ -199,16 +198,12 @@ export interface InputOTPSlotProps
 function InputOTPSlot({ index, className, ...rest }: InputOTPSlotProps) {
   const styles = useOtpStyles();
   const { value, disabled, setCharAt, clearCharAt } = useInputOTPContext();
-
   const wrapperRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
-
   const char = value[index] && value[index] !== " " ? value[index] : "";
-
   const focusAdjacentInput = (direction: 1 | -1) => {
     const current = inputRef.current;
     if (!current) return;
-
     const group =
       current.closest("[data-slot='input-otp-group']") ||
       wrapperRef.current?.parentElement;

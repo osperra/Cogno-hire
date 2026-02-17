@@ -16,7 +16,6 @@ import {
 } from "@fluentui/react-components";
 import { api } from "../../api/http";
 
-
 type PreferencesResponse = {
   emailNotifications?: boolean;
   productUpdates?: boolean;
@@ -113,13 +112,10 @@ async function requestDesktopNotificationPermission(): Promise<boolean> {
 
 export default function Preferences() {
   const styles = useStyles();
-
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-
   const [prefs, setPrefs] = React.useState<PreferencesForm>(DEFAULTS);
   const [initial, setInitial] = React.useState<PreferencesForm>(DEFAULTS);
-
   const [msg, setMsg] = React.useState<{
     type: "success" | "error";
     text: string;

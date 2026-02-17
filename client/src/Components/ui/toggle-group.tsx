@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import {
   ToggleButton,
@@ -43,13 +42,10 @@ export interface ToggleGroupProps extends React.HTMLAttributes<HTMLDivElement> {
   type?: ToggleGroupType;
   variant?: ToggleVariant;
   size?: ToggleSize;
-
   value?: string;
   defaultValue?: string;
-
   values?: string[];
   defaultValues?: string[];
-
   onValueChange?: (value: string | string[] | undefined) => void;
 }
 
@@ -106,9 +102,7 @@ function ToggleGroup({
   ...rest
 }: ToggleGroupProps) {
   const styles = useToggleGroupStyles();
-
   const isSingle = type === "single";
-
   const [internalSingle, setInternalSingle] = React.useState<
     string | undefined
   >(defaultValue);
@@ -118,7 +112,6 @@ function ToggleGroup({
 
   const selectedSingle = value !== undefined ? value : internalSingle;
   const selectedMultiple = values ?? internalMultiple;
-
   const handleItemToggle = React.useCallback(
     (itemValue: string) => {
       if (isSingle) {
@@ -183,24 +176,19 @@ function ToggleGroupItem({
 }: ToggleGroupItemProps) {
   const ctx = useToggleGroupContext();
   const itemStyles = useToggleItemStyles();
-
   const effectiveVariant = ctx.variant ?? variant ?? "default";
   const effectiveSize = ctx.size ?? size ?? "medium";
-
   const checked =
     ctx.type === "single"
       ? ctx.selectedSingle === value
       : ctx.selectedMultiple?.includes(value);
-
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
     if (!event.defaultPrevented) {
       ctx.onItemToggle(value);
     }
   };
-
   const appearance = mapVariantToAppearance(effectiveVariant);
   const fluentSize = mapSize(effectiveSize);
-
   const toggleButtonProps = {
     "data-slot": "toggle-group-item",
     appearance,

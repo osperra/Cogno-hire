@@ -1,4 +1,3 @@
-// client/src/Components/auth/Login.tsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -77,16 +76,13 @@ export function Login() {
         throw new Error("Invalid login response: missing/invalid user role.");
       }
 
-      // ✅ store auth
       localStorage.setItem("token", data.token);
       localStorage.setItem("role", data.user.role);
 
-      // optional helpers for UI
       if (data.user.id) localStorage.setItem("userId", data.user.id);
       if (data.user.name) localStorage.setItem("userName", data.user.name);
       if (data.user.email) localStorage.setItem("userEmail", data.user.email);
 
-      // ✅ one single entry route
       nav("/app", { replace: true });
     } catch (err: unknown) {
       const msg =

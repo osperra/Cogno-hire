@@ -1,12 +1,7 @@
 "use client";
-
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
-import {
-  makeStyles,
-  shorthands,
-  tokens,
-} from "@fluentui/react-components";
+import { makeStyles, shorthands, tokens } from "@fluentui/react-components";
 
 const THEMES = { light: "", dark: ".dark" } as const;
 
@@ -23,9 +18,7 @@ export type ChartConfig = {
 type ChartContextProps = {
   config: ChartConfig;
 };
-
 const ChartContext = React.createContext<ChartContextProps | null>(null);
-
 function useChart() {
   const context = React.useContext(ChartContext);
 
@@ -42,14 +35,13 @@ function mergeClassNames(
   return classes.filter(Boolean).join(" ");
 }
 
-
 const useChartStyles = makeStyles({
   root: {
     display: "flex",
     justifyContent: "center",
     alignItems: "stretch",
     width: "100%",
-    aspectRatio: "16 / 9", 
+    aspectRatio: "16 / 9",
     fontSize: tokens.fontSizeBase100,
   },
 
@@ -152,7 +144,6 @@ const useChartStyles = makeStyles({
   },
 });
 
-
 function ChartContainer({
   id,
   className,
@@ -223,7 +214,6 @@ ${colorConfig
 const ChartTooltip = RechartsPrimitive.Tooltip;
 const ChartLegend = RechartsPrimitive.Legend;
 
-
 type TooltipItem = {
   dataKey?: string | number;
   name?: string;
@@ -291,12 +281,7 @@ function ChartTooltipContent({
 
     if (labelFormatter && payload) {
       return (
-        <div
-          className={mergeClassNames(
-            styles.tooltipLabel,
-            labelClassName,
-          )}
-        >
+        <div className={mergeClassNames(styles.tooltipLabel, labelClassName)}>
           {labelFormatter(value, payload)}
         </div>
       );
@@ -307,12 +292,7 @@ function ChartTooltipContent({
     }
 
     return (
-      <div
-        className={mergeClassNames(
-          styles.tooltipLabel,
-          labelClassName,
-        )}
-      >
+      <div className={mergeClassNames(styles.tooltipLabel, labelClassName)}>
         {value}
       </div>
     );
@@ -334,10 +314,7 @@ function ChartTooltipContent({
   const nestLabel = payload.length === 1 && indicator !== "dot";
 
   return (
-    <div
-      className={mergeClassNames(styles.tooltipRoot, className)}
-      {...rest}
-    >
+    <div className={mergeClassNames(styles.tooltipRoot, className)} {...rest}>
       {!nestLabel ? tooltipLabel : null}
       <div className={styles.tooltipItems}>
         {payload.map((item, index) => {
@@ -354,19 +331,10 @@ function ChartTooltipContent({
           return (
             <div
               key={String(item.dataKey ?? index)}
-              className={mergeClassNames(
-                styles.tooltipRow,
-                rowAlignClass,
-              )}
+              className={mergeClassNames(styles.tooltipRow, rowAlignClass)}
             >
               {formatter && item.value !== undefined && item.name ? (
-                formatter(
-                  item.value,
-                  item.name,
-                  item,
-                  index,
-                  item.payload,
-                )
+                formatter(item.value, item.name, item, index, item.payload)
               ) : (
                 <>
                   {itemConfig?.icon ? (
@@ -378,10 +346,8 @@ function ChartTooltipContent({
                       <div
                         className={mergeClassNames(
                           styles.tooltipIndicatorContainer,
-                          indicator === "dot" &&
-                            styles.tooltipIndicatorDot,
-                          indicator === "line" &&
-                            styles.tooltipIndicatorLine,
+                          indicator === "dot" && styles.tooltipIndicatorDot,
+                          indicator === "line" && styles.tooltipIndicatorLine,
                           indicator === "dashed" &&
                             styles.tooltipIndicatorDashed,
                         )}
@@ -418,7 +384,6 @@ function ChartTooltipContent({
   );
 }
 
-
 type LegendItem = {
   dataKey?: string | number;
   value?: string;
@@ -448,17 +413,11 @@ function ChartLegendContent({
   }
 
   const rootAlignClass =
-    verticalAlign === "top"
-      ? styles.legendRootTop
-      : styles.legendRootBottom;
+    verticalAlign === "top" ? styles.legendRootTop : styles.legendRootBottom;
 
   return (
     <div
-      className={mergeClassNames(
-        styles.legendRoot,
-        rootAlignClass,
-        className,
-      )}
+      className={mergeClassNames(styles.legendRoot, rootAlignClass, className)}
       {...rest}
     >
       {payload.map((item, index) => {
@@ -466,10 +425,7 @@ function ChartLegendContent({
         const itemConfig = getPayloadConfigFromPayload(config, item, key);
 
         return (
-          <div
-            key={item.value ?? String(index)}
-            className={styles.legendItem}
-          >
+          <div key={item.value ?? String(index)} className={styles.legendItem}>
             {itemConfig?.icon && !hideIcon ? (
               <span className={styles.legendIconWrapper}>
                 <itemConfig.icon />
@@ -489,7 +445,6 @@ function ChartLegendContent({
     </div>
   );
 }
-
 
 function getPayloadConfigFromPayload(
   config: ChartConfig,

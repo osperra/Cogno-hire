@@ -22,7 +22,6 @@ import {
 import { api } from "../../api/http";
 
 type Role = "employer" | "candidate";
-
 type MeResponse = {
   _id: string;
   name: string;
@@ -139,19 +138,14 @@ function mapProfileToForm(p?: CompanyProfileResponse | null): CompanyForm {
 
 export default function MyAccount() {
   const styles = useStyles();
-
   const [loading, setLoading] = React.useState(true);
   const [me, setMe] = React.useState<MeResponse | null>(null);
-
   const [company, setCompany] = React.useState<CompanyProfileResponse | null>(
     null,
   );
-
   const [error, setError] = React.useState<string>("");
-
   const [editCompanyOpen, setEditCompanyOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
-
   const [companyForm, setCompanyForm] = React.useState<CompanyForm>({
     name: "",
     website: "",
@@ -161,11 +155,9 @@ export default function MyAccount() {
     description: "",
   });
   const [savingCompany, setSavingCompany] = React.useState(false);
-
   const [deleteText, setDeleteText] = React.useState("");
   const [deleting, setDeleting] = React.useState(false);
   const [deleteMsg, setDeleteMsg] = React.useState<string>("");
-
   const load = React.useCallback(async () => {
     setLoading(true);
     setError("");
@@ -384,19 +376,14 @@ export default function MyAccount() {
           <div className={styles.kv}>
             <div className={styles.k}>Company</div>
             <div className={styles.v}>{company?.companyName ?? "—"}</div>
-
             <div className={styles.k}>Website</div>
             <div className={styles.v}>{company?.website ?? "—"}</div>
-
             <div className={styles.k}>Industry</div>
             <div className={styles.v}>{company?.industry ?? "—"}</div>
-
             <div className={styles.k}>Size</div>
             <div className={styles.v}>{company?.companySize ?? "—"}</div>
-
             <div className={styles.k}>Location</div>
             <div className={styles.v}>{company?.headquarters ?? "—"}</div>
-
             <div className={styles.k}>Description</div>
             <div className={styles.v} style={{ fontWeight: 500 }}>
               {company?.description ?? "—"}

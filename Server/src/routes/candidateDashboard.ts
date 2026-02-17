@@ -73,7 +73,6 @@ function toDashboardJob(doc: any, idx: number): DashboardJob {
   const company = safeStr(doc?.company, safeStr(doc?.companyName, "Company"));
   const location = safeStr(doc?.location, "-");
   const type = safeStr(doc?.jobType, safeStr(doc?.type, "-"));
-
   const match = Math.max(60, Math.min(99, 75 + ((idx * 7) % 20)));
 
   return {
@@ -199,7 +198,6 @@ router.get(
 
       const pendingInterviews = recentApplications.filter((a) => a.interviewStatus === "Not Started").length;
       const offersReceived = recentApplications.filter((a) => a.status === "Hired").length;
-
       const notifs = await Notification.find({ userId: userId })
         .sort({ isRead: 1, createdAt: -1 })
         .limit(10)

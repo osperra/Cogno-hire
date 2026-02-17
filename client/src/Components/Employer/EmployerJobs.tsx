@@ -173,15 +173,12 @@ const ACTIONS_MENU_POSITIONING: DropdownMenuPositioning = {
 
 export function EmployerJobs() {
   const navigate = useNavigate();
-
   const [selectedJobs, setSelectedJobs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [jobType, setJobType] = useState("All Types");
   const [locationType, setLocationType] = useState("All Locations");
-
   const [jobs, setJobs] = useState<JobRowUI[]>([]);
   const [loading, setLoading] = useState(false);
-
   const [dupLoadingId, setDupLoadingId] = useState<string | null>(null);
   const [delLoadingId, setDelLoadingId] = useState<string | null>(null);
 
@@ -251,7 +248,6 @@ export function EmployerJobs() {
   };
 
   const searchWrapperStyle: React.CSSProperties = { position: "relative", width: "95%" };
-
   const iconButtonStyle: React.CSSProperties = {
     width: 36,
     height: 36,

@@ -13,16 +13,12 @@ export interface ApplicationDoc {
   _id: Types.ObjectId;
   jobId: Types.ObjectId;
   candidateId: Types.ObjectId;
-
   interviewStatus: InterviewStatus;
   hiringStatus: HiringStatus;
-
   overallScore?: number; 
   communication?: string;
-
   coverLetter?: string;
   resumeUrl?: string;
-
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,7 +43,6 @@ const applicationSchema = new Schema<ApplicationDoc>(
 
     overallScore: { type: Number, min: 0, max: 100 },
     communication: { type: String, default: "AVERAGE" },
-
     coverLetter: { type: String },
     resumeUrl: { type: String },
   },

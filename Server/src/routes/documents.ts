@@ -2,11 +2,9 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod";
 import multer from "multer";
 import { Types } from "mongoose";
-
 import { Document } from "../models/Document.js";
 import { Application } from "../models/Application.js";
 import { Job } from "../models/Jobs.js";
-
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
 import { storage } from "../config/cloudinary.js";
 
@@ -179,10 +177,8 @@ documentsRouter.get(
         const status = parsed.data.status;
         const days = parseInt(parsed.data.days ?? "", 10);
         const limit = Math.min(Math.max(parseInt(parsed.data.limit ?? "200", 10) || 200, 1), 500);
-
         const applicationId = parsed.data.applicationId;
         const jobId = parsed.data.jobId;
-
         const match: Record<string, unknown> = {};
 
         if (user.role === "candidate") {

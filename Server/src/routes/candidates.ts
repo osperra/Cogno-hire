@@ -2,7 +2,6 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import mongoose, { Types } from "mongoose";
 import multer from "multer";
 import { z } from "zod";
-
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
 import { Job } from "../models/Jobs.js";
 import { Application } from "../models/Application.js";
@@ -11,7 +10,6 @@ import { Document } from "../models/Document.js";
 import { resumeStorage } from "../config/cloudinary.js";
 
 export const candidatesRouter = Router();
-
 
 type UiCandidate = {
   id: string;
@@ -45,7 +43,6 @@ type CandidateMeLean = {
     relocation?: boolean;
   };
 };
-
 
 function initials(name: string) {
   const s = (name || "").trim();
@@ -131,13 +128,10 @@ function errorToPlain(e: unknown) {
 
 candidatesRouter.get("/", requireAuth, requireRole(["employer", "hr"]), async (req: AuthedRequest, res) => {
   const employerId = req.user!.id;
-
   const jobIds = await getEmployerJobIds(employerId);
   if (jobIds.length === 0) return res.json({ screening: [], interview: [], offer: [] });
-
   const matchBase = { jobId: { $in: oidList(jobIds) } };
   const LIMIT = 12;
-
   const [screeningApps, interviewApps, offerApps] = await Promise.all([
     Application.find({
       ...matchBase,
@@ -303,25 +297,22 @@ candidatesRouter.post(
   }
 );
 
-candidatesRouter.delete("/me/resume", requireAuth, requireRole(["candidate"]), async (req: AuthedRequest, res) => {
+candidatesRouter.get("/profile/:id", requireAuth, requireRole(["employer", "hr"]), async (req, res) => {
   try {
-    const me = await User.findById(req.user!.id)
-      .select("resumeDocId")
-      .lean<Pick<CandidateMeLean, "resumeDocId">>()
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid candidate id" });
+
+    const me = await User.findById(id)
+      .select(
+        "_id name email phone location headline about experienceLevel skills linkedin github portfolio resumeUrl resumeDocId resumeFileName preferences"
+      )
+      .lean<CandidateMeLean>()
       .exec();
 
-    if (me?.resumeDocId) {
-      await Document.deleteOne({ _id: me.resumeDocId });
-    }
-
-    await User.updateOne(
-      { _id: req.user!.id },
-      { $unset: { resumeUrl: "", resumeDocId: "", resumeFileName: "" } }
-    );
-
-    return res.status(204).send();
+    if (!me) return res.status(404).json({ message: "Candidate not found" });
+    return res.json(userToCandidateProfile(me));
   } catch (e) {
-    return res.status(500).json({ message: "Failed to remove resume", error: errorToPlain(e) });
+    return res.status(500).json({ message: "Server error", error: errorToPlain(e) });
   }
 });
 

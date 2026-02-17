@@ -22,7 +22,6 @@ const useSkeletonStyles = makeStyles({
     },
   },
 
-  // Sizes
   roundedLg: { borderRadius: "12px" },
   roundedFull: { borderRadius: "50%" },
 

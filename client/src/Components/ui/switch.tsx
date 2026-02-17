@@ -1,5 +1,4 @@
 "use client";
-
 import {
   Switch as FluentSwitch,
   type SwitchProps as FluentSwitchProps,

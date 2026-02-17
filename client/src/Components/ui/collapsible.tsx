@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import {
   makeStyles,
@@ -93,10 +92,8 @@ function Collapsible({
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(
     defaultOpen ?? false,
   );
-
   const isControlled = open !== undefined;
   const isOpen = isControlled ? open : uncontrolledOpen;
-
   const setOpen = React.useCallback(
     (next: boolean) => {
       if (!isControlled) {
@@ -106,7 +103,6 @@ function Collapsible({
     },
     [isControlled, onOpenChange],
   );
-
   const contentId = React.useId().replace(/:/g, "");
 
   return (

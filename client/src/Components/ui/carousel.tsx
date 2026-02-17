@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
@@ -112,7 +111,6 @@ const useCarouselStyles = makeStyles({
 function mergeClassNames(...classes: Array<string | undefined>): string {
   return classes.filter(Boolean).join(" ");
 }
-
 const CarouselContext = React.createContext<CarouselContextProps | null>(
   null,
 );

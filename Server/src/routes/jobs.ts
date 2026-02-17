@@ -100,20 +100,16 @@ jobsRouter.get("/", async (req, res) => {
   const page = Math.max(1, Number(req.query.page ?? 1) || 1);
   const limit = Math.max(1, Math.min(50, Number(req.query.limit ?? 10) || 10));
   const skip = (page - 1) * limit;
-
   const q =
     String(req.query.q ?? "").trim() ||
     String(req.query.search ?? "").trim();
-
   const location = String(req.query.location ?? "").trim();
   const workType = String(req.query.workType ?? "").trim();
   const jobType = String(req.query.jobType ?? "").trim();
   const difficulty = String(req.query.difficulty ?? "").trim();
   const minSalary = String(req.query.minSalary ?? "").trim();
   const sort = String(req.query.sort ?? "recent").trim();
-
   const includeAll = String(req.query.includeAll ?? "") === "1";
-
   const filter: Record<string, unknown> = {};
 
   if (!includeAll) {

@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import { makeStyles, shorthands, tokens } from "@fluentui/react-components";
 
@@ -47,15 +46,12 @@ const useTabsStyles = makeStyles({
   triggerBase: {
     flex: "0 0 auto",
     minWidth: "auto",
-
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     columnGap: tokens.spacingHorizontalXS,
-
     paddingInline: tokens.spacingHorizontalM,
     paddingBlock: tokens.spacingVerticalXXS,
-
     ...shorthands.borderRadius(tokens.borderRadiusXLarge),
     backgroundColor: "transparent",
     color: tokens.colorNeutralForeground1,
@@ -104,14 +100,11 @@ function Tabs({
   ...rest
 }: TabsProps) {
   const styles = useTabsStyles();
-
   const isControlled = value !== undefined;
   const [internalValue, setInternalValue] = React.useState<string | undefined>(
     defaultValue
   );
-
   const currentValue = isControlled ? value : internalValue;
-
   const setValue = React.useCallback(
     (next: string) => {
       if (!isControlled) {
@@ -171,12 +164,9 @@ function TabsTrigger({
 }: TabsTriggerProps) {
   const styles = useTabsStyles();
   const { value: selectedValue, setValue } = useTabsContext();
-
   const isActive = selectedValue === value;
-
   const tabId = `tab-${value}`;
   const panelId = `tabpanel-${value}`;
-
   const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
     rest.onClick?.(event);
     if (!event.defaultPrevented && !disabled) {
@@ -213,7 +203,6 @@ export interface TabsContentProps extends React.HTMLAttributes<HTMLDivElement> {
 function TabsContent({ className, value, ...rest }: TabsContentProps) {
   const styles = useTabsStyles();
   const { value: selectedValue } = useTabsContext();
-
   const tabId = `tab-${value}`;
   const panelId = `tabpanel-${value}`;
   const isActive = selectedValue === value;

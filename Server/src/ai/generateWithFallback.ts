@@ -1,4 +1,3 @@
-// Server/src/ai/generateWithFallback.ts
 type ProviderName = "gemini" | "groq" | "ollama";
 
 class ProviderError extends Error {

@@ -21,20 +21,11 @@ import {
   ChevronRight16Regular,
   Circle16Filled,
 } from "@fluentui/react-icons";
-
-// -----------------------------------------------------------------------------
-// Small utility: className merge
-// -----------------------------------------------------------------------------
-
 function mergeClassNames(
   ...classes: Array<string | undefined | null | false>
 ): string {
   return classes.filter(Boolean).join(" ");
 }
-
-// -----------------------------------------------------------------------------
-// Styles
-// -----------------------------------------------------------------------------
 
 const useMenubarStyles = makeStyles({
   menubar: {
@@ -76,9 +67,8 @@ const useMenubarStyles = makeStyles({
     },
   },
 
-  // Popover / menu panel
   content: {
-    minWidth: "192px", // 12rem
+    minWidth: "192px", 
     backgroundColor: tokens.colorNeutralBackground1,
     color: tokens.colorNeutralForeground1,
     ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1),
@@ -89,7 +79,6 @@ const useMenubarStyles = makeStyles({
     overflowY: "auto",
   },
 
-  // Generic menu item styles
   item: {
     position: "relative",
     display: "flex",
@@ -187,10 +176,6 @@ const useMenubarStyles = makeStyles({
   },
 });
 
-// -----------------------------------------------------------------------------
-// Root Menubar
-// -----------------------------------------------------------------------------
-
 type MenubarProps = React.ComponentProps<"div">;
 
 function Menubar({ className, ...props }: MenubarProps) {
@@ -205,9 +190,6 @@ function Menubar({ className, ...props }: MenubarProps) {
   );
 }
 
-// -----------------------------------------------------------------------------
-// Menu wrapper (per top-level menu, e.g. “File”)
-// -----------------------------------------------------------------------------
 
 type MenubarMenuProps = React.ComponentProps<typeof Menu>;
 
@@ -215,30 +197,20 @@ function MenubarMenu(props: MenubarMenuProps) {
   return <Menu data-slot="menubar-menu" {...props} />;
 }
 
-// -----------------------------------------------------------------------------
-// Group / Portal / Radio Group
-// -----------------------------------------------------------------------------
-
 type MenubarGroupProps = React.ComponentProps<typeof MenuGroup>;
 function MenubarGroup(props: MenubarGroupProps) {
   return <MenuGroup data-slot="menubar-group" {...props} />;
 }
 
-// For parity with Radix API – technically just a passthrough
 type MenubarRadioGroupProps = React.ComponentProps<typeof MenuGroup>;
 function MenubarRadioGroup(props: MenubarRadioGroupProps) {
   return <MenuGroup data-slot="menubar-radio-group" {...props} />;
 }
 
-// “Portal” concept is not needed with Fluent; this is a no-op wrapper kept for API similarity.
 type MenubarPortalProps = React.PropsWithChildren;
 function MenubarPortal({ children }: MenubarPortalProps) {
   return <>{children}</>;
 }
-
-// -----------------------------------------------------------------------------
-// Trigger (top-level button in the bar)
-// -----------------------------------------------------------------------------
 
 type MenubarTriggerProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   children: React.ReactNode;
@@ -261,10 +233,6 @@ function MenubarTrigger({ className, children, ...props }: MenubarTriggerProps) 
   );
 }
 
-// -----------------------------------------------------------------------------
-// Content (popover + list)
-// -----------------------------------------------------------------------------
-
 type MenubarContentProps = React.ComponentProps<typeof MenuList>;
 
 function MenubarContent({ className, children, ...props }: MenubarContentProps) {
@@ -282,10 +250,6 @@ function MenubarContent({ className, children, ...props }: MenubarContentProps) 
     </MenuPopover>
   );
 }
-
-// -----------------------------------------------------------------------------
-// Item
-// -----------------------------------------------------------------------------
 
 type MenubarItemProps = React.ComponentProps<typeof MenuItem> & {
   inset?: boolean;
@@ -314,10 +278,6 @@ function MenubarItem({
   );
 }
 
-// -----------------------------------------------------------------------------
-// Checkbox Item
-// -----------------------------------------------------------------------------
-
 type MenubarCheckboxItemProps = React.ComponentProps<typeof MenuItemCheckbox>;
 
 function MenubarCheckboxItem({
@@ -339,10 +299,6 @@ function MenubarCheckboxItem({
   );
 }
 
-// -----------------------------------------------------------------------------
-// Radio Item
-// -----------------------------------------------------------------------------
-
 type MenubarRadioItemProps = React.ComponentProps<typeof MenuItemRadio>;
 
 function MenubarRadioItem({
@@ -363,10 +319,6 @@ function MenubarRadioItem({
     </MenuItemRadio>
   );
 }
-
-// -----------------------------------------------------------------------------
-// Label / Separator / Shortcut
-// -----------------------------------------------------------------------------
 
 type MenubarLabelProps = React.ComponentProps<typeof MenuGroupHeader> & {
   inset?: boolean;
@@ -416,14 +368,9 @@ function MenubarShortcut({ className, ...props }: MenubarShortcutProps) {
   );
 }
 
-// -----------------------------------------------------------------------------
-// Submenu
-// -----------------------------------------------------------------------------
-
 type MenubarSubProps = React.ComponentProps<typeof Menu>;
 
 function MenubarSub(props: MenubarSubProps) {
-  // Nested Menu used as submenu.
   return <Menu data-slot="menubar-sub" {...props} />;
 }
 
@@ -480,10 +427,6 @@ function MenubarSubContent({
     </MenuPopover>
   );
 }
-
-// -----------------------------------------------------------------------------
-// Exports
-// -----------------------------------------------------------------------------
 
 export {
   Menubar,

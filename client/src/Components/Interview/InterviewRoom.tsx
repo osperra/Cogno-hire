@@ -230,33 +230,24 @@ function extractSpeechError(ev: unknown): string {
 export function InterviewRoom({ jobTitle, company, logoUrl, applicationId, onComplete }: InterviewRoomProps) {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isSoundOn, setIsSoundOn] = useState(true);
-
   const [viewportWidth, setViewportWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 1400
   );
-
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [totalQuestions, setTotalQuestions] = useState(12);
   const [currentQuestion, setCurrentQuestion] = useState(1);
-
   const [aiSpeaking, setAiSpeaking] = useState(false);
   const [fetchingNext, setFetchingNext] = useState(false);
-
   const [error, setError] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
-
   const [transcript, setTranscript] = useState<Message[]>([]);
   const [answer, setAnswer] = useState("");
-
   const idRef = useRef(1);
   const timerRef = useRef<number | null>(null);
-
   const audioStreamRef = useRef<MediaStream | null>(null);
   const srRef = useRef<SpeechRecognitionLike | null>(null);
-
   const ttsCancelRef = useRef(false);
   const shouldResumeAfterTtsRef = useRef(false);
-
   const [media, setMedia] = useState<MediaState>({
     micReady: false,
     speechSupported: false,
@@ -328,15 +319,12 @@ export function InterviewRoom({ jobTitle, company, logoUrl, applicationId, onCom
         sr.continuous = true;
         sr.interimResults = true;
         sr.maxAlternatives = 1;
-
         sr.onstart = () => setMedia((prev) => ({ ...prev, listening: true, speechError: undefined }));
         sr.onend = () => setMedia((prev) => ({ ...prev, listening: false, interim: "" }));
-
         sr.onerror = (ev) => {
           const msg = extractSpeechError(ev);
           setMedia((prev) => ({ ...prev, listening: false, speechError: msg }));
         };
-
         sr.onresult = (ev) => {
           let finalText = "";
           let interimText = "";
@@ -833,7 +821,6 @@ export function InterviewRoom({ jobTitle, company, logoUrl, applicationId, onCom
 
   const progressHeaderLeftStyle: React.CSSProperties = { display: "flex", alignItems: "center", columnGap: 8 };
   const progressPercentStyle: React.CSSProperties = { color: "#9CA3AF", fontSize: 14 };
-
   const progressBarStyle: React.CSSProperties = {
     height: 12,
     borderRadius: 999,
@@ -883,10 +870,8 @@ export function InterviewRoom({ jobTitle, company, logoUrl, applicationId, onCom
 
   const rightHeaderStyle: React.CSSProperties = { padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.1)" };
   const rightHeaderInnerStyle: React.CSSProperties = { display: "flex", alignItems: "center", columnGap: 8, color: "#FFFFFF" };
-
   const transcriptScrollStyle: React.CSSProperties = { flex: 1, padding: isCompact ? 12 : 16 };
   const transcriptListStyle: React.CSSProperties = { display: "flex", flexDirection: "column", rowGap: 12 };
-
   const avatarCircleBaseStyle: React.CSSProperties = {
     width: 32,
     height: 32,
@@ -902,9 +887,7 @@ export function InterviewRoom({ jobTitle, company, logoUrl, applicationId, onCom
 
   const avatarAIStyle: React.CSSProperties = { ...avatarCircleBaseStyle, backgroundImage: "linear-gradient(135deg, #A855F7, #3B82F6)" };
   const avatarYouStyle: React.CSSProperties = { ...avatarCircleBaseStyle, backgroundImage: "linear-gradient(135deg, #22C55E, #10B981)" };
-
   const messageTimestampStyle: React.CSSProperties = { marginBottom: 4, color: "#9CA3AF", fontSize: 12 };
-
   const messageBubbleAIStyle: React.CSSProperties = {
     display: "inline-block",
     maxWidth: "100%",
@@ -934,9 +917,7 @@ export function InterviewRoom({ jobTitle, company, logoUrl, applicationId, onCom
   const tipsRowStyle: React.CSSProperties = { display: "flex", alignItems: "flex-start", columnGap: 8 };
   const tipsTitleStyle: React.CSSProperties = { color: "#BFDBFE", fontSize: 14, fontWeight: 500, marginBottom: 2 };
   const tipsTextStyle: React.CSSProperties = { color: "rgba(191,219,254,0.75)", fontSize: 12 };
-
   const inputWrapStyle: React.CSSProperties = { display: "flex", columnGap: 8, marginTop: 12 };
-
   const inputStyle: React.CSSProperties = {
     flex: 1,
     backgroundColor: "#111827",

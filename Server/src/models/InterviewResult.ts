@@ -23,6 +23,7 @@ export interface InterviewResultDoc extends Document {
   skills: { skill: string; score: number }[];
   strengths: { title: string; description: string }[];
   improvements: { title: string; description: string }[];
+  highlights: { type: string; label: string; content: string }[];
   transcript: InterviewTranscriptItem[];
   createdAt: Date;
   updatedAt: Date;
@@ -63,6 +64,13 @@ const InterviewResultSchema = new Schema<InterviewResultDoc>(
         role: { type: String, enum: ["ai", "candidate"], required: true },
         content: { type: String, required: true, default: "" },
         ts: { type: Number, default: Date.now },
+      },
+    ],
+    highlights: [
+      {
+        type: { type: String, required: true },
+        label: { type: String, required: true },
+        content: { type: String, required: true },
       },
     ],
   },

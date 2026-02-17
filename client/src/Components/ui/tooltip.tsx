@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import {
   Tooltip as FluentTooltip,
@@ -35,7 +34,6 @@ function useTooltipSettings() {
 }
 
 type TooltipContentType = NonNullable<FluentTooltipProps["content"]>;
-
 type TooltipInnerContextValue = {
   content: TooltipContentType;
   setContent: (node: TooltipContentType) => void;

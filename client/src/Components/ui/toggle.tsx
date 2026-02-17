@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import {
   makeStyles,
@@ -13,10 +12,8 @@ function mergeClassNames(
   return classes.filter(Boolean).join(" ");
 }
 
-
 type ToggleVariant = "default" | "outline";
 type ToggleSize = "default" | "sm" | "lg";
-
 export interface ToggleProps
   extends Omit<
     React.ButtonHTMLAttributes<HTMLButtonElement>,
@@ -107,14 +104,11 @@ const Toggle = React.forwardRef<HTMLButtonElement, ToggleProps>(
     ref,
   ) => {
     const styles = useToggleStyles();
-
     const isControlled = pressed !== undefined;
     const [internalPressed, setInternalPressed] = React.useState<boolean>(
       defaultPressed ?? false,
     );
-
     const isPressed = isControlled ? Boolean(pressed) : internalPressed;
-
     const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
       if (onClick) {
         onClick(event);

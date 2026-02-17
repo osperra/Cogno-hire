@@ -100,11 +100,8 @@ export function CandidatePipeline() {
     offer: [],
   });
   const [error, setError] = useState<string | null>(null);
-
   const appliedCount = useMemo(() => pipelineStages?.[0]?.count ?? 0, [pipelineStages]);
-
   const totalCandidates = appliedCount;
-
   const conversionRate = useMemo(() => {
     const hired = pipelineStages?.find((s) => s.name.toLowerCase() === "hired")?.count ?? 0;
     if (!appliedCount) return "0.0";

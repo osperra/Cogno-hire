@@ -10,7 +10,6 @@ import { storage } from "../config/cloudinary.js";
 
 export const companyProfileRouter = Router();
 
-
 const upload = multer({
   storage,
   limits: { fileSize: 2 * 1024 * 1024 },
@@ -74,7 +73,6 @@ const companyUpsertSchema = z
 
     headquarters: z.string().optional(),
     location: z.string().optional(),
-
     description: z.string().optional(),
     mission: z.string().optional(),
     values: z.string().optional(),
@@ -112,15 +110,12 @@ companyProfileRouter.put(
     }
 
     const normalized = normalizeCompanyPayload(parsed.data);
-
     const existing = await CompanyProfile.findOne({ employerId: req.user!.id })
       .select("companyName")
       .lean();
-
     const finalCompanyName =
       normalized.companyName ||
       (existing?.companyName ? String(existing.companyName) : "Company");
-
     const updateDoc = {
       ...normalized,
       companyName: finalCompanyName,

@@ -125,18 +125,26 @@ ${transcriptText}
 
 Output strictly valid JSON (no markdown fences) with this structure:
 {
-  "overallScore": number,
+  "overallScore": number (0-100),
   "feedback": "string summary",
   "skills": [
-    { "skill": "string", "score": number }
+    { "skill": "string", "score": number (0-100) }
   ],
   "strengths": [
     { "title": "string", "description": "string" }
   ],
   "improvements": [
     { "title": "string", "description": "string" }
+  ],
+  "highlights": [
+    { "type": "question" | "answer", "label": "string", "content": "string" }
   ]
 }
+
+Instructions for highlights:
+- Identify 2-3 "Key/Mandatory Questions" that were critical for this role.
+- Identify any "Exceptional/Extraordinary Answers" where the candidate exceeded expectations.
+- "label" should be a short catchy title (e.g. "Problem Solving Highlight"), "content" should be the actual text snippet.
 `.trim();
 }
 
@@ -303,13 +311,21 @@ aiInterviewRouter.get(
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     try {
-      const results = await InterviewResult.find({ userId })
+      let query: any = { userId };
+      const role = (req as any).user?.role;
+      if (role === "employer" || role === "hr") {
+        const jobs = await Job.find({ employerId: userId }).select("_id").lean();
+        query = { jobId: { $in: jobs.map((j) => j._id) } };
+      }
+
+      const results = await InterviewResult.find(query)
         .sort({ createdAt: -1 })
         .limit(50)
         .lean();
 
       return res.json({ results });
-    } catch {
+    } catch (e) {
+      console.error("Analytics fetch error:", e);
       return res.status(500).json({ message: "Failed to fetch analytics" });
     }
   }
@@ -407,6 +423,7 @@ aiInterviewRouter.post(
         skills: analysis?.skills || [],
         strengths: analysis?.strengths || [],
         improvements: analysis?.improvements || [],
+        highlights: analysis?.highlights || [],
         transcript: session.transcript,
       });
     }
@@ -442,19 +459,31 @@ aiInterviewRouter.get(
       (req as any).auth?.userId ||
       "unknown";
 
-    const app = await Application.findOne({ _id: applicationId, candidateId: userId }).lean();
+    let app;
+    const userRole = (req as any).user?.role;
+    if (userRole === "candidate") {
+      app = await Application.findOne({ _id: applicationId, candidateId: userId }).lean();
+    } else {
+      app = await Application.findById(applicationId).lean();
+    }
+
     if (!app) return res.status(404).json({ message: "Application not found" });
 
-    const result = await InterviewResult.findOne({ userId, applicationId })
+    const result = (await InterviewResult.findOne({ applicationId })
+      .populate("userId", "name email")
       .sort({ createdAt: -1 })
-      .lean();
+      .lean()) as any;
 
     if (!result) return res.status(404).json({ message: "No interview result found" });
+    const candidate = result.userId as any;
+    if (candidate && typeof candidate === "object") {
+      (result as any).candidateName = candidate.name;
+      (result as any).candidateEmail = candidate.email;
+    }
 
     return res.json(result);
   }
 );
-
 
 aiInterviewRouter.get(
   "/analytics",
@@ -465,13 +494,47 @@ aiInterviewRouter.get(
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     try {
-      const results = await InterviewResult.find({ userId })
+      const { jobId, candidateId } = req.query;
+      let queryBody: any = {};
+
+      const role = (req as any).user?.role;
+      if (role === "employer" || role === "hr") {
+        const jobs = await Job.find({ employerId: userId }).select("_id").lean();
+        const myJobIds = jobs.map((j) => j._id.toString());
+
+        if (jobId) {
+          if (!myJobIds.includes(String(jobId))) {
+            return res.status(403).json({ message: "Forbidden: Not your job" });
+          }
+          queryBody.jobId = jobId;
+        } else {
+          queryBody.jobId = { $in: myJobIds };
+        }
+
+        if (candidateId) {
+          queryBody.userId = candidateId;
+        }
+      } else {
+        queryBody.userId = userId;
+        if (jobId) queryBody.jobId = jobId;
+      }
+
+      const results = await InterviewResult.find(queryBody)
+        .populate("userId", "name email")
         .sort({ createdAt: -1 })
         .limit(50)
         .lean();
 
+      results.forEach((r: any) => {
+        if (r.userId && typeof r.userId === "object") {
+          r.candidateName = r.userId.name;
+          r.candidateEmail = r.userId.email;
+        }
+      });
+
       return res.json({ results });
-    } catch {
+    } catch (e) {
+      console.error("Analytics error:", e);
       return res.status(500).json({ message: "Failed to fetch analytics" });
     }
   }

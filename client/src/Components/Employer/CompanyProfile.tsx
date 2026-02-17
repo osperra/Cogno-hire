@@ -38,16 +38,11 @@ type CompanyProfileDto = {
   facebook?: string;
   culture?: string;
   benefits?: string;
-
-  // IMPORTANT:
-  // If you store logo in GridFS, set this to something like:
-  // /api/company-profile/logo/me
   logoUrl?: string;
 };
 
 const COMPANY_PROFILE_API = "/api/company-profile/me";
 const COMPANY_LOGO_UPLOAD_API = "/api/company-profile/logo";
-
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL?.toString().trim() ||
   "http://localhost:5000";
@@ -244,10 +239,6 @@ const emptyProfile: CompanyProfileDto = {
   logoUrl: "",
 };
 
-// If logoUrl is absolute -> use it.
-// If startsWith("/") -> prefix API_BASE.
-// BUT for protected logo endpoints, we will NOT use it directly in <img>
-// We will fetch it as blob with Authorization and use object URL.
 function toAbsoluteUrl(url?: string): string | undefined {
   const v = (url ?? "").trim();
   if (!v) return undefined;
@@ -282,39 +273,29 @@ async function fetchLogoBlobUrl(logoUrl: string): Promise<string> {
 export function CompanyProfile() {
   const styles = useStyles();
   const fileRef = useRef<HTMLInputElement | null>(null);
-
   const [form, setForm] = useState<CompanyProfileDto>(emptyProfile);
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
-
-  // ✅ This is the key: we store a blob URL for protected images
   const [logoBlobUrl, setLogoBlobUrl] = useState<string | null>(null);
-
   const isValid = useMemo(
     () => Boolean(form.companyName?.trim()),
     [form.companyName]
   );
 
-  // If you typed an external public image URL, we can show it directly.
   const directLogoUrl = useMemo(() => {
     const v = (form.logoUrl ?? "").trim();
     if (!v) return undefined;
     if (/^https?:\/\//i.test(v)) return v;
-    // if it is your API path, we won't use it directly in <img>
     return undefined;
   }, [form.logoUrl]);
 
-  // ✅ When logoUrl is an API route (protected), fetch it as blob with auth
   useEffect(() => {
     let alive = true;
 
     (async () => {
-      // cleanup old blob url
       if (logoBlobUrl) {
         URL.revokeObjectURL(logoBlobUrl);
         setLogoBlobUrl(null);
@@ -323,12 +304,9 @@ export function CompanyProfile() {
       const v = (form.logoUrl ?? "").trim();
       if (!v) return;
 
-      // If it's a backend route like "/api/company-profile/logo/me"
-      // we must fetch with Authorization and use blob url.
       const isBackendProtected =
         v.startsWith("/api/") || v.startsWith("/company-profile") || v.startsWith("/uploads") || v.startsWith("/");
 
-      // external absolute url -> do nothing (use directLogoUrl)
       if (/^https?:\/\//i.test(v)) return;
 
       if (!isBackendProtected) return;
@@ -410,9 +388,6 @@ export function CompanyProfile() {
       setUploadingLogo(true);
       const fd = new FormData();
       fd.append("logo", file);
-
-      // server should return logoUrl as "/api/company-profile/logo/me"
-      // OR "/api/company-profile/logo/<profileId>" etc
       const resp = await api<{ logoUrl: string }>(COMPANY_LOGO_UPLOAD_API, {
         method: "POST",
         body: fd,
@@ -467,7 +442,6 @@ export function CompanyProfile() {
     if (!w) return;
 
     const safe = (s?: string) => (s ?? "").toString();
-    // prefer blob url if available, else external direct url
     const logo = logoBlobUrl || directLogoUrl || "";
 
     w.document.write(`
@@ -547,7 +521,6 @@ export function CompanyProfile() {
     w.document.close();
   };
 
-  // ✅ choose what to show in <img>
   const logoToShow = logoBlobUrl || directLogoUrl;
 
   return (
@@ -577,7 +550,6 @@ export function CompanyProfile() {
                     alt="Company logo"
                     className={styles.logoImg}
                     onError={() => {
-                      // don't clear logoUrl here (it might be correct but token/session issue)
                       setError("Logo failed to load");
                     }}
                   />

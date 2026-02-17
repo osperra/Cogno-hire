@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import {
   Menu,
@@ -133,9 +132,7 @@ export type DropdownMenuTriggerProps = React.ComponentProps<
   typeof FluentMenuTrigger
 >;
 export type DropdownMenuContentProps = React.ComponentProps<typeof MenuPopover>;
-
 export type DropdownMenuPositioning = PositioningProps;
-
 function DropdownMenu(props: DropdownMenuProps) {
   return <Menu data-slot="dropdown-menu" {...props} />;
 }

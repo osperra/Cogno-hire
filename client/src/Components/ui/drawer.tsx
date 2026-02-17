@@ -1,11 +1,9 @@
 "use client";
-
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { makeStyles, shorthands, tokens } from "@fluentui/react-components";
 
 type DrawerDirection = "top" | "bottom" | "left" | "right";
-
 type DrawerContextValue = {
   open: boolean;
   setOpen: (open: boolean) => void;
@@ -13,7 +11,6 @@ type DrawerContextValue = {
 };
 
 const DrawerContext = React.createContext<DrawerContextValue | null>(null);
-
 function useDrawerContext() {
   const ctx = React.useContext(DrawerContext);
   if (!ctx) {

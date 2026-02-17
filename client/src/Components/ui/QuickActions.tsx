@@ -6,7 +6,6 @@ import {
   shorthands,
   mergeClasses,
 } from "@fluentui/react-components";
-
 import {
   Search20Regular,
   ArrowUpload20Regular,
@@ -176,7 +175,6 @@ type ActionConfig = {
 export function QuickActions({ userRole, onNavigate }: QuickActionsProps) {
   const styles = useStyles();
   const [hoveredKey, setHoveredKey] = React.useState<string | null>(null);
-
   const employerActions: ActionConfig[] = [
     {
       key: "post-job",

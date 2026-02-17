@@ -264,21 +264,17 @@ export function Sidebar({
 }: SidebarProps) {
   const { isMobile, open, openMobile } = useSidebar();
   const styles = useSidebarStyles();
-
   const isExpanded = open;
   const isCollapsed = !open && collapsible === "icon";
-
   const isVisibleMobile = isMobile && openMobile;
   const isVisibleDesktop =
     !isMobile && (isExpanded || isCollapsed || collapsible === "none");
-
   const widthStyle: React.CSSProperties =
     collapsible === "none"
       ? { width: SIDEBAR_WIDTH }
       : isCollapsed
       ? { width: SIDEBAR_WIDTH_ICON }
       : { width: SIDEBAR_WIDTH };
-
   const transformStyle: React.CSSProperties =
     isMobile && !isVisibleMobile
       ? {

@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import { makeStyles, shorthands, tokens } from "@fluentui/react-components";
 import {
@@ -222,9 +221,7 @@ function Select({
   const [internalValue, setInternalValue] = React.useState<string | undefined>(
     defaultValue
   );
-
   const currentValue = isControlled ? value : internalValue;
-
   const setValue = React.useCallback(
     (next: string) => {
       if (!isControlled) {
@@ -234,7 +231,6 @@ function Select({
     },
     [isControlled, onValueChange]
   );
-
   const rootRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -342,7 +338,6 @@ type SelectValueProps = {
 function SelectValue({ placeholder, className }: SelectValueProps) {
   const styles = useSelectStyles();
   const { value } = useSelectContext();
-
   const isPlaceholder = !value;
 
   return (
@@ -433,10 +428,8 @@ function SelectItem({ className, value, children, ...rest }: SelectItemProps) {
     setOpen,
     disabled,
   } = useSelectContext();
-
   const selected = currentValue === value;
   const itemDisabled = disabled || rest.disabled;
-
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (itemDisabled) return;
     rest.onClick?.(event);

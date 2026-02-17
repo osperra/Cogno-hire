@@ -158,7 +158,6 @@ export default function ProfileSettings() {
 
   return (
     <div className={styles.page}>
-      {/* Header */}
       <div className={styles.header}>
         <div className={styles.headerTextWrap}>
           <Text size={700} weight="semibold" style={{ display: "block" }}>
@@ -183,7 +182,6 @@ export default function ProfileSettings() {
         </Button>
       </div>
 
-      {/* Message */}
       {msg && (
         <MessageBar intent={msg.type === "success" ? "success" : "error"}>
           <MessageBarBody>
@@ -195,7 +193,6 @@ export default function ProfileSettings() {
         </MessageBar>
       )}
 
-      {/* Card */}
       <section className={styles.card} style={{ marginTop: "12px" }}>
         <div className={styles.row}>
           <Avatar name={me?.name ?? "User"} size={56} color="brand" />

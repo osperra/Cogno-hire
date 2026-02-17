@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import {
   Dialog as FluentDialog,
@@ -80,7 +79,6 @@ function Dialog(props: FluentDialogProps) {
   return <FluentDialog data-slot="dialog" {...props} />;
 }
 
-
 function DialogTrigger(
   props: React.ComponentProps<typeof FluentDialogTrigger>,
 ) {
@@ -89,16 +87,13 @@ function DialogTrigger(
   );
 }
 
-
 function DialogPortal(props: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div data-slot="dialog-portal" {...props} />
   );
 }
 
-
 type DialogCloseProps = React.ButtonHTMLAttributes<HTMLButtonElement>;
-
 function DialogClose({ className, children, ...props }: DialogCloseProps) {
   const styles = useDialogStyles();
 

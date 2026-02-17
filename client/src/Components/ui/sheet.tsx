@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import {
   Button,
@@ -9,18 +8,11 @@ import {
 } from "@fluentui/react-components";
 import { Dismiss16Regular } from "@fluentui/react-icons";
 
-// ---------------------------------------------------------------------
-// tiny helper instead of `cn`
-// ---------------------------------------------------------------------
 function mergeClassNames(
   ...classes: Array<string | undefined | null | false>
 ): string {
   return classes.filter(Boolean).join(" ");
 }
-
-// ---------------------------------------------------------------------
-// Types & context
-// ---------------------------------------------------------------------
 
 type SheetSide = "top" | "right" | "bottom" | "left";
 
@@ -48,14 +40,11 @@ export interface SheetProps {
 
 function Sheet(props: SheetProps) {
   const { open, defaultOpen, onOpenChange, children } = props;
-
   const isControlled = open !== undefined;
   const [internalOpen, setInternalOpen] = React.useState<boolean>(
     defaultOpen ?? false,
   );
-
   const currentOpen = isControlled ? Boolean(open) : internalOpen;
-
   const setOpen = React.useCallback(
     (next: boolean) => {
       if (!isControlled) {
@@ -82,10 +71,6 @@ function Sheet(props: SheetProps) {
     </SheetContext.Provider>
   );
 }
-
-// ---------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------
 
 const useSheetStyles = makeStyles({
   overlay: {
@@ -170,11 +155,6 @@ const useSheetStyles = makeStyles({
     right: tokens.spacingHorizontalS,
   },
 });
-
-// ---------------------------------------------------------------------
-// Trigger / Close
-// ---------------------------------------------------------------------
-
 type ClickableChildProps = {
   onClick?: React.MouseEventHandler<HTMLElement>;
 };
@@ -221,10 +201,6 @@ function SheetClose({ children }: SheetCloseProps) {
   });
 }
 
-// ---------------------------------------------------------------------
-// Content (the actual “sheet”)
-// ---------------------------------------------------------------------
-
 export interface SheetContentProps
   extends React.HTMLAttributes<HTMLDivElement> {
   side?: SheetSide;
@@ -251,7 +227,6 @@ function SheetContent(props: SheetContentProps) {
   const handleOverlayClick: React.MouseEventHandler<HTMLDivElement> = (
     event,
   ) => {
-    // clicking on the background closes the sheet
     if (event.target === event.currentTarget) {
       setOpen(false);
     }
@@ -269,7 +244,6 @@ function SheetContent(props: SheetContentProps) {
         className={mergeClassNames(styles.contentBase, sideClass, className)}
         {...rest}
       >
-        {/* built-in close button in the top-right corner */}
         <div className={styles.closeButtonWrapper}>
           <Button
             appearance="subtle"
@@ -284,10 +258,6 @@ function SheetContent(props: SheetContentProps) {
     </>
   );
 }
-
-// ---------------------------------------------------------------------
-// Header / Footer / Title / Description
-// ---------------------------------------------------------------------
 
 export type SheetHeaderProps = React.HTMLAttributes<HTMLDivElement>;
 
@@ -345,10 +315,6 @@ function SheetDescription({ className, ...rest }: SheetDescriptionProps) {
     />
   );
 }
-
-// ---------------------------------------------------------------------
-// Exports
-// ---------------------------------------------------------------------
 
 export {
   Sheet,

@@ -71,13 +71,10 @@ authRouter.post("/login", async (req, res) => {
     if (!jwtSecret) return res.status(500).json({ message: "JWT_SECRET missing in .env" });
 
     const email = normalizeEmail(parsed.data.email);
-
     const user = await User.findOne({ email });
     if (!user?.passwordHash) return res.status(401).json({ message: "Invalid credentials" });
-
     const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
     if (!ok) return res.status(401).json({ message: "Invalid credentials" });
-
     const token = jwt.sign({ role: user.role, name: user.name }, jwtSecret, {
       subject: String(user._id),
       expiresIn: "7d",

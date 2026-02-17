@@ -242,7 +242,7 @@ export default function AppLayout() {
       if (to === "onboarding") return navigate(ROUTES.employerOnboarding);
       if (to === "ai") return navigate(ROUTES.employerAIJobDescription);
       if (to === "company") return navigate(ROUTES.employerCompany);
-      if (to === "analytics") return navigate(ROUTES.employerAnalytics);
+      if (to === "analytics") return navigate(ROUTES.employerAnalytics, { state: data || {} });
 
       if (to === "my-account") return navigate(ROUTES.employerMyAccount);
       if (to === "profile-settings") return navigate(ROUTES.employerProfileSettings);

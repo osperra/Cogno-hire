@@ -3,13 +3,11 @@ import { z } from "zod";
 import multer from "multer";
 import { Types } from "mongoose";
 import { storage } from "../config/cloudinary.js";
-
 import { Application } from "../models/Application.js";
 import { Document } from "../models/Document.js";
 import { Job } from "../models/Jobs.js";
 import { Notification } from "../models/Notification.js";
 import { CompanyProfile } from "../models/CompanyProfile.js";
-
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
 
 export const applicationsRouter = Router();
@@ -80,24 +78,19 @@ applicationsRouter.post(
 
       const resumeUrl = req.file.path;
       const gridFsId = new Types.ObjectId();
-
       const created = await Document.create({
         ownerUserId: req.user!.id,
         uploadedByUserId: req.user!.id,
         jobId: jobId ? jobId : undefined,
         applicationId: undefined,
-
         name: req.file!.originalname,
         type: "Resume",
         category: "Application",
-
         mimeType: req.file!.mimetype,
         sizeBytes: req.file!.size,
-
         gridFsId,
         bucketName: "cloudinary",
         fileUrl: resumeUrl,
-
         status: "PENDING",
       });
 
@@ -252,14 +245,11 @@ applicationsRouter.get(
         q: z.string().optional(),
         limit: z.string().optional(),
       });
-
       const parsed = schema.safeParse(req.query);
       if (!parsed.success) return res.status(400).json({ message: "Invalid query" });
-
       const tab = parsed.data.tab ?? "all";
       const q = (parsed.data.q ?? "").trim().toLowerCase();
       const limit = Math.min(Math.max(parseInt(parsed.data.limit ?? "200", 10) || 200, 1), 500);
-
       const match: Record<string, unknown> = { candidateId: req.user!.id };
 
       if (tab === "hired") match.hiringStatus = "HIRED";
@@ -272,11 +262,9 @@ applicationsRouter.get(
         .limit(limit)
         .populate("jobId", "title location jobType salaryRange company companyName employerId")
         .lean();
-
       const employerIds = appsRaw.map((a: any) => a.jobId?.employerId).filter(Boolean);
       const profiles = await CompanyProfile.find({ employerId: { $in: employerIds } }).select("employerId companyName logoUrl").lean();
       const profileMap = new Map(profiles.map(p => [String(p.employerId), p]));
-
       const apps = appsRaw.map((a: any) => {
         const job = a.jobId || {};
         const profile = profileMap.get(String(job.employerId));
@@ -321,7 +309,6 @@ applicationsRouter.get(
 
       const map: Record<string, number> = {};
       for (const g of grouped) map[String(g._id)] = Number(g.count) || 0;
-
       const hired = map["HIRED"] || 0;
       const rejected = map["REJECTED"] || 0;
       const pending =
@@ -364,15 +351,12 @@ applicationsRouter.get(
       }
 
       const match = { jobId: { $in: jobIds } };
-
       const grouped = await Application.aggregate([
         { $match: match },
         { $group: { _id: "$hiringStatus", count: { $sum: 1 } } },
       ]);
-
       const map: Record<string, number> = {};
       for (const g of grouped) map[String(g._id)] = Number(g.count) || 0;
-
       const pending = map["PENDING"] || 0;
       const invited = map["INVITED"] || 0;
       const underReview = map["UNDER_REVIEW"] || 0;
@@ -408,10 +392,8 @@ applicationsRouter.get(
       const interviewStatus =
         typeof req.query.interviewStatus === "string" ? req.query.interviewStatus.trim() : "";
       const limit = Math.min(Math.max(parseInt(String(req.query.limit || "200"), 10) || 200, 1), 500);
-
       const jobIds = await getEmployerJobIds(req.user!.id);
       if (!jobIds.length) return res.json([]);
-
       const match: Record<string, unknown> = { jobId: { $in: jobIds } };
 
       if (tab === "pending") match.hiringStatus = "PENDING";
@@ -470,20 +452,16 @@ applicationsRouter.patch(
       overallScore: z.number().optional(),
       communication: z.string().optional(),
     });
-
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ message: "Invalid input", issues: parsed.error.issues });
     }
-
     const app = await Application.findById(req.params.id).select("_id jobId candidateId hiringStatus interviewStatus").lean();
     if (!app) return res.status(404).json({ message: "Application not found" });
-
     const job = await Job.findById(app.jobId).select("_id employerId title").lean();
     if (!job || String((job as any).employerId) !== String(req.user!.id)) {
       return res.status(403).json({ message: "Forbidden" });
     }
-
     const updated = await Application.findByIdAndUpdate(
       req.params.id,
       { $set: parsed.data },
@@ -496,11 +474,9 @@ applicationsRouter.patch(
       const candidateId = String((app as any).candidateId ?? "");
       if (Types.ObjectId.isValid(candidateId)) {
         const jobTitle = String((job as any).title ?? "your application");
-
         const hiringChanged =
           typeof parsed.data.hiringStatus === "string" &&
           parsed.data.hiringStatus !== (app as any).hiringStatus;
-
         const interviewChanged =
           typeof parsed.data.interviewStatus === "string" &&
           parsed.data.interviewStatus !== (app as any).interviewStatus;

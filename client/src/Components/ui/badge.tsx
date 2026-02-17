@@ -7,7 +7,6 @@ import {
 } from "@fluentui/react-components";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
-
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant;
   as?: React.ElementType;

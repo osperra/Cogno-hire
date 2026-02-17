@@ -319,23 +319,27 @@ type ApiError = { message?: string };
 
 export const AIJobDescriptionGenerator: React.FC = () => {
   const styles = useStyles();
-
   const [jobTitle, setJobTitle] = React.useState("Senior Frontend Developer");
-  const [experienceLevel, setExperienceLevel] = React.useState<string>("senior");
-  const [employmentType, setEmploymentType] = React.useState<string>("full-time");
-  const [keySkills, setKeySkills] = React.useState("React, TypeScript, JavaScript, CSS, HTML");
+  const [experienceLevel, setExperienceLevel] =
+    React.useState<string>("senior");
+  const [employmentType, setEmploymentType] =
+    React.useState<string>("full-time");
+  const [keySkills, setKeySkills] = React.useState(
+    "React, TypeScript, JavaScript, CSS, HTML",
+  );
   const [location, setLocation] = React.useState("");
   const [salaryRange, setSalaryRange] = React.useState("");
-  const [additionalRequirements, setAdditionalRequirements] = React.useState("");
-
+  const [additionalRequirements, setAdditionalRequirements] =
+    React.useState("");
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [generationProgress, setGenerationProgress] = React.useState(0);
   const [generatedJD, setGeneratedJD] = React.useState("");
   const [error, setError] = React.useState<string>("");
-
   const canGenerate =
-    jobTitle.trim() && experienceLevel.trim() && employmentType.trim() && keySkills.trim();
-
+    jobTitle.trim() &&
+    experienceLevel.trim() &&
+    employmentType.trim() &&
+    keySkills.trim();
   const handleGenerate = async () => {
     if (isGenerating) return;
     setError("");
@@ -375,7 +379,8 @@ export const AIJobDescriptionGenerator: React.FC = () => {
       setGenerationProgress(100);
     } catch (e) {
       setError(
-        (e instanceof Error ? e.message : String(e)) || "Failed to generate job description"
+        (e instanceof Error ? e.message : String(e)) ||
+          "Failed to generate job description",
       );
       setGenerationProgress(0);
     } finally {
@@ -421,7 +426,9 @@ export const AIJobDescriptionGenerator: React.FC = () => {
         <div>
           <div className={styles.headerTitleBlock}>
             <Sparkle24Regular style={{ color: "#0118D8" }} />
-            <span className={styles.headerTitle}>AI Job Description Generator</span>
+            <span className={styles.headerTitle}>
+              AI Job Description Generator
+            </span>
           </div>
           <div className={styles.headerSubtitle}>
             Create professional, compelling job descriptions in seconds using AI
@@ -438,10 +445,16 @@ export const AIJobDescriptionGenerator: React.FC = () => {
           <div className={styles.sectionTitle}>Job Details</div>
 
           {!!error && (
-            <div style={{ color: "#DC2626", fontSize: "0.85rem", marginBottom: 8 }}>{error}</div>
+            <div
+              style={{ color: "#DC2626", fontSize: "0.85rem", marginBottom: 8 }}
+            >
+              {error}
+            </div>
           )}
 
-          <div style={{ display: "flex", flexDirection: "column", rowGap: "12px" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", rowGap: "12px" }}
+          >
             <div className={styles.fieldGroup}>
               <Label htmlFor="job-title" className={styles.fieldLabel}>
                 Job Title *
@@ -463,7 +476,10 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                   id="level"
                   placeholder="Select level"
                   selectedOptions={experienceLevel ? [experienceLevel] : []}
-                  value={EXPERIENCE_OPTIONS.find((x) => x.value === experienceLevel)?.label ?? ""}
+                  value={
+                    EXPERIENCE_OPTIONS.find((x) => x.value === experienceLevel)
+                      ?.label ?? ""
+                  }
                   onOptionSelect={(_, data) => {
                     const v = String(data.optionValue ?? "");
                     if (v) setExperienceLevel(v);
@@ -485,7 +501,10 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                   id="type"
                   placeholder="Select type"
                   selectedOptions={employmentType ? [employmentType] : []}
-                  value={EMPLOYMENT_OPTIONS.find((x) => x.value === employmentType)?.label ?? ""}
+                  value={
+                    EMPLOYMENT_OPTIONS.find((x) => x.value === employmentType)
+                      ?.label ?? ""
+                  }
                   onOptionSelect={(_, data) => {
                     const v = String(data.optionValue ?? "");
                     if (v) setEmploymentType(v);
@@ -563,7 +582,9 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <WandRegular style={{ width: 18, height: 18, marginRight: 8 }} />
+                  <WandRegular
+                    style={{ width: 18, height: 18, marginRight: 8 }}
+                  />
                   Generate Job Description
                 </>
               )}
@@ -573,9 +594,15 @@ export const AIJobDescriptionGenerator: React.FC = () => {
               <div className={styles.progressWrapper}>
                 <div className={styles.progressHeaderRow}>
                   <span className={styles.progressLabel}>Generating...</span>
-                  <span className={styles.progressValue}>{generationProgress}%</span>
+                  <span className={styles.progressValue}>
+                    {generationProgress}%
+                  </span>
                 </div>
-                <ProgressBar value={generationProgress} max={100} className={styles.progressBar} />
+                <ProgressBar
+                  value={generationProgress}
+                  max={100}
+                  className={styles.progressBar}
+                />
               </div>
             )}
           </div>
@@ -591,7 +618,7 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                   size="small"
                   icon={<Copy20Regular />}
                   onClick={handleCopy}
-                  className={styles.actionBtn} 
+                  className={styles.actionBtn}
                 >
                   Copy
                 </Button>
@@ -600,7 +627,7 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                   size="small"
                   icon={<ArrowDownload20Regular />}
                   onClick={handleExport}
-                  className={styles.actionBtn} 
+                  className={styles.actionBtn}
                 >
                   Export
                 </Button>
@@ -616,14 +643,21 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                 <div className={styles.postTitle}>Post to Job Boards</div>
                 <div className={styles.postGrid}>
                   <Button appearance="outline" className={styles.postButton}>
-                    <div className={styles.postLogoBox} style={{ backgroundColor: "#0077B5" }}>
+                    <div
+                      className={styles.postLogoBox}
+                      style={{ backgroundColor: "#0077B5" }}
+                    >
                       <Globe20Regular style={{ color: "#ffffff" }} />
                     </div>
                     <div className={styles.postTextBlock}>
                       <div className={styles.postMain}>Post to LinkedIn</div>
-                      <div className={styles.postSub}>Reach millions of professionals</div>
+                      <div className={styles.postSub}>
+                        Reach millions of professionals
+                      </div>
                     </div>
-                    <CheckmarkCircle20Regular style={{ color: "#16A34A", flexShrink: 0 }} />
+                    <CheckmarkCircle20Regular
+                      style={{ color: "#16A34A", flexShrink: 0 }}
+                    />
                   </Button>
 
                   <Button
@@ -631,12 +665,17 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                     className={styles.postButton}
                     style={{ borderColor: "#2557A7" }}
                   >
-                    <div className={styles.postLogoBox} style={{ backgroundColor: "#2557A7" }}>
+                    <div
+                      className={styles.postLogoBox}
+                      style={{ backgroundColor: "#2557A7" }}
+                    >
                       <Globe20Regular style={{ color: "#ffffff" }} />
                     </div>
                     <div className={styles.postTextBlock}>
                       <div className={styles.postMain}>Post to Indeed</div>
-                      <div className={styles.postSub}>World&apos;s largest job site</div>
+                      <div className={styles.postSub}>
+                        World&apos;s largest job site
+                      </div>
                     </div>
                   </Button>
 
@@ -645,12 +684,17 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                     className={styles.postButton}
                     style={{ borderColor: "#0CAA41" }}
                   >
-                    <div className={styles.postLogoBox} style={{ backgroundColor: "#0CAA41" }}>
+                    <div
+                      className={styles.postLogoBox}
+                      style={{ backgroundColor: "#0CAA41" }}
+                    >
                       <Globe20Regular style={{ color: "#ffffff" }} />
                     </div>
                     <div className={styles.postTextBlock}>
                       <div className={styles.postMain}>Post to Glassdoor</div>
-                      <div className={styles.postSub}>Connect with active job seekers</div>
+                      <div className={styles.postSub}>
+                        Connect with active job seekers
+                      </div>
                     </div>
                   </Button>
 
@@ -658,7 +702,8 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                     appearance="primary"
                     icon={<Send20Regular />}
                     style={{
-                      backgroundImage: "linear-gradient(to right,#0118D8,#1B56FD)",
+                      backgroundImage:
+                        "linear-gradient(to right,#0118D8,#1B56FD)",
                       color: "#ffffff",
                       border: "none",
                     }}
@@ -673,7 +718,8 @@ export const AIJobDescriptionGenerator: React.FC = () => {
               <div className={styles.emptyInner}>
                 <Sparkle24Regular className={styles.emptyIcon} />
                 <div className={styles.emptyText}>
-                  Fill in the details and click &quot;Generate&quot; to create your job description.
+                  Fill in the details and click &quot;Generate&quot; to create
+                  your job description.
                 </div>
               </div>
             </div>

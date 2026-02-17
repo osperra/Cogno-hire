@@ -116,19 +116,16 @@ export function FloatingActionButton({ userRole, onAction }: FloatingActionButto
     { icon: Mail24Regular, label: "Support", action: "support", colorClass: styles.green },
     { icon: QuestionCircle24Regular, label: "Help", action: "help", colorClass: styles.purple },
   ];
-
   const candidateActions: ActionItem[] = [
     { icon: Add24Regular, label: "Apply", action: "apply", colorClass: styles.blue },
     { icon: Mail24Regular, label: "Support", action: "support", colorClass: styles.green },
     { icon: QuestionCircle24Regular, label: "Help", action: "help", colorClass: styles.purple },
   ];
-
   const hrActions: ActionItem[] = [
     { icon: People24Regular, label: "Pipeline", action: "hr-pipeline", colorClass: styles.blue },
     { icon: DocumentBulletList24Regular, label: "Documents", action: "hr-documents", colorClass: styles.purple },
     { icon: Mail24Regular, label: "Support", action: "support", colorClass: styles.green },
   ];
-
   const actions: ActionItem[] =
     userRole === "employer"
       ? employerActions

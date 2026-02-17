@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Card, Text, makeStyles, tokens } from "@fluentui/react-components";
 
 type StatColor = "primary" | "success" | "warning" | "danger";
-
 interface AnimatedStatsProps {
   title: string;
   value: number;

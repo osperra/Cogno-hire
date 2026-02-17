@@ -40,7 +40,6 @@ import {
 import { StatusPill } from "../ui/StatusPill";
 
 type ReviewTab = "all" | "completed" | "pending" | "scheduled";
-
 type ReviewStatusUi = "Completed" | "Pending" | "Scheduled" | "COMPLETED" | "PENDING" | "SCHEDULED";
 
 type ReviewRow = {
@@ -641,11 +640,8 @@ export function EmployeeReviews() {
     string | number | null
   >(null);
   const [detail, setDetail] = useState<ReviewDetail | null>(null);
-
   const [error, setError] = useState<string | null>(null);
-
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
-
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [newReview, setNewReview] = useState({
     employeeId: "",
@@ -653,10 +649,8 @@ export function EmployeeReviews() {
     position: "",
     reviewDate: new Date().toISOString().split("T")[0],
   });
-
   const [isEditing, setIsEditing] = useState(false);
   const [editDetail, setEditDetail] = useState<Partial<ReviewDetail>>({});
-
   const [areasForGrowth, setAreasForGrowth] = useState<string>("");
 
   useEffect(() => {
@@ -1329,7 +1323,7 @@ export function EmployeeReviews() {
                       appearance="primary"
                       className={styles.primaryDetailButton}
                       onClick={onCompleteReview}
-                      style={{ backgroundColor: "#10B981" }} // Green for completion
+                      style={{ backgroundColor: "#10B981" }} 
                     >
                       Complete Review
                     </Button>
