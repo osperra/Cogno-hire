@@ -152,13 +152,11 @@ const EMPLOYER_NAV: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: <GridRegular />, path: "/app/employer/dashboard" },
   { id: "jobs", label: "Jobs", icon: <Briefcase20Regular />, path: "/app/employer/jobs" },
   { id: "applicants", label: "Applicants", icon: <People20Regular />, path: "/app/employer/applicants" },
-
   { id: "pipeline", label: "Pipeline", icon: <Branch20Regular />, path: "/app/employer/pipeline" },
   { id: "ai", label: "AI Job Generator", icon: <Sparkle20Regular />, badge: "New", path: "/app/employer/ai-job-description" },
   { id: "documents", label: "Documents", icon: <DocumentBulletListRegular />, path: "/app/employer/documents" },
   { id: "reviews", label: "Reviews", icon: <Star20Regular />, path: "/app/employer/reviews" },
   { id: "onboarding", label: "Onboarding", icon: <PersonAvailableRegular />, path: "/app/employer/onboarding" },
-
   { id: "company", label: "Company", icon: <Building20Regular />, path: "/app/employer/company" },
 ];
 
@@ -183,6 +181,7 @@ type CandidateCounts = {
   candidateJobs: number;
   candidateApplications: number;
   candidateNotificationsUnread: number;
+  candidateInterviewResults?: number;
 };
 
 type SidebarCounts = Partial<EmployerCounts & CandidateCounts>;
@@ -224,7 +223,6 @@ async function apiGet<T>(path: string): Promise<T> {
 export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
   const styles = useStyles();
   const [expanded, setExpanded] = useState(true);
-
   const [counts, setCounts] = useState<SidebarCounts>({});
 
   useEffect(() => {
@@ -232,7 +230,7 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
 
     (async () => {
       try {
-        const data = await apiGet<SidebarCounts>("/api/sidebar/counts"); 
+        const data = await apiGet<SidebarCounts>("/api/sidebar/counts");
         if (!alive) return;
         setCounts(data || {});
       } catch {
@@ -247,13 +245,21 @@ export function Sidebar({ userRole, currentPage, onNavigate }: SidebarProps) {
   }, []);
 
   const bottomNav: NavItem[] = [
-    { id: "analytics", label: "Analytics", icon: <ArrowTrendingRegular />, path: userRole === "candidate" ? "/app/candidate/analytics" : "/app/employer/analytics" },
+    {
+      id: "analytics",
+      label: "Analytics",
+      icon: <ArrowTrendingRegular />,
+      path: userRole === "candidate" ? "/app/candidate/analytics" : "/app/employer/analytics",
+      badge:
+        userRole === "candidate" && counts.candidateInterviewResults && counts.candidateInterviewResults > 0
+          ? String(counts.candidateInterviewResults)
+          : null,
+    },
     { id: "settings", label: "Settings", icon: <Settings20Regular />, path: "/app/settings" },
   ];
 
   const navItems = useMemo(() => {
     const base = userRole === "employer" ? EMPLOYER_NAV : CANDIDATE_NAV;
-
     const toBadge = (n?: number) => (n && n > 0 ? String(n) : null);
 
     return base.map((it) => {

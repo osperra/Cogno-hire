@@ -19,10 +19,24 @@ import {
   Send20Regular,
 } from "@fluentui/react-icons";
 
+type Role = "ai" | "candidate";
+type Msg = { role: Role; content: string; ts: number };
+
+export type AnalysisData = {
+  overallScore: number;
+  feedback: string;
+  skills: { skill: string; score: number }[];
+  strengths: { title: string; description: string }[];
+  improvements: { title: string; description: string }[];
+};
+
+type InterviewCompletePayload = { applicationId?: string; analysis?: AnalysisData };
+
 interface InterviewRoomProps {
   jobTitle: string;
   company: string;
-  onComplete: (analysis?: any) => void;
+  applicationId?: string;
+  onComplete: (payload?: InterviewCompletePayload) => void;
 }
 
 interface Message {
@@ -42,6 +56,7 @@ type StartInterviewResponse = {
   totalQuestions?: number;
   aiMessage: string;
   message?: string;
+  applicationId?: string;
 };
 
 type NextInterviewResponse = {
@@ -51,6 +66,14 @@ type NextInterviewResponse = {
   totalQuestions?: number;
   aiMessage?: string;
   done?: boolean;
+  message?: string;
+  transcript?: Msg[];
+};
+
+type EndInterviewResponse = {
+  ok?: boolean;
+  analysis?: unknown;
+  applicationId?: string;
   message?: string;
 };
 
@@ -69,7 +92,10 @@ const BREAKPOINT_LG = 1200;
 const BREAKPOINT_MD = 900;
 const BREAKPOINT_SM = 600;
 
-const API_BASE = "http://localhost:5000";
+type ImportMetaEnvLike = { VITE_API_BASE?: string };
+type ImportMetaLike = ImportMeta & { env?: ImportMetaEnvLike };
+
+const API_BASE = ((import.meta as ImportMetaLike).env?.VITE_API_BASE ?? "").trim();
 
 function formatTime(sec: number) {
   const m = Math.floor(sec / 60)
@@ -100,7 +126,48 @@ function mediaErrToText(err: unknown) {
   return `${e?.name || "MediaError"}: ${e?.message || "Unknown error"}`;
 }
 
-// ---- AUTH (Bearer token) ----
+function normalizeAnalysis(input: unknown): AnalysisData | undefined {
+  if (!input || !isRecord(input)) return undefined;
+
+  const overallScore = input["overallScore"];
+  if (typeof overallScore !== "number") return undefined;
+
+  const feedback = typeof input["feedback"] === "string" ? input["feedback"] : "";
+
+  const skillsRaw = input["skills"];
+  const strengthsRaw = input["strengths"];
+  const improvementsRaw = input["improvements"];
+
+  const skills =
+    Array.isArray(skillsRaw) ?
+      skillsRaw
+        .filter((x): x is { skill: string; score: number } => {
+          return isRecord(x) && typeof x["skill"] === "string" && typeof x["score"] === "number";
+        })
+        .slice(0, 10)
+    : [];
+
+  const strengths =
+    Array.isArray(strengthsRaw) ?
+      strengthsRaw
+        .filter((x): x is { title: string; description: string } => {
+          return isRecord(x) && typeof x["title"] === "string" && typeof x["description"] === "string";
+        })
+        .slice(0, 5)
+    : [];
+
+  const improvements =
+    Array.isArray(improvementsRaw) ?
+      improvementsRaw
+        .filter((x): x is { title: string; description: string } => {
+          return isRecord(x) && typeof x["title"] === "string" && typeof x["description"] === "string";
+        })
+        .slice(0, 5)
+    : [];
+
+  return { overallScore, feedback, skills, strengths, improvements };
+}
+
 function getAuthToken() {
   return localStorage.getItem("token") || sessionStorage.getItem("token");
 }
@@ -110,7 +177,6 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// ---- Web Speech API (no any) ----
 type SpeechRecognitionResultAlternativeLike = { transcript: string; confidence: number };
 type SpeechRecognitionResultLike = ArrayLike<SpeechRecognitionResultAlternativeLike> & { isFinal?: boolean };
 
@@ -136,8 +202,6 @@ type SpeechRecognitionLike = {
 
   onstart: ((ev: Event) => void) | null;
   onend: ((ev: Event) => void) | null;
-  onaudiostart: ((ev: Event) => void) | null;
-  onaudioend: ((ev: Event) => void) | null;
 
   onerror: ((ev: SpeechRecognitionErrorEventLike) => void) | null;
   onresult: ((ev: SpeechRecognitionEventLike) => void) | null;
@@ -162,7 +226,7 @@ function extractSpeechError(ev: unknown): string {
   return "Speech recognition error";
 }
 
-export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomProps) {
+export function InterviewRoom({ jobTitle, company, applicationId, onComplete }: InterviewRoomProps) {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isSoundOn, setIsSoundOn] = useState(true);
 
@@ -237,11 +301,7 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
 
       try {
         const aStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
           video: false,
         });
 
@@ -285,9 +345,7 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
             const best = res[0];
             const t = (best?.transcript ?? "").trim();
             const isFinal = Boolean(res.isFinal);
-
             if (!t) continue;
-
             if (isFinal) finalText += (finalText ? " " : "") + t;
             else interimText += (interimText ? " " : "") + t;
           }
@@ -307,7 +365,7 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
       }
     }
 
-    init();
+    void init();
 
     return () => {
       cancelled = true;
@@ -315,7 +373,7 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
       try {
         srRef.current?.abort();
       } catch {
-        // ignore
+        /* ignore */
       }
       srRef.current = null;
 
@@ -325,7 +383,7 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
       try {
         window.speechSynthesis?.cancel();
       } catch {
-        // ignore
+        /* ignore */
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -353,11 +411,10 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
     if (!media.micReady) return;
     if (!media.speechSupported || !srRef.current) return;
     if (aiSpeaking) return;
-
     try {
       if (!media.listening) srRef.current.start();
     } catch {
-      // ignore
+      /* ignore */
     }
   }
 
@@ -365,7 +422,7 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
     try {
       srRef.current?.stop();
     } catch {
-      // ignore
+      /* ignore */
     }
     setMedia((p) => ({ ...p, listening: false, interim: "" }));
   }
@@ -391,7 +448,7 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
     try {
       window.speechSynthesis.cancel();
     } catch {
-      // ignore
+      /* ignore */
     }
 
     ttsCancelRef.current = false;
@@ -446,7 +503,7 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders() },
           credentials: "include",
-          body: JSON.stringify({ jobTitle, company, totalQuestions: 12 }),
+          body: JSON.stringify({ jobTitle, company, totalQuestions: 12, applicationId }),
         });
 
         const dataUnknown: unknown = await res.json().catch(() => ({}));
@@ -460,11 +517,9 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
         setCurrentQuestion(data.questionNumber ?? 1);
 
         const aiText = String(data.aiMessage || "").trim();
-
         setTranscript([{ id: idRef.current++, role: "ai", content: aiText, timestamp: ts() }]);
 
         if (isMicOn) setTimeout(() => startListening(), 300);
-
         speakAI(aiText);
       } catch (e: unknown) {
         if (!cancelled) setError(getErrorMessage(e) || "Failed to start interview");
@@ -473,12 +528,12 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
       }
     }
 
-    start();
+    void start();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobTitle, company]);
+  }, [jobTitle, company, applicationId]);
 
   async function sendAnswer() {
     if (!sessionId) return;
@@ -494,15 +549,11 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
 
     setError(null);
 
-    setTranscript((prev) => [
-      ...prev,
-      { id: idRef.current++, role: "candidate", content: text, timestamp: ts() },
-    ]);
+    setTranscript((prev) => [...prev, { id: idRef.current++, role: "candidate", content: text, timestamp: ts() }]);
     setAnswer("");
     setMedia((p) => ({ ...p, interim: "" }));
 
     stopListening();
-
     setFetchingNext(true);
 
     try {
@@ -519,16 +570,13 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
       if (!res.ok) throw new Error(data.message || `${res.status} ${res.statusText}`);
 
       if (data.done) {
-        onComplete();
+        await endInterview();
         return;
       }
 
       const aiText = String(data.aiMessage || "").trim();
       if (aiText) {
-        setTranscript((prev) => [
-          ...prev,
-          { id: idRef.current++, role: "ai", content: aiText, timestamp: ts() },
-        ]);
+        setTranscript((prev) => [...prev, { id: idRef.current++, role: "ai", content: aiText, timestamp: ts() }]);
         speakAI(aiText);
       } else {
         if (isMicOn) setTimeout(() => startListening(), 200);
@@ -545,7 +593,8 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
   }
 
   async function endInterview() {
-    let analysisData = undefined;
+    let analysisData: AnalysisData | undefined;
+
     try {
       if (sessionId) {
         const res = await fetch(`${API_BASE}/api/ai/interview/end`, {
@@ -554,22 +603,24 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
           credentials: "include",
           body: JSON.stringify({ sessionId }),
         });
-        const data = await res.json();
-        if (data && data.analysis) {
-          analysisData = data.analysis;
+
+        const dataUnknown: unknown = await res.json().catch(() => null);
+        const data = (dataUnknown && typeof dataUnknown === "object" ? dataUnknown : null) as EndInterviewResponse | null;
+
+        if (data?.analysis) {
+          analysisData = normalizeAnalysis(data.analysis);
         }
       }
-    } catch {
-      // ignore
     } finally {
       try {
         ttsCancelRef.current = true;
         window.speechSynthesis.cancel();
       } catch {
-        // ignore
+        /* ignore */
       }
       stopListening();
-      onComplete(analysisData);
+
+      onComplete({ applicationId, analysis: analysisData });
     }
   }
 
@@ -832,7 +883,6 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
 
   const transcriptScrollStyle: React.CSSProperties = { flex: 1, padding: isCompact ? 12 : 16 };
   const transcriptListStyle: React.CSSProperties = { display: "flex", flexDirection: "column", rowGap: 12 };
-  const messageRowStyle: React.CSSProperties = { display: "flex", columnGap: 8, alignItems: "flex-start" };
 
   const avatarCircleBaseStyle: React.CSSProperties = {
     width: 32,
@@ -1016,7 +1066,7 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
               {isSoundOn ? <Speaker220Regular /> : <SpeakerMute20Regular />}
             </Button>
 
-            <Button onClick={endInterview} variant="outline" style={endButtonStyle}>
+            <Button onClick={() => void endInterview()} variant="outline" style={endButtonStyle}>
               End Interview
             </Button>
           </div>
@@ -1078,7 +1128,7 @@ export function InterviewRoom({ jobTitle, company, onComplete }: InterviewRoomPr
               })}
 
               {fetchingNext && (
-                <div style={messageRowStyle}>
+                <div style={{ display: "flex", columnGap: 8, alignItems: "flex-start" }}>
                   <div style={avatarAIStyle}>AI</div>
                   <div style={{ flex: 1 }}>
                     <div style={messageBubbleAIStyle}>Thinking…</div>

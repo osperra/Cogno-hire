@@ -17,13 +17,13 @@ import { CompanyProfile } from "../Employer/CompanyProfile";
 import { InterviewAnalytics } from "../Employer/InterviewAnalytics";
 
 import { CandidateHome } from "../Candidate/CandidateHome";
-import CandidateJobs from "../Candidate/CandidateJobs"; 
+import CandidateJobs from "../Candidate/CandidateJobs";
 import { CandidateApplications } from "../Candidate/CandidateApplications";
 import { CandidateNotifications } from "../Candidate/CandidateNotifications";
 import { InterviewRoom } from "../Interview/InterviewRoom";
 import { CandidateApplyForm } from "../Candidate/CandidateApplyForm";
 import { CandidateInterviewResults } from "../Candidate/CandidateInterviewResults";
-
+import { CandidateInterviewAnalytics } from "../Candidate/CandidateInterviewAnalytics";
 import { CandidatePipeline } from "../hr/CandidatePipeline";
 import { DocumentManagement } from "../hr/DocumentManagement";
 import { EmployeeReviews } from "../hr/EmployeeReviews";
@@ -68,6 +68,9 @@ export const ROUTES = {
   candidateInterview: "/app/candidate/interview",
   candidateResults: "/app/candidate/results",
   candidateApply: "/app/candidate/apply",
+
+  // ✅ NEW: candidate analytics route (matches sidebar path)
+  candidateAnalytics: "/app/candidate/analytics",
 
   candidateMyAccount: "/app/candidate/account",
   candidateProfileSettings: "/app/candidate/profile",
@@ -140,10 +143,10 @@ function metaForPath(pathname: string): PageMeta {
     return { title: "Jobs", breadcrumbs: ["Jobs"] };
   if (startsWithPath(pathname, ROUTES.employerApplicants))
     return { title: "Applicants", breadcrumbs: ["Applicants"] };
-  if (startsWithPath(pathname, ROUTES.employerCompany))
-    return { title: "Company Profile", breadcrumbs: ["Company"] };
+  if (startsWithPath(pathname, ROUTES.employerCompany)) return { title: "Company Profile", breadcrumbs: ["Company"] };
   if (startsWithPath(pathname, ROUTES.employerAnalytics))
     return { title: "Interview Analytics", breadcrumbs: ["Analytics"] };
+
   if (startsWithPath(pathname, ROUTES.employerPipeline))
     return { title: "Candidate Pipeline", breadcrumbs: ["Pipeline"] };
   if (startsWithPath(pathname, ROUTES.employerDocuments))
@@ -166,6 +169,12 @@ function metaForPath(pathname: string): PageMeta {
     return { title: "Interview Room", breadcrumbs: ["Interview"] };
   if (startsWithPath(pathname, ROUTES.candidateApply))
     return { title: "Apply", breadcrumbs: ["Find Jobs", "Apply"] };
+  if (startsWithPath(pathname, ROUTES.candidateResults))
+    return { title: "Results", breadcrumbs: ["Results"] };
+
+  // ✅ NEW
+  if (startsWithPath(pathname, ROUTES.candidateAnalytics))
+    return { title: "Interview Analytics", breadcrumbs: ["Analytics"] };
 
   return { title: "App" };
 }
@@ -187,10 +196,9 @@ export default function AppLayout() {
         setMe(data);
 
         if (location.pathname === "/app" || location.pathname === "/app/") {
-          navigate(
-            data.role === "employer" ? ROUTES.employerDashboard : ROUTES.candidateHome,
-            { replace: true },
-          );
+          navigate(data.role === "employer" ? ROUTES.employerDashboard : ROUTES.candidateHome, {
+            replace: true,
+          });
         }
       } catch {
         localStorage.removeItem("token");
@@ -208,6 +216,7 @@ export default function AppLayout() {
   const pageMeta = useMemo(() => metaForPath(location.pathname), [location.pathname]);
 
   const onNavigate = (to: string, data?: Record<string, unknown>) => {
+    // ✅ Sidebar passes absolute paths like "/app/candidate/analytics"
     if (to.startsWith("/")) return navigate(to);
 
     if (role === "candidate" && to === "apply") {
@@ -215,6 +224,19 @@ export default function AppLayout() {
       const qs = new URLSearchParams();
       if (jobId) qs.set("jobId", jobId);
       return navigate(`${ROUTES.candidateApply}?${qs.toString()}`);
+    }
+
+    if (role === "candidate" && (to === "interview-room" || to === "interview")) {
+      return navigate(ROUTES.candidateInterview, { state: data || {} });
+    }
+
+    if (role === "candidate" && to === "results") {
+      return navigate(ROUTES.candidateResults, { state: data || {} });
+    }
+
+    // ✅ NEW: allow string-based navigation as well (optional)
+    if (role === "candidate" && to === "analytics") {
+      return navigate(ROUTES.candidateAnalytics);
     }
 
     if (role === "employer" && to === "job-details") {
@@ -244,7 +266,6 @@ export default function AppLayout() {
       if (to === "jobs") return navigate(ROUTES.candidateJobs);
       if (to === "applications") return navigate(ROUTES.candidateApplications);
       if (to === "notifications") return navigate(ROUTES.candidateNotifications);
-      if (to === "interview-room") return navigate(ROUTES.candidateInterview);
 
       if (to === "my-account") return navigate(ROUTES.candidateMyAccount);
       if (to === "profile-settings") return navigate(ROUTES.candidateProfileSettings);
@@ -295,19 +316,29 @@ export default function AppLayout() {
     if (startsWithPath(p, ROUTES.employerAIJobDescription)) return <AIJobDescriptionGenerator />;
 
     if (startsWithPath(p, ROUTES.candidateHome)) return <CandidateHome onNavigate={onNavigate} />;
-    if (startsWithPath(p, ROUTES.candidateJobs))
-      return <CandidateJobs onNavigate={onNavigate} />; 
+    if (startsWithPath(p, ROUTES.candidateJobs)) return <CandidateJobs onNavigate={onNavigate} />;
     if (startsWithPath(p, ROUTES.candidateApplications))
       return <CandidateApplications onNavigate={onNavigate} />;
     if (startsWithPath(p, ROUTES.candidateNotifications)) return <CandidateNotifications />;
     if (startsWithPath(p, ROUTES.candidateApply)) return <CandidateApplyForm onNavigate={onNavigate} />;
 
+    // ✅ NEW: candidate analytics (shows interview results list/summary)
+    if (startsWithPath(p, ROUTES.candidateAnalytics)) return <CandidateInterviewAnalytics />;
+
     if (startsWithPath(p, ROUTES.candidateInterview)) {
+      const st = (location.state || {}) as Record<string, unknown>;
+      const applicationId = typeof st.applicationId === "string" ? st.applicationId : undefined;
+      const jobTitle = typeof st.jobTitle === "string" ? st.jobTitle : "Interview";
+      const company = typeof st.company === "string" ? st.company : "Company";
+
       return (
         <InterviewRoom
-          jobTitle="Interview"
-          company="Company"
-          onComplete={(data) => navigate(ROUTES.candidateResults, { state: data })}
+          jobTitle={jobTitle}
+          company={company}
+          applicationId={applicationId}
+          onComplete={(payload) => {
+            navigate(ROUTES.candidateResults, { state: payload || { applicationId } });
+          }}
         />
       );
     }

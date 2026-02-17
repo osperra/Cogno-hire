@@ -3,8 +3,17 @@ import mongoose from "mongoose";
 import mammoth from "mammoth";
 import { cloudinary } from "../config/cloudinary.js";
 import Document from "../models/Document.js";
+import { createRequire } from "module";
+import { createHash } from "crypto";
+
+import { generateTextWithFallback } from "../ai/generateWithFallback.js";
+import JobMatchCache from "../models/JobMatchCache.js";
+
+// ✅ adjust this import to your project auth middleware
+import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 
 const router = Router();
+const requireCjs = createRequire(import.meta.url);
 
 type JobMatchInput = {
   id: string;
@@ -15,12 +24,15 @@ type JobMatchInput = {
   location?: string;
   workType?: string;
   jobType?: string;
-  experience?: number;};
+  experience?: number;
+  // optionally: updatedAt?: string; // if you want hash based on updatedAt
+};
 
 type ResolvedResume = {
   base64: string;
   mimeType: string;
   cacheKey: string;
+  fileNameHint?: string;
 };
 
 function getEnv(name: string) {
@@ -29,6 +41,31 @@ function getEnv(name: string) {
 
 function clamp01To100(n: number) {
   return Math.max(0, Math.min(100, n));
+}
+
+function sha256(s: string) {
+  return createHash("sha256").update(s).digest("hex");
+}
+
+function normalizeResumeForHash(text: string) {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function normalizeJobForHash(j: JobMatchInput) {
+  const skills = (j.skills ?? j.techStack ?? []).map(String).filter(Boolean).sort();
+  return JSON.stringify({
+    id: String(j.id || "").trim(),
+    title: String(j.title || "").trim(),
+    description: String(j.description || "").trim().slice(0, 2000),
+    skills,
+    location: String(j.location || j.workType || "").trim(),
+    jobType: String(j.jobType || "").trim(),
+    experience: typeof j.experience === "number" ? j.experience : null,
+  });
 }
 
 function guessMimeFromFormatOrUrl(x: string) {
@@ -44,13 +81,44 @@ function guessMimeFromFormatOrUrl(x: string) {
   return "application/octet-stream";
 }
 
+function fileNameFromUrl(u: string) {
+  try {
+    const url = new URL(u);
+    const p = url.pathname.split("/").filter(Boolean).pop() || "";
+    return decodeURIComponent(p);
+  } catch {
+    const p = String(u || "").split("?")[0].split("#")[0];
+    return p.split("/").filter(Boolean).pop() || "";
+  }
+}
+
+function sniffMimeFromBuffer(buf: Buffer, nameHint?: string): string {
+  if (!buf || buf.length < 4) return guessMimeFromFormatOrUrl(nameHint || "");
+
+  if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) {
+    return "application/pdf";
+  }
+  if (buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04) {
+    const byName = guessMimeFromFormatOrUrl(nameHint || "");
+    if (byName !== "application/octet-stream") return byName;
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return "image/png";
+  }
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return "image/jpeg";
+  }
+
+  return guessMimeFromFormatOrUrl(nameHint || "");
+}
+
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
 async function fetchWithRetry(url: string, tries = 2) {
   let lastErr: any = null;
-
   for (let i = 0; i < tries; i++) {
     try {
       const r = await fetch(url);
@@ -66,20 +134,47 @@ async function fetchWithRetry(url: string, tries = 2) {
       await sleep(250 * (i + 1));
     }
   }
-
   throw lastErr;
 }
 
-async function downloadAsBase64FromUrl(url: string) {
+async function downloadAsBufferFromUrl(url: string) {
   const r = await fetchWithRetry(url, 2);
-  const buf = Buffer.from(await r.arrayBuffer());
+  return Buffer.from(await r.arrayBuffer());
+}
+
+async function downloadAsBase64FromUrl(url: string) {
+  const buf = await downloadAsBufferFromUrl(url);
   return buf.toString("base64");
 }
 
-async function parsePdf(buf: Buffer) {
-  const mod: any = await import("pdf-parse");
-  const fn = mod?.default ?? mod;
-  return fn(buf);
+async function parsePdfToText(buf: Buffer): Promise<string> {
+  try {
+    const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    return await extractTextWithPdfJs(pdfjs, buf);
+  } catch {
+    try {
+      const pdfjs: any = requireCjs("pdfjs-dist/legacy/build/pdf.js");
+      return await extractTextWithPdfJs(pdfjs, buf);
+    } catch (e: any) {
+      throw new Error(`PDF extract failed: ${String(e?.message || e)}`);
+    }
+  }
+}
+
+async function extractTextWithPdfJs(pdfjs: any, buf: Buffer): Promise<string> {
+  const loadingTask = pdfjs.getDocument({ data: new Uint8Array(buf) });
+  const pdf = await loadingTask.promise;
+
+  let out = "";
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const strings = (content.items || [])
+      .map((it: any) => (typeof it?.str === "string" ? it.str : ""))
+      .filter(Boolean);
+    out += strings.join(" ") + "\n";
+  }
+  return out.trim();
 }
 
 function buildSignedCloudinaryUrl(args: {
@@ -130,47 +225,21 @@ async function downloadByPublicIdBestEffort(args: {
       return {
         base64,
         mimeType: guessMimeFromFormatOrUrl(fmt),
-        used: { dt, rt, fmt, publicId: args.resumePublicId },
+        fileNameHint: `${args.resumePublicId}.${fmt}`,
       };
     } catch (e: any) {
       lastErr = e;
     }
   }
 
-  const rtFallbacks: Array<"raw" | "image"> = rt === "raw" ? ["image"] : ["raw"];
-
-  for (const rt2 of rtFallbacks) {
-    for (const dt of order) {
-      const signed = buildSignedCloudinaryUrl({
-        publicId: args.resumePublicId,
-        resourceType: rt2,
-        deliveryType: dt,
-        format: fmt,
-      });
-
-      try {
-        const base64 = await downloadAsBase64FromUrl(signed);
-        return {
-          base64,
-          mimeType: guessMimeFromFormatOrUrl(fmt),
-          used: { dt, rt: rt2, fmt, publicId: args.resumePublicId },
-        };
-      } catch (e: any) {
-        lastErr = e;
-      }
-    }
-  }
-
   throw lastErr ?? new Error("Failed to download resume via publicId");
 }
 
-async function downloadFromGridFSAsBase64(args: {
+async function downloadFromGridFSAsBuffer(args: {
   fileId: mongoose.Types.ObjectId;
   bucketName?: string;
 }): Promise<Buffer> {
-  if (!mongoose.connection?.db) {
-    throw new Error("Mongo connection not ready");
-  }
+  if (!mongoose.connection?.db) throw new Error("Mongo connection not ready");
 
   const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
     bucketName: args.bucketName || "docs",
@@ -184,36 +253,6 @@ async function downloadFromGridFSAsBase64(args: {
     stream.on("error", (err: any) => reject(err));
     stream.on("end", () => resolve(Buffer.concat(chunks)));
   });
-}
-
-async function geminiGenerateText(prompt: string) {
-  const key = getEnv("GEMINI_API_KEY");
-  const model = getEnv("GEMINI_MODEL") || "gemini-2.5-flash-lite";
-  if (!key) throw new Error("Missing GEMINI_API_KEY");
-
-  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`;
-
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 2048 },
-    }),
-  });
-
-  if (!resp.ok) {
-    const t = await resp.text().catch(() => "");
-    const err = Object.assign(new Error(`Gemini error ${resp.status}: ${t}`), {
-      status: resp.status,
-    });
-    throw err;
-  }
-
-  const data = (await resp.json()) as any;
-  return (
-    data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).join("") || ""
-  );
 }
 
 async function geminiExtractFromFileInline(args: { mimeType: string; base64: string }) {
@@ -230,10 +269,7 @@ async function geminiExtractFromFileInline(args: { mimeType: string; base64: str
       contents: [
         {
           parts: [
-            {
-              text:
-                "Extract ALL readable resume text. Return plain text only. Keep sections and bullets if possible.",
-            },
+            { text: "Extract ALL readable resume text. Return plain text only." },
             { inlineData: { mimeType: args.mimeType, data: args.base64 } },
           ],
         },
@@ -244,10 +280,7 @@ async function geminiExtractFromFileInline(args: { mimeType: string; base64: str
 
   if (!resp.ok) {
     const t = await resp.text().catch(() => "");
-    const err = Object.assign(new Error(`Gemini extract error ${resp.status}: ${t}`), {
-      status: resp.status,
-    });
-    throw err;
+    throw new Error(`Gemini extract error ${resp.status}: ${t}`);
   }
 
   const data = (await resp.json()) as any;
@@ -256,23 +289,35 @@ async function geminiExtractFromFileInline(args: { mimeType: string; base64: str
   );
 }
 
-async function localExtractFromFile(args: { mimeType: string; base64: string }) {
+async function localExtractFromFile(args: {
+  mimeType: string;
+  base64: string;
+  fileNameHint?: string;
+}) {
   const buf = Buffer.from(args.base64, "base64");
+  let mt = String(args.mimeType || "").trim().toLowerCase();
 
-  if (args.mimeType === "application/pdf") {
-    const out = await parsePdf(buf);
-    return String(out?.text || "").trim();
+  if (!mt || mt === "application/octet-stream") {
+    mt = sniffMimeFromBuffer(buf, args.fileNameHint);
+  }
+
+  if (mt === "application/pdf") {
+    return await parsePdfToText(buf);
   }
 
   if (
-    args.mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    args.mimeType.includes("wordprocessingml")
+    mt === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mt.includes("wordprocessingml")
   ) {
     const out = await mammoth.extractRawText({ buffer: buf });
     return String(out?.value || "").trim();
   }
 
-  throw new Error(`Local extract unsupported mimeType: ${args.mimeType}`);
+  if (mt === "application/msword" || (args.fileNameHint || "").toLowerCase().endsWith(".doc")) {
+    throw new Error("Local extract unsupported for .doc. Upload PDF/DOCX or enable OCR provider.");
+  }
+
+  throw new Error(`Local extract unsupported mimeType: ${mt}`);
 }
 
 async function resolveResumeSource(args: {
@@ -290,25 +335,52 @@ async function resolveResumeSource(args: {
     const doc: any = await Document.findById(_id).lean();
     if (!doc) throw new Error("Resume document not found");
 
+    const nameHint =
+      String(doc.name || "").trim() ||
+      String(doc.fileUrl ? fileNameFromUrl(String(doc.fileUrl)) : "").trim() ||
+      undefined;
+
     if (doc.gridFsId) {
-      const buf = await downloadFromGridFSAsBase64({
+      const buf = await downloadFromGridFSAsBuffer({
         fileId: new mongoose.Types.ObjectId(String(doc.gridFsId)),
         bucketName: String(doc.bucketName || "docs"),
       });
 
+      const mimeFromDoc = String(doc.mimeType || "").trim() || "application/octet-stream";
+      const mimeType =
+        mimeFromDoc !== "application/octet-stream"
+          ? mimeFromDoc
+          : sniffMimeFromBuffer(buf, nameHint);
+
       return {
         base64: buf.toString("base64"),
-        mimeType: String(doc.mimeType || "application/pdf"),
+        mimeType,
         cacheKey: `doc:${_id}:gridfs:${doc.gridFsId}`,
+        fileNameHint: nameHint,
       };
     }
 
     if (doc.fileUrl) {
-      const base64 = await downloadAsBase64FromUrl(String(doc.fileUrl));
+      const fileUrl = String(doc.fileUrl);
+      const buf = await downloadAsBufferFromUrl(fileUrl);
+      const base64 = buf.toString("base64");
+
+      const mimeFromDoc = String(doc.mimeType || "").trim() || "";
+      const guessedByName = guessMimeFromFormatOrUrl(nameHint || fileUrl);
+
       const mimeType =
-        String(doc.mimeType || "").trim() ||
-        guessMimeFromFormatOrUrl(String(doc.name || doc.fileUrl));
-      return { base64, mimeType, cacheKey: `doc:${_id}:url:${doc.fileUrl}` };
+        mimeFromDoc && mimeFromDoc !== "application/octet-stream"
+          ? mimeFromDoc
+          : guessedByName !== "application/octet-stream"
+            ? guessedByName
+            : sniffMimeFromBuffer(buf, nameHint);
+
+      return {
+        base64,
+        mimeType,
+        cacheKey: `doc:${_id}:url:${fileUrl}`,
+        fileNameHint: nameHint,
+      };
     }
 
     throw new Error("Document has neither gridFsId nor fileUrl");
@@ -326,13 +398,27 @@ async function resolveResumeSource(args: {
       base64: dl.base64,
       mimeType: dl.mimeType,
       cacheKey: `publicId:${args.resumePublicId}`,
+      fileNameHint: dl.fileNameHint,
     };
   }
 
   if (args.resumeUrl) {
-    const base64 = await downloadAsBase64FromUrl(args.resumeUrl);
-    const mimeType = guessMimeFromFormatOrUrl(args.resumeFormat || args.resumeUrl);
-    return { base64, mimeType, cacheKey: `url:${args.resumeUrl}` };
+    const url = String(args.resumeUrl);
+    const buf = await downloadAsBufferFromUrl(url);
+    const base64 = buf.toString("base64");
+    const nameHint = fileNameFromUrl(url);
+
+    const byFormat = guessMimeFromFormatOrUrl(args.resumeFormat || "");
+    const byName = guessMimeFromFormatOrUrl(nameHint || url);
+
+    const mimeType =
+      byFormat !== "application/octet-stream"
+        ? byFormat
+        : byName !== "application/octet-stream"
+          ? byName
+          : sniffMimeFromBuffer(buf, nameHint);
+
+    return { base64, mimeType, cacheKey: `url:${url}`, fileNameHint: nameHint };
   }
 
   throw new Error("resumeDocId or resumePublicId or resumeUrl is required");
@@ -364,14 +450,7 @@ router.post("/resume/extract", async (req: Request, res: Response) => {
       resumeFormat,
       resumeResourceType,
       resumeDeliveryType,
-    } = req.body as {
-      resumeDocId?: string;
-      resumePublicId?: string;
-      resumeUrl?: string;
-      resumeFormat?: string;
-      resumeResourceType?: "raw" | "image" | "video";
-      resumeDeliveryType?: "upload" | "authenticated" | "private";
-    };
+    } = req.body as any;
 
     const resolved = await resolveResumeSource({
       resumeDocId,
@@ -386,6 +465,7 @@ router.post("/resume/extract", async (req: Request, res: Response) => {
     if (cached) return res.json({ resumeText: cached, cached: true });
 
     let resumeText = "";
+
     try {
       if (getEnv("GEMINI_API_KEY")) {
         resumeText = await geminiExtractFromFileInline({
@@ -396,17 +476,26 @@ router.post("/resume/extract", async (req: Request, res: Response) => {
         resumeText = await localExtractFromFile({
           mimeType: resolved.mimeType,
           base64: resolved.base64,
+          fileNameHint: resolved.fileNameHint,
         });
       }
     } catch {
       resumeText = await localExtractFromFile({
         mimeType: resolved.mimeType,
         base64: resolved.base64,
+        fileNameHint: resolved.fileNameHint,
       });
     }
 
     if (!resumeText || !resumeText.trim()) {
-      return res.status(422).json({ message: "Could not extract any text from resume" });
+      return res.status(422).json({
+        message: "Could not extract any text from resume",
+        debug: {
+          mimeType: resolved.mimeType,
+          fileNameHint: resolved.fileNameHint,
+          cacheKey: resolved.cacheKey,
+        },
+      });
     }
 
     setCachedResumeText(resolved.cacheKey, resumeText);
@@ -419,30 +508,104 @@ router.post("/resume/extract", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/jobs/match-batch", async (req: Request, res: Response) => {
+function localMatchFallback(resumeText: string, jobs: JobMatchInput[]) {
+  const resume = resumeText.toLowerCase();
+  const out: Record<string, number> = {};
+
+  for (const j of jobs) {
+    const skills = (j.skills ?? j.techStack ?? []).map(String).filter(Boolean);
+
+    let hits = 0;
+    let total = 0;
+    for (const s of skills) {
+      const k = s.toLowerCase().trim();
+      if (!k) continue;
+      total++;
+      if (resume.includes(k)) hits++;
+    }
+
+    const titleTokens = String(j.title || "")
+      .toLowerCase()
+      .split(/\W+/)
+      .filter(Boolean);
+
+    let titleHits = 0;
+    for (const t of titleTokens) if (resume.includes(t)) titleHits++;
+
+    const skillScore = total ? (hits / total) * 70 : 10;
+    const titleScore = titleTokens.length ? (titleHits / titleTokens.length) * 30 : 10;
+
+    out[j.id] = clamp01To100(Math.round(skillScore + titleScore));
+  }
+
+  return out;
+}
+
+// ✅ Require auth so we can persist matches per candidate
+router.post("/jobs/match-batch", requireAuth, async (req: AuthedRequest, res: Response) => {
   try {
     const { resumeText, jobs } = req.body as { resumeText?: string; jobs?: JobMatchInput[] };
-
     if (!resumeText || !Array.isArray(jobs)) {
       return res.status(400).json({ message: "resumeText and jobs[] required" });
     }
 
+    const userId = String((req.user as any)?.id || (req.user as any)?._id || "");
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const candidateId = new mongoose.Types.ObjectId(userId);
+
     const cleanJobs = jobs.filter((j) => j && j.id && j.title).slice(0, 30);
-    const CHUNK = 8;
+
+    const resumeHash = sha256(normalizeResumeForHash(resumeText));
+
+    // Build jobHash map
+    const jobMeta = cleanJobs.map((j) => {
+      const jobHash = sha256(normalizeJobForHash(j));
+      return { job: j, jobHash };
+    });
+
+    // 1) Fetch cached matches for this candidate+resumeHash
+    const cachedDocs = await JobMatchCache.find({
+      candidateId,
+      resumeHash,
+      jobId: { $in: jobMeta.map((x) => String(x.job.id)) },
+      jobHash: { $in: jobMeta.map((x) => x.jobHash) }, // jobHash must match too
+    })
+      .select("jobId jobHash match provider")
+      .lean();
+
+    const cacheKeyToMatch = new Map<string, { match: number; provider?: string }>();
+    for (const d of cachedDocs as any[]) {
+      cacheKeyToMatch.set(`${d.jobId}::${d.jobHash}`, { match: d.match, provider: d.provider });
+    }
 
     const matches: Record<string, number> = {};
+    const missing: Array<{ job: JobMatchInput; jobHash: string }> = [];
 
-    for (let i = 0; i < cleanJobs.length; i += CHUNK) {
-      const chunk = cleanJobs.slice(i, i + CHUNK);
+    for (const jm of jobMeta) {
+      const k = `${String(jm.job.id)}::${jm.jobHash}`;
+      const hit = cacheKeyToMatch.get(k);
+      if (hit) matches[String(jm.job.id)] = clamp01To100(Math.round(hit.match));
+      else missing.push(jm);
+    }
 
-      const payloadForPrompt = chunk.map((j) => ({
-        id: j.id,
-        title: j.title,
-        description: (j.description || "").slice(0, 800),
-        skills: (j.skills ?? j.techStack ?? []).map(String).filter(Boolean),
-        location: j.location || j.workType || "",
-        jobType: j.jobType || "",
-        experience: typeof j.experience === "number" ? j.experience : null,
+    // 2) Compute only missing (chunked)
+    const CHUNK = 8;
+    const bulkOps: any[] = [];
+
+    for (let i = 0; i < missing.length; i += CHUNK) {
+      const chunk = missing.slice(i, i + CHUNK);
+
+      const payloadForPrompt = chunk.map((x) => ({
+        id: x.job.id,
+        title: x.job.title,
+        description: (x.job.description || "").slice(0, 800),
+        skills: (x.job.skills ?? x.job.techStack ?? []).map(String).filter(Boolean),
+        location: x.job.location || x.job.workType || "",
+        jobType: x.job.jobType || "",
+        experience: typeof x.job.experience === "number" ? x.job.experience : null,
       }));
 
       const prompt = `
@@ -464,23 +627,33 @@ ${JSON.stringify(payloadForPrompt)}
 `.trim();
 
       let raw = "";
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          raw = await geminiGenerateText(prompt);
-          break;
-        } catch (e: any) {
-          const status = e?.status;
-          if (status === 429 && attempt < 2) {
-            await sleep(1200 * (attempt + 1));
-            continue;
-          }
-          throw e;
+      let providerUsed: string = "local";
+
+      try {
+        const out = await generateTextWithFallback(prompt, ["gemini", "groq", "ollama"]);
+        raw = out.text;
+        providerUsed = out.provider;
+      } catch {
+        // provider failure => local fallback for this chunk
+        const partial = localMatchFallback(resumeText, chunk.map((c) => c.job));
+        for (const c of chunk) {
+          const id = String(c.job.id);
+          const m = partial[id] ?? 0;
+          matches[id] = clamp01To100(Math.round(m));
+          bulkOps.push({
+            updateOne: {
+              filter: { candidateId, resumeHash, jobId: id, jobHash: c.jobHash },
+              update: { $set: { match: matches[id], provider: "local" } },
+              upsert: true,
+            },
+          });
         }
+        continue;
       }
 
-      const jsonText = String(raw).trim();
+      // Parse JSON
       let parsed: any = null;
-
+      const jsonText = String(raw).trim();
       try {
         parsed = JSON.parse(jsonText);
       } catch {
@@ -489,50 +662,64 @@ ${JSON.stringify(payloadForPrompt)}
       }
 
       const list: any[] = Array.isArray(parsed?.matches) ? parsed.matches : [];
+
+      // If provider returned nothing => local fallback
+      if (!list.length) {
+        const partial = localMatchFallback(resumeText, chunk.map((c) => c.job));
+        for (const c of chunk) {
+          const id = String(c.job.id);
+          const m = partial[id] ?? 0;
+          matches[id] = clamp01To100(Math.round(m));
+          bulkOps.push({
+            updateOne: {
+              filter: { candidateId, resumeHash, jobId: id, jobHash: c.jobHash },
+              update: { $set: { match: matches[id], provider: "local" } },
+              upsert: true,
+            },
+          });
+        }
+        continue;
+      }
+
+      // Fill results
+      const temp = new Map<string, number>();
       for (const item of list) {
         const id = String(item?.id || "").trim();
         const n = Number(item?.match);
         if (!id) continue;
-        matches[id] = Number.isFinite(n) ? clamp01To100(Math.round(n)) : 0;
+        temp.set(id, Number.isFinite(n) ? clamp01To100(Math.round(n)) : 0);
+      }
+
+      for (const c of chunk) {
+        const id = String(c.job.id);
+        const m = temp.has(id) ? (temp.get(id) as number) : 0;
+        matches[id] = clamp01To100(Math.round(m));
+        bulkOps.push({
+          updateOne: {
+            filter: { candidateId, resumeHash, jobId: id, jobHash: c.jobHash },
+            update: { $set: { match: matches[id], provider: providerUsed } },
+            upsert: true,
+          },
+        });
       }
     }
 
-    if (!Object.keys(matches).length) {
-      const resume = resumeText.toLowerCase();
-      const out: Record<string, number> = {};
-
-      for (const j of cleanJobs) {
-        const skills = (j.skills ?? j.techStack ?? []).map(String).filter(Boolean);
-
-        let hits = 0;
-        let total = 0;
-        for (const s of skills) {
-          const k = s.toLowerCase().trim();
-          if (!k) continue;
-          total++;
-          if (resume.includes(k)) hits++;
-        }
-
-        const titleTokens = String(j.title || "")
-          .toLowerCase()
-          .split(/\W+/)
-          .filter(Boolean);
-
-        let titleHits = 0;
-        for (const t of titleTokens) if (resume.includes(t)) titleHits++;
-
-        const skillScore = total ? (hits / total) * 70 : 10;
-        const titleScore = titleTokens.length ? (titleHits / titleTokens.length) * 30 : 10;
-
-        out[j.id] = clamp01To100(Math.round(skillScore + titleScore));
-      }
-
-      return res.json({ matches: out, fallback: true });
+    // 3) Persist newly computed matches
+    if (bulkOps.length) {
+      await JobMatchCache.bulkWrite(bulkOps, { ordered: false });
     }
 
-    return res.json({ matches, fallback: false });
-  } catch {
-    return res.status(500).json({ message: "Failed to match jobs" });
+    // 4) return full map
+    return res.json({
+      matches,
+      cached: missing.length === 0,
+      resumeHash,
+    });
+  } catch (e: any) {
+    return res.status(500).json({
+      message: "Failed to match jobs",
+      error: String(e?.message || e),
+    });
   }
 });
 

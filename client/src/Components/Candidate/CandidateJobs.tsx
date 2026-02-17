@@ -183,7 +183,7 @@ function titleCase(s: string) {
     .replace(/[-_]/g, " ")
     .trim()
     .replace(/\s+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase()); 
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function normalizeDifficulty(v: unknown): "Easy" | "Medium" | "Hard" {
@@ -364,6 +364,7 @@ async function tryGetResumeTextFromBackend(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           resumeUrl: me.resumeUrl,
+          resumeFileName: me.resumeFileName, 
         }),
       });
 
@@ -637,7 +638,11 @@ const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
       if (!me) return;
       if (!jobsRaw.length) return;
 
-      if (!me.resumeDocId && !me.resumeUrl && !(me.resumeText && me.resumeText.trim())) {
+      if (
+        !me.resumeDocId &&
+        !me.resumeUrl &&
+        !(me.resumeText && me.resumeText.trim())
+      ) {
         setMatchSource("none");
         setMatchMap({});
         return;
@@ -737,8 +742,14 @@ const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
             <div className={styles.searchInputWrapper}>
               <Input
                 className={styles.searchInput}
-                contentBefore={<Search20Regular style={{ color: "#5B6475", fontSize: 16 }} />}
-                placeholder={loading ? "Loading jobs..." : "Search by title, company, or skills..."}
+                contentBefore={
+                  <Search20Regular style={{ color: "#5B6475", fontSize: 16 }} />
+                }
+                placeholder={
+                  loading
+                    ? "Loading jobs..."
+                    : "Search by title, company, or skills..."
+                }
                 value={searchQuery}
                 onChange={(_, data) => {
                   setSearchQuery(data.value);
@@ -784,10 +795,16 @@ const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
                   key={chip.label}
                   type="button"
                   onClick={() => toggleFilter(chip.label)}
-                  className={selected ? `${styles.chipBase} ${styles.chipSelected}` : styles.chipBase}
+                  className={
+                    selected
+                      ? `${styles.chipBase} ${styles.chipSelected}`
+                      : styles.chipBase
+                  }
                 >
                   {chip.label}
-                  <span style={{ marginLeft: 4, opacity: 0.7 }}>({chip.count})</span>
+                  <span style={{ marginLeft: 4, opacity: 0.7 }}>
+                    ({chip.count})
+                  </span>
                 </button>
               );
             })}
@@ -799,7 +816,9 @@ const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
         <div className={styles.matchHint}>
           <Text className={styles.resultsText}>
             Showing{" "}
-            <span className={styles.resultsStrong}>{loading ? "…" : filtered.length}</span>{" "}
+            <span className={styles.resultsStrong}>
+              {loading ? "…" : filtered.length}
+            </span>{" "}
             jobs
             {total ? (
               <>
@@ -858,7 +877,11 @@ const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
             }
           }}
         >
-          {loadingMore ? "Loading..." : hasMore ? "Load More Jobs" : "No more jobs"}
+          {loadingMore
+            ? "Loading..."
+            : hasMore
+              ? "Load More Jobs"
+              : "No more jobs"}
         </Button>
       </div>
     </div>

@@ -58,6 +58,10 @@ type JobFromDB = {
   company?: string;
   companyName?: string;
   title: string;
+
+  about?: string;
+  description?: string;
+
   location?: string;
   workType?: string;
   jobType?: string;
@@ -71,13 +75,6 @@ type JobFromDB = {
   createdAt?: string;
   status?: "draft" | "open" | "closed";
   isActive?: boolean;
-};
-
-type JobsResponse = {
-  items: JobFromDB[];
-  total: number;
-  page: number;
-  limit: number;
 };
 
 type JobCardItem = {
@@ -193,6 +190,9 @@ type CandidateDashboard = {
   recentApplications: Application[];
 };
 
+/* =========================
+   helpers (safe typing)
+   ========================= */
 
 type JsonObject = Record<string, unknown>;
 function isRecord(v: unknown): v is JsonObject {
@@ -200,6 +200,9 @@ function isRecord(v: unknown): v is JsonObject {
 }
 function getString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
+}
+function getNumber(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 function unwrapData(raw: unknown): JsonObject {
   const root = isRecord(raw) ? raw : {};
@@ -267,13 +270,29 @@ function salaryToText(sr?: SalaryRangeDb): string {
   return "-";
 }
 
-function toHomeJobCard(j: JobFromDB): JobCardItem {
+function getJobSkills(j: JobFromDB): string[] {
+  const a =
+    Array.isArray(j.techStack) && j.techStack.length > 0
+      ? j.techStack
+      : Array.isArray(j.skills) && j.skills.length > 0
+        ? j.skills
+        : [];
+  return a.filter(Boolean).map(String);
+}
+
+function toHomeJobCard(
+  j: JobFromDB,
+  matchMap?: Record<string, number>,
+): JobCardItem {
   const company =
     (j.companyName ?? j.company ?? "Company").toString().trim() || "Company";
   const companyLogo = initials(company);
   const location = (j.location ?? j.workType ?? "-").toString();
   const type = j.jobType ? titleCase(String(j.jobType)) : "-";
   const ctc = salaryToText(j.salaryRange);
+
+  const m = typeof matchMap?.[j._id] === "number" ? matchMap[j._id] : 0;
+  const match = Math.max(0, Math.min(100, m));
 
   return {
     id: j._id,
@@ -283,7 +302,7 @@ function toHomeJobCard(j: JobFromDB): JobCardItem {
     location,
     type,
     ctc,
-    match: 0, 
+    match,
   };
 }
 
@@ -296,6 +315,7 @@ function formatDate(d: string) {
     year: "numeric",
   });
 }
+
 function getJob(jobId: JobPopulated) {
   if (typeof jobId === "string")
     return { title: "Unknown Job", company: "—", location: "—" };
@@ -305,6 +325,7 @@ function getJob(jobId: JobPopulated) {
     location: jobId.location ?? "—",
   };
 }
+
 function mapHiringToUI(h: HiringStatusApi): ApplicationStatus {
   switch (h) {
     case "HIRED":
@@ -392,11 +413,13 @@ function normalizeMe(raw: unknown): CandidateMe {
     resumeDocId: getString(r["resumeDocId"]) || undefined,
   };
 }
+
 async function tryFetchMe(): Promise<CandidateMe | null> {
   const candidates = ["/api/candidates/me", "/candidates/me", "/me"];
   for (const path of candidates) {
     try {
-      const raw = await api<unknown>(path, {
+      // avoid api<{}>() to prevent {} inference
+      const raw: unknown = await api(path, {
         method: "GET",
         cache: "no-store",
         credentials: "include",
@@ -409,6 +432,155 @@ async function tryFetchMe(): Promise<CandidateMe | null> {
   }
   return null;
 }
+
+/* =========================
+   match helpers (same as CandidateJobs)
+   ========================= */
+
+type ResumeTextSource = "resume" | "profile" | "none";
+
+async function tryGetResumeTextFromBackend(
+  me: CandidateMe,
+): Promise<{ text: string; source: ResumeTextSource }> {
+  if (me.resumeDocId) {
+    try {
+      const raw: unknown = await api("/api/ai/resume/extract", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeDocId: me.resumeDocId }),
+      });
+
+      const data = unwrapData(raw);
+      const txt =
+        getString(data["resumeText"]) ||
+        getString(data["text"]) ||
+        getString(data["content"]);
+
+      if (txt.trim()) return { text: txt.trim(), source: "resume" };
+    } catch {
+      // ignore
+    }
+  }
+
+  if (me.resumeUrl) {
+    try {
+      const raw: unknown = await api("/api/ai/resume/extract", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeUrl: me.resumeUrl }),
+      });
+
+      const data = unwrapData(raw);
+      const txt =
+        getString(data["resumeText"]) ||
+        getString(data["text"]) ||
+        getString(data["content"]);
+
+      if (txt.trim()) return { text: txt.trim(), source: "resume" };
+    } catch {
+      // ignore
+    }
+  }
+
+  const parts: string[] = [];
+  if (me.headline) parts.push(`Headline: ${me.headline}`);
+  if (me.about) parts.push(`About: ${me.about}`);
+  if (me.experienceLevel) parts.push(`Experience: ${me.experienceLevel}`);
+  if (me.location) parts.push(`Location: ${me.location}`);
+  if (me.skills?.length) parts.push(`Skills: ${me.skills.join(", ")}`);
+
+  const profileText = parts.join("\n").trim();
+  if (profileText) return { text: profileText, source: "profile" };
+
+  return { text: "", source: "none" };
+}
+
+async function tryComputeJobMatches(args: {
+  resumeText: string;
+  jobs: JobFromDB[];
+}): Promise<Record<string, number>> {
+  const { resumeText, jobs } = args;
+
+  const payload = {
+    resumeText,
+    jobs: jobs.map((j) => {
+      const jobSkills = getJobSkills(j);
+      return {
+        id: j._id,
+        title: j.title,
+        location: j.location ?? j.workType,
+        jobType: j.jobType,
+        workType: j.workType,
+        experience: j.workExperience,
+        skills: jobSkills,
+        description: j.description ?? j.about ?? "",
+      };
+    }),
+  };
+
+  try {
+    const raw: unknown = await api("/api/ai/jobs/match-batch", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = unwrapData(raw);
+    const m1 = data["matches"];
+
+    if (isRecord(m1)) {
+      const out: Record<string, number> = {};
+      for (const [k, v] of Object.entries(m1)) {
+        const n = getNumber(v);
+        if (n != null)
+          out[String(k)] = n <= 1 ? Math.round(n * 100) : Math.round(n);
+      }
+      return out;
+    }
+
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+/* =========================
+   jobs list fetch (typed, no any, no {} inference)
+   ========================= */
+
+type JobsListResponse = { items: JobFromDB[]; total: number };
+type JobsApiShape = {
+  items?: unknown;
+  jobs?: unknown;
+  results?: unknown;
+  total?: unknown;
+  count?: unknown;
+  data?: unknown;
+};
+
+function asJobsApiShape(v: unknown): JobsApiShape | null {
+  return isRecord(v) ? (v as JobsApiShape) : null;
+}
+
+function readTotalFromUnknown(raw: unknown): number | null {
+  const root = asJobsApiShape(raw);
+  if (root && typeof root.total === "number") return root.total;
+
+  const data = unwrapData(raw);
+  const t = (data as Record<string, unknown>)["total"];
+  const c = (data as Record<string, unknown>)["count"];
+  if (typeof t === "number") return t;
+  if (typeof c === "number") return c;
+
+  return null;
+}
+
+/* =========================
+   styles
+   ========================= */
 
 const PROFILE_BANNER_DISMISS_KEY = "candidate_home_profile_banner_dismissed";
 
@@ -893,61 +1065,39 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
         hasLocation,
         hasAbout,
       ].filter(Boolean).length;
-
       return Math.round((done / total) * 100);
     },
     [],
   );
 
-  const fetchRecommendedJobs = React.useCallback(async () => {
-    const params = new URLSearchParams();
-    params.set("page", "1");
-    params.set("limit", "2");
-    params.set("sort", "recent");
-    params.set("includeAll", "1");
+  const fetchJobsList = React.useCallback(
+    async (args: {
+      invited?: boolean;
+      limit: number;
+      sort?: string;
+    }): Promise<JobsListResponse> => {
+      const params = new URLSearchParams();
+      params.set("page", "1");
+      params.set("limit", String(args.limit));
+      params.set("sort", args.sort ?? "recent");
+      params.set("includeAll", "1");
+      if (args.invited) params.set("invited", "1");
 
-    const url = `/api/jobs?${params.toString()}`;
-    const res = await api<JobsResponse>(url, {
-      cache: "no-store",
-      credentials: "include",
-    });
+      const url = `/api/jobs?${params.toString()}`;
 
-    const items = res?.items ?? [];
-    return items.map(toHomeJobCard);
-  }, []);
+      // IMPORTANT: keep as unknown to avoid `{}` inference issues
+      const raw: unknown = await api(url, {
+        cache: "no-store",
+        credentials: "include",
+      });
 
-  const fetchInvitedJobs = React.useCallback(async () => {
-    const candidates = [
-      () => {
-        const p = new URLSearchParams();
-        p.set("page", "1");
-        p.set("limit", "2");
-        p.set("includeAll", "1");
-        p.set("invited", "1");
-        return `/api/jobs?${p.toString()}`;
-      },
-      () => "/api/jobs/invited?limit=2",
-      () => "/api/candidate/jobs/invited?limit=2",
-    ];
+      const items = extractJobItems(raw);
+      const total = readTotalFromUnknown(raw) ?? items.length;
 
-    let lastErr: unknown = null;
-    for (const makeUrl of candidates) {
-      try {
-        const url = makeUrl();
-        const raw = await api<unknown>(url, {
-          cache: "no-store",
-          credentials: "include",
-        });
-
-        const items = extractJobItems(raw);
-        return items.slice(0, 2).map(toHomeJobCard);
-      } catch (e) {
-        lastErr = e;
-      }
-    }
-
-    throw lastErr;
-  }, []);
+      return { items, total };
+    },
+    [],
+  );
 
   const fetchRecentApplications = React.useCallback(async () => {
     const qs = new URLSearchParams();
@@ -991,24 +1141,51 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
   const refreshAll = React.useCallback(async () => {
     const m = await tryFetchMe();
     const displayName = m?.name?.trim() || pickNameFromToken();
-
     const profileCompletion = computeProfileCompletion(m);
 
-    const [recommended, recentApps, counts] = await Promise.all([
-      fetchRecommendedJobs().catch(() => [] as JobCardItem[]),
+    const [recRes, invRes, recentApps, counts] = await Promise.all([
+      fetchJobsList({ invited: false, limit: 2, sort: "recent" }).catch(
+        (): JobsListResponse => ({ items: [], total: 0 }),
+      ),
+      fetchJobsList({ invited: true, limit: 2, sort: "recent" }).catch(
+        (): JobsListResponse => ({ items: [], total: 0 }),
+      ),
       fetchRecentApplications().catch(() => [] as Application[]),
       fetchCounts(),
     ]);
 
-    let invited: JobCardItem[] = [];
-    let invitedCount = 0;
+    // compute match for the jobs shown on home (recommended + invited)
+    let matchMap: Record<string, number> = {};
     try {
-      invited = await fetchInvitedJobs();
-      invitedCount = invited.length;
+      const combined = [...recRes.items, ...invRes.items];
+      if (m && combined.length) {
+        const { text, source } = await tryGetResumeTextFromBackend(m);
+
+        if (source === "resume" && text.trim()) {
+          const enrichedResumeText = [
+            text,
+            m.skills?.length
+              ? `\n\nExplicit Skills: ${m.skills.join(", ")}`
+              : "",
+            m.headline ? `\nHeadline: ${m.headline}` : "",
+            m.experienceLevel ? `\nExperience Level: ${m.experienceLevel}` : "",
+            m.location ? `\nLocation: ${m.location}` : "",
+          ].join("");
+
+          matchMap = await tryComputeJobMatches({
+            resumeText: enrichedResumeText,
+            jobs: combined,
+          });
+        }
+      }
     } catch {
-      invited = [];
-      invitedCount = 0;
+      matchMap = {};
     }
+
+    const recommendedCards = recRes.items.map((j) =>
+      toHomeJobCard(j, matchMap),
+    );
+    const invitedCards = invRes.items.map((j) => toHomeJobCard(j, matchMap));
 
     const pendingInterviews = recentApps.filter(
       (a) => a.interviewStatus !== "Completed",
@@ -1023,19 +1200,19 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
         pendingInterviews,
         offersReceived:
           counts.hired || recentApps.filter((a) => a.status === "Hired").length,
-        newRecommendations: recommended.length,
-        invitedCount,
+        // counts on the home headline should reflect totals, not just the 2 cards
+        newRecommendations: recRes.total || recommendedCards.length,
+        invitedCount: invRes.total || invitedCards.length,
       },
-      recommendedJobs: recommended,
-      invitedJobs: invited,
+      recommendedJobs: recommendedCards,
+      invitedJobs: invitedCards,
       recentApplications: recentApps,
     });
   }, [
     computeProfileCompletion,
     fetchCounts,
-    fetchInvitedJobs,
+    fetchJobsList,
     fetchRecentApplications,
-    fetchRecommendedJobs,
   ]);
 
   React.useEffect(() => {
@@ -1062,8 +1239,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
       }
 
       t = window.setInterval(() => {
-        refreshAll().catch(() => {
-        });
+        refreshAll().catch(() => {});
       }, 25000);
     })();
 
@@ -1241,9 +1417,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
             {(tasksToShow.length ? tasksToShow : tasks.slice(0, 3)).map((t) => (
               <div
                 key={t.key}
-                className={`${styles.profileTaskCard} ${
-                  t.done ? styles.profileTaskCardDone : ""
-                }`}
+                className={`${styles.profileTaskCard} ${t.done ? styles.profileTaskCardDone : ""}`}
               >
                 <div className={styles.profileTaskIcon}>
                   {t.done ? (
@@ -1577,9 +1751,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                               size="small"
                               appearance="outline"
                               onClick={() =>
-                                onNavigate("results", {
-                                  applicationId: app.id,
-                                })
+                                onNavigate("results", { applicationId: app.id })
                               }
                             >
                               <DataHistogram20Regular

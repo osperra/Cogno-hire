@@ -17,7 +17,7 @@ export interface ApplicationDoc {
   interviewStatus: InterviewStatus;
   hiringStatus: HiringStatus;
 
-  overallScore?: number;
+  overallScore?: number; 
   communication?: string;
 
   coverLetter?: string;
@@ -45,7 +45,7 @@ const applicationSchema = new Schema<ApplicationDoc>(
       index: true,
     },
 
-    overallScore: { type: Number, default: 0 },
+    overallScore: { type: Number, min: 0, max: 100 },
     communication: { type: String, default: "AVERAGE" },
 
     coverLetter: { type: String },
@@ -56,5 +56,4 @@ const applicationSchema = new Schema<ApplicationDoc>(
 
 applicationSchema.index({ jobId: 1, candidateId: 1 }, { unique: true });
 
-export const Application =
-  model<ApplicationDoc>("Application", applicationSchema, "applications");
+export const Application = model<ApplicationDoc>("Application", applicationSchema, "applications");
