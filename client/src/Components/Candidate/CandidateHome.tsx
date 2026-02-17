@@ -31,7 +31,7 @@ import {
 
 import { AnimatedStats } from "../ui/AnimatedStats";
 import { QuickActions } from "../ui/QuickActions";
-import { ActivityTimeline } from "../ui/ActivityTimeline";
+import { ActivityTimeline, type ActivityItem } from "../ui/ActivityTimeline";
 import { FeatureHighlight } from "../ui/FeatureHighlight";
 import { StatusPill } from "../ui/StatusPill";
 
@@ -75,6 +75,7 @@ type JobFromDB = {
   createdAt?: string;
   status?: "draft" | "open" | "closed";
   isActive?: boolean;
+  logoUrl?: string;
 };
 
 type JobCardItem = {
@@ -86,6 +87,7 @@ type JobCardItem = {
   type: string;
   ctc: string;
   match: number;
+  logoUrl?: string;
 };
 
 type HiringStatusApi =
@@ -127,6 +129,7 @@ type ApplicationStatus =
   | "Pending Interview"
   | "Under Review"
   | "Hired"
+  | "Interview In Progress"
   | "Rejected"
   | "Shortlisted";
 type InterviewStatus = "Not Started" | "In Progress" | "Completed";
@@ -188,6 +191,7 @@ type CandidateDashboard = {
   recommendedJobs: JobCardItem[];
   invitedJobs: JobCardItem[];
   recentApplications: Application[];
+  activities: ActivityItem[];
 };
 
 type JsonObject = Record<string, unknown>;
@@ -243,9 +247,11 @@ function pickNameFromToken(): string {
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? "C";
-  const second = parts.length > 1 ? parts[1]?.[0] : parts[0]?.[1];
-  return (first + (second ?? "O")).toUpperCase();
+  const initials = parts
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+  return initials || "C";
 }
 function titleCase(s: string) {
   return s
@@ -298,6 +304,7 @@ function toHomeJobCard(
     location,
     type,
     ctc,
+    logoUrl: j.logoUrl,
     match,
   };
 }
@@ -310,6 +317,103 @@ function formatDate(d: string) {
     day: "2-digit",
     year: "numeric",
   });
+}
+
+function timeAgo(iso?: string) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "";
+  const diff = Date.now() - t;
+
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "Just now";
+  if (m < 60) return `${m} min ago`;
+
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hr ago`;
+
+  const d = Math.floor(h / 24);
+  return `${d} day${d > 1 ? "s" : ""} ago`;
+}
+
+function generateCandidateActivities(apps: Application[]): ActivityItem[] {
+  const acts: ActivityItem[] = [];
+
+  for (const a of apps) {
+    const ts = a.createdAtIso;
+
+    acts.push({
+      icon: Briefcase20Regular ,
+      bg: "rgba(37,99,235,0.12)",
+      color: "#2563EB",
+      title: "New Application",
+      description: `Applied for ${a.title} at ${a.company}`,
+      time: timeAgo(ts),
+      timeSort: ts,
+    });
+
+    if (a.interviewStatus === "In Progress") {
+      acts.push({
+        icon: Clock20Regular,
+        bg: "rgba(245,158,11,0.12)",
+        color: "#D97706",
+        title: "Interview In Progress",
+        description: `Your interview for ${a.title} is currently active.`,
+        time: "Active now",
+        timeSort: Date.now(),
+      });
+    } else if (a.interviewStatus === "Completed") {
+      acts.push({
+        icon: CheckmarkCircle20Regular,
+        bg: "rgba(22,163,74,0.12)",
+        color: "#16A34A",
+        title: "Interview Completed",
+        description: `Successfully finished interview for ${a.title}.`,
+        time: "Completed",
+        timeSort: ts,
+      });
+    }
+
+    if (a.status === "Hired") {
+      acts.push({
+        icon: CheckmarkCircle20Regular,
+        bg: "rgba(22,163,74,0.12)",
+        color: "#16A34A",
+        title: "Offer Received!",
+        description: `Congratulations! You've been hired for ${a.title} at ${a.company}.`,
+        time: timeAgo(ts),
+        timeSort: ts,
+      });
+    } else if (a.status === "Rejected") {
+      acts.push({
+        icon: Dismiss20Regular ,
+        bg: "rgba(220,38,38,0.12)",
+        color: "#DC2626",
+        title: "Application Updated",
+        description: `Decision reached for ${a.title} position at ${a.company}.`,
+        time: timeAgo(ts),
+        timeSort: ts,
+      });
+    } else if (a.status === "Shortlisted") {
+      acts.push({
+        icon: Clock20Regular ,
+        bg: "rgba(37,99,235,0.12)",
+        color: "#2563EB",
+        title: "Application Shortlisted",
+        description: `You've been shortlisted for ${a.title} at ${a.company}!`,
+        time: timeAgo(ts),
+        timeSort: ts,
+      });
+    }
+  }
+
+  return acts
+    .sort((x, y) => {
+      const tx = new Date(x.timeSort || "").getTime();
+      const ty = new Date(y.timeSort || "").getTime();
+      return ty - tx;
+    })
+    .slice(0, 5);
 }
 
 function getJob(jobId: JobPopulated) {
@@ -349,6 +453,15 @@ function mapInterviewToUI(i: InterviewStatusApi): InterviewStatus {
       return "Not Started";
   }
 }
+
+function getStatusType(status: ApplicationStatus) {
+  if (status === "Hired") return "success";
+  if (status === "Rejected") return "danger";
+  if (status === "Shortlisted") return "info";
+  if (status === "Under Review") return "info";
+  if (status === "Interview In Progress") return "warning";
+  return "pending";
+}
 function toHomeApplication(a: ApplicationFromApi): Application {
   const job = getJob(a.jobId);
   return {
@@ -358,7 +471,11 @@ function toHomeApplication(a: ApplicationFromApi): Application {
     title: job.title,
     appliedDate: formatDate(a.createdAt),
     createdAtIso: a.createdAt,
-    status: mapHiringToUI(a.hiringStatus),
+    status:
+      a.interviewStatus === "COMPLETED" &&
+      (a.hiringStatus === "PENDING" || a.hiringStatus === "INVITED")
+        ? "Under Review"
+        : mapHiringToUI(a.hiringStatus),
     interviewStatus: mapInterviewToUI(a.interviewStatus),
     score: typeof a.overallScore === "number" ? a.overallScore : null,
   };
@@ -1016,6 +1133,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
     recommendedJobs: [],
     invitedJobs: [],
     recentApplications: [],
+    activities: [],
   }));
 
   const dismissProfileBanner = () => {
@@ -1170,6 +1288,8 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
       (a) => a.interviewStatus !== "Completed",
     ).length;
 
+    const activities = generateCandidateActivities(recentApps);
+
     setMe(m);
     setDashboard({
       displayName,
@@ -1185,6 +1305,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
       recommendedJobs: recommendedCards,
       invitedJobs: invitedCards,
       recentApplications: recentApps,
+      activities,
     });
   }, [
     computeProfileCompletion,
@@ -1469,7 +1590,10 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
           <QuickActions userRole="candidate" onNavigate={onNavigate} />
         </div>
         <div>
-          <ActivityTimeline userRole="candidate" />
+          <ActivityTimeline
+            userRole="candidate"
+            activities={dashboard.activities}
+          />
         </div>
       </div>
 
@@ -1557,7 +1681,22 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                 >
                   <div className={styles.jobHeader}>
                     <div className={styles.jobHeaderLeft}>
-                      <div className={styles.jobLogo}>{job.companyLogo}</div>
+                      <div className={styles.jobLogo}>
+                        {job.logoUrl ? (
+                          <img
+                            src={job.logoUrl}
+                            alt={job.company}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              borderRadius: "inherit",
+                            }}
+                          />
+                        ) : (
+                          job.companyLogo
+                        )}
+                      </div>
 
                       <div className={styles.jobTitleBlock}>
                         <Text as="h4" className={styles.jobTitle}>
@@ -1648,7 +1787,21 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                           <span className={styles.mobileLabel}>Company</span>
                           <div className={styles.companyCell}>
                             <div className={styles.companyLogo}>
-                              {app.companyLogo}
+                              {app.companyLogo &&
+                              app.companyLogo.startsWith("http") ? (
+                                <img
+                                  src={app.companyLogo}
+                                  alt={app.company}
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "cover",
+                                    borderRadius: "inherit",
+                                  }}
+                                />
+                              ) : (
+                                app.companyLogo
+                              )}
                             </div>
                             <Text
                               weight="semibold"
@@ -1676,13 +1829,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                         <TableCell className={styles.statusCell}>
                           <span className={styles.mobileLabel}>Status</span>
                           <StatusPill
-                            status={
-                              app.status === "Hired"
-                                ? "success"
-                                : app.status === "Rejected"
-                                  ? "danger"
-                                  : "info"
-                            }
+                            status={getStatusType(app.status)}
                             label={app.status}
                             size="sm"
                           />
@@ -1751,3 +1898,5 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
     </div>
   );
 };
+
+export default CandidateHome;

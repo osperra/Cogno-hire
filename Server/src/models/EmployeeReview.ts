@@ -25,6 +25,7 @@ export interface IEmployeeReview extends Document {
     managerFeedback?: string;
     areasForGrowth?: string;
     goals?: string[];
+    achievements?: string[];
 
     createdAt: Date;
     updatedAt: Date;
@@ -63,6 +64,7 @@ const EmployeeReviewSchema = new Schema<IEmployeeReview>(
         managerFeedback: String,
         areasForGrowth: String,
         goals: [String],
+        achievements: [String],
     },
     { timestamps: true }
 );

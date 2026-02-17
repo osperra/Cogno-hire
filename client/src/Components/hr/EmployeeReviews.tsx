@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -16,6 +16,14 @@ import {
   Text,
   makeStyles,
   shorthands,
+  Dialog,
+  DialogSurface,
+  DialogTitle,
+  DialogBody,
+  DialogActions,
+  DialogContent,
+  Field,
+  Input,
 } from "@fluentui/react-components";
 
 import {
@@ -33,7 +41,7 @@ import { StatusPill } from "../ui/StatusPill";
 
 type ReviewTab = "all" | "completed" | "pending" | "scheduled";
 
-type ReviewStatusUi = "Completed" | "Pending" | "Scheduled";
+type ReviewStatusUi = "Completed" | "Pending" | "Scheduled" | "COMPLETED" | "PENDING" | "SCHEDULED";
 
 type ReviewRow = {
   id: string | number;
@@ -128,6 +136,35 @@ async function apiPut<T>(
   const token = getAuthToken();
   const res = await fetch(url, {
     method: "PUT",
+    signal,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await safeJson(res);
+
+  if (!res.ok) {
+    const msg =
+      (data && typeof data === "object" && "message" in data && data.message) ||
+      `${res.status} ${res.statusText}`;
+    throw new Error(msg);
+  }
+
+  return data as T;
+}
+
+async function apiPost<T>(
+  url: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(url, {
+    method: "POST",
     signal,
     credentials: "include",
     headers: {
@@ -607,82 +644,154 @@ export function EmployeeReviews() {
 
   const [error, setError] = useState<string | null>(null);
 
+  const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
+
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+  const [newReview, setNewReview] = useState({
+    employeeId: "",
+    employeeName: "",
+    position: "",
+    reviewDate: new Date().toISOString().split("T")[0],
+  });
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDetail, setEditDetail] = useState<Partial<ReviewDetail>>({});
+
   const [areasForGrowth, setAreasForGrowth] = useState<string>("");
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    (async () => {
+    const fetchEmployees = async () => {
       try {
-        setError(null);
-
-        const [statsRes, listRes] = await Promise.all([
-          fetchStats(controller.signal),
-          fetchReviews(activeTab as ReviewTab, controller.signal),
-        ]);
-
-        setStats(statsRes);
-        setReviews(Array.isArray(listRes) ? listRes : []);
-
-        const first = (Array.isArray(listRes) ? listRes : [])[0];
-        setSelectedReviewId(first ? first.id : null);
-      } catch (e: unknown) {
-        const isAbort =
-          (typeof DOMException !== "undefined" &&
-            e instanceof DOMException &&
-            e.name === "AbortError") ||
-          (e instanceof Error && e.name === "AbortError");
-        if (isAbort) return;
-
-        setError(e instanceof Error ? e.message : "Something went wrong");
-        setStats({
-          totalReviews: 0,
-          completed: 0,
-          pending: 0,
-          scheduled: 0,
-          thisQuarter: 0,
-          avgRating: 0,
-        });
-        setReviews([]);
-        setSelectedReviewId(null);
-        setDetail(null);
-        setAreasForGrowth("");
+        const data = await apiGet<{ id: string; name: string }[]>("/api/reviews/employees");
+        setEmployees(data);
+      } catch (e) {
+        console.error("Failed to fetch employees:", e);
       }
-    })();
+    };
+    void fetchEmployees();
+  }, []);
 
-    return () => controller.abort();
+  const load = React.useCallback(async (signal?: AbortSignal) => {
+    try {
+      setError(null);
+      const [statsRes, listRes] = await Promise.all([
+        fetchStats(signal),
+        fetchReviews(activeTab as ReviewTab, signal),
+      ]);
+      setStats(statsRes);
+      setReviews(Array.isArray(listRes) ? listRes : []);
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === "AbortError") return;
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    }
   }, [activeTab]);
 
   useEffect(() => {
     const controller = new AbortController();
-
     (async () => {
-      if (!selectedReviewId) {
+      try {
+        await load(controller.signal);
+      } catch (e: unknown) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        console.error("Load failed", e);
+      }
+    })();
+    return () => controller.abort();
+  }, [load]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    if (!selectedReviewId) {
+      Promise.resolve().then(() => {
         setDetail(null);
         setAreasForGrowth("");
-        return;
-      }
+      });
+      return;
+    }
+    (async () => {
       try {
         setError(null);
         const d = await fetchReviewDetail(selectedReviewId, controller.signal);
         setDetail(d);
         setAreasForGrowth(d.areasForGrowth ?? "");
       } catch (e: unknown) {
-        const isAbort =
-          (typeof DOMException !== "undefined" &&
-            e instanceof DOMException &&
-            e.name === "AbortError") ||
-          (e instanceof Error && e.name === "AbortError");
-        if (isAbort) return;
-
-        setError(e instanceof Error ? e.message : "Something went wrong");
-        setDetail(null);
-        setAreasForGrowth("");
+        if (e instanceof Error && e.name === "AbortError") return;
+        setError(e instanceof Error ? e.message : "Failed to load details");
       }
     })();
-
     return () => controller.abort();
   }, [selectedReviewId]);
+
+  async function onSubmitSchedule() {
+    if (!newReview.employeeId) {
+      setError("Please select an employee");
+      return;
+    }
+    try {
+      setError(null);
+      await apiPost("/api/reviews", {
+        employeeId: newReview.employeeId,
+        employeeName: newReview.employeeName,
+        position: newReview.position,
+        reviewDate: new Date(newReview.reviewDate),
+        status: "SCHEDULED",
+        categories: { technical: 0, communication: 0, teamwork: 0, productivity: 0 }
+      });
+      setIsScheduleOpen(false);
+      void load(); 
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Schedule failed");
+    }
+  }
+
+  async function onCompleteReview() {
+    if (!detail?.id) return;
+    try {
+      setError(null);
+      await updateReview(detail.id, { status: "COMPLETED" });
+      void load();
+      const updated = await fetchReviewDetail(detail.id);
+      setDetail(updated);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Completion failed");
+    }
+  }
+
+  async function onSaveReview() {
+    if (!detail?.id) return;
+    try {
+      setError(null);
+      const payload: Partial<ReviewDetail> = isEditing ? { ...editDetail } : { areasForGrowth: areasForGrowth };
+      
+      if (isEditing && payload.categories) {
+        const c = payload.categories;
+        const avg = (Number(c.technical || 0) + Number(c.communication || 0) + Number(c.teamwork || 0) + Number(c.productivity || 0)) / 4;
+        payload.overallRating = Number(avg.toFixed(1));
+      }
+
+      if (payload.status) {
+        payload.status = payload.status.toUpperCase() as ReviewStatusUi;
+      }
+      const backendPayload = { ...payload };
+      delete (backendPayload as { id?: unknown }).id;
+
+      await updateReview(detail.id, backendPayload);
+      
+      void load();
+      const updated = await fetchReviewDetail(detail.id);
+      setDetail(updated);
+      setIsEditing(false);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    }
+  }
+
+  const toggleEdit = () => {
+    if (!isEditing && detail) {
+      setEditDetail(detail);
+    }
+    setIsEditing(!isEditing);
+  };
 
   const filteredReviews = useMemo(() => {
     if (activeTab === "completed")
@@ -704,11 +813,9 @@ export function EmployeeReviews() {
   const scheduled = stats.scheduled;
   const thisQuarter = stats.thisQuarter;
   const avgRating = clampRating0to5(stats.avgRating);
-
   const avgStars = Math.floor(avgRating);
 
   const detailTitleName = detail?.employee ?? "—";
-
   const categories = detail?.categories ?? {
     technical: 0,
     communication: 0,
@@ -718,41 +825,17 @@ export function EmployeeReviews() {
 
   const achievements = detail?.achievements?.length
     ? detail.achievements
-    : [
-        "Led migration to React 18, improving performance by 40%",
-        "Mentored 3 junior developers, all promoted within 6 months",
-        "Delivered 5 major features ahead of schedule",
-      ];
+    : [];
 
   const goals = detail?.goals?.length
     ? detail.goals
-    : [
-        "Lead architecture for new microservices initiative",
-        "Expand mentorship program to 5 developers",
-        "Complete AWS Solutions Architect certification",
-      ];
+    : [];
 
   const managerFeedback = detail?.managerFeedback ?? "“—”";
 
-  async function onSaveReview() {
-    if (!detail?.id) return;
-    try {
-      setError(null);
-      await updateReview(
-        detail.id,
-        {
-          areasForGrowth,
-        },
-        undefined,
-      );
-      setDetail((r) => (r ? { ...r, areasForGrowth } : r));
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Save failed");
-    }
-  }
-
   return (
-    <div className={styles.root}>
+    <>
+      <div className={styles.root}>
       <div className={styles.headerRow}>
         <div className={styles.headerTitleBlock}>
           <span className={styles.headerTitle}>
@@ -767,6 +850,7 @@ export function EmployeeReviews() {
           appearance="primary"
           className={styles.primaryButton}
           icon={<Add20Regular />}
+          onClick={() => setIsScheduleOpen(true)}
         >
           Schedule Review
         </Button>
@@ -994,11 +1078,46 @@ export function EmployeeReviews() {
         </div>
 
         <div className={styles.detailGrid}>
+          <div style={{ padding: "16px", backgroundColor: "#F9FAFB", borderRadius: "8px", marginBottom: "16px", border: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: "0.85rem", color: "#6B7280", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.025em" }}>Overall Rating</span>
+              <span style={{ fontSize: "1.5rem", fontWeight: 700, color: "#111827" }}>
+                {isEditing ? (
+                  ((p: Partial<ReviewDetail>) => {
+                    const c = p.categories || { technical: 0, communication: 0, teamwork: 0, productivity: 0 };
+                    const avg = (Number(c.technical || 0) + Number(c.communication || 0) + Number(c.teamwork || 0) + Number(c.productivity || 0)) / 4;
+                    return avg.toFixed(1);
+                  })(editDetail)
+                ) : (
+                  detail?.overallRating || "0.0"
+                )}
+                <span style={{ fontSize: "0.85rem", color: "#6B7280", fontWeight: 400, marginLeft: "4px" }}>/ 5.0</span>
+              </span>
+            </div>
+            <div className={styles.ratingStars} style={{ fontSize: "1.5rem" }}>
+              {Array.from({ length: 5 }).map((_, i) => {
+                const effectiveRating = isEditing 
+                  ? ((p: Partial<ReviewDetail>) => {
+                      const c = p.categories || { technical: 0, communication: 0, teamwork: 0, productivity: 0 };
+                      return (Number(c.technical || 0) + Number(c.communication || 0) + Number(c.teamwork || 0) + Number(c.productivity || 0)) / 4;
+                    })(editDetail)
+                  : (detail?.overallRating || 0);
+                return i < Math.floor(effectiveRating) ? (
+                  <Star20Filled key={i} style={{ color: "#F59E0B", width: "24px", height: "24px" }} />
+                ) : (
+                  <Star20Regular key={i} style={{ color: "#D1D5DB", width: "24px", height: "24px" }} />
+                );
+              })}
+            </div>
+          </div>
+
           <div>
             <div className={styles.sectionTitle}>Performance Categories</div>
 
             {Object.entries(categories).map(([category, rating]) => {
-              const r = clampRating0to5(rating);
+              const r = isEditing 
+                ? (editDetail.categories?.[category as keyof ReviewDetail["categories"]] ?? 0)
+                : clampRating0to5(rating);
               return (
                 <div key={category} className={styles.categoryBlock}>
                   <div className={styles.categoryHeader}>
@@ -1007,67 +1126,125 @@ export function EmployeeReviews() {
                       Skills
                     </span>
                     <div className={styles.categoryRatingRow}>
-                      <span
-                        style={{
-                          color: "#0118D8",
-                          fontWeight: 600,
-                          fontSize: "0.85rem",
-                        }}
-                      >
-                        {r}/5
-                      </span>
-                      <div className={styles.ratingStars}>
-                        {Array.from({ length: 5 }).map((_, i) =>
-                          i < Math.floor(r) ? (
-                            <Star20Filled
-                              key={i}
-                              style={{ color: "#F59E0B" }}
-                            />
-                          ) : (
-                            <Star20Regular
-                              key={i}
-                              style={{ color: "#D1D5DB" }}
-                            />
-                          ),
-                        )}
-                      </div>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          min={0}
+                          max={5}
+                          step={0.5}
+                          value={String(r)}
+                          onChange={(_, d) => setEditDetail(p => ({
+                            ...p,
+                            categories: {
+                              technical: p.categories?.technical ?? 0,
+                              communication: p.categories?.communication ?? 0,
+                              teamwork: p.categories?.teamwork ?? 0,
+                              productivity: p.categories?.productivity ?? 0,
+                              [category]: Number(d.value)
+                            }
+                          }))}
+                          style={{ width: "60px" }}
+                        />
+                      ) : (
+                        <>
+                          <span
+                            style={{
+                              color: "#0118D8",
+                              fontWeight: 600,
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            {r}/5
+                          </span>
+                          <div className={styles.ratingStars}>
+                            {Array.from({ length: 5 }).map((_, i) =>
+                              i < Math.floor(r) ? (
+                                <Star20Filled
+                                  key={i}
+                                  style={{ color: "#F59E0B" }}
+                                />
+                              ) : (
+                                <Star20Regular
+                                  key={i}
+                                  style={{ color: "#D1D5DB" }}
+                                />
+                              ),
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
-                  <ProgressBar value={r / 5} className={styles.progress} />
+                  {!isEditing && <ProgressBar value={r / 5} className={styles.progress} />}
                 </div>
               );
             })}
 
             <div style={{ marginTop: "8px" }}>
               <div className={styles.sectionTitle}>Key Achievements</div>
-              <ul className={styles.achievementList}>
-                {achievements.map((t, idx) => (
-                  <li key={idx} className={styles.achievementItem}>
-                    <div className={styles.achievementIconCircle}>
-                      <ArrowTrending20Regular
-                        style={{ color: "#16A34A", fontSize: 14 }}
+              {isEditing ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {(editDetail.achievements || []).map((t, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: "8px" }}>
+                      <Input
+                        value={t}
+                        onChange={(_, d) => setEditDetail(p => {
+                          const arr = [...(p.achievements || [])];
+                          arr[idx] = d.value;
+                          return { ...p, achievements: arr };
+                        })}
+                        style={{ flex: 1 }}
                       />
+                      <Button onClick={() => setEditDetail(p => ({
+                        ...p,
+                        achievements: (p.achievements || []).filter((_, i) => i !== idx)
+                      }))}>-</Button>
                     </div>
-                    <span className={styles.achievementText}>{t}</span>
-                  </li>
-                ))}
-              </ul>
+                  ))}
+                  <Button onClick={() => setEditDetail(p => ({
+                    ...p,
+                    achievements: [...(p.achievements || []), ""]
+                  }))}>Add Achievement</Button>
+                </div>
+              ) : (
+                <ul className={styles.achievementList}>
+                  {achievements.map((t, idx) => (
+                    <li key={idx} className={styles.achievementItem}>
+                      <div className={styles.achievementIconCircle}>
+                        <ArrowTrending20Regular
+                          style={{ color: "#16A34A", fontSize: 14 }}
+                        />
+                      </div>
+                      <span className={styles.achievementText}>{t}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 
           <div>
             <div style={{ marginBottom: "16px" }}>
               <div className={styles.sectionTitle}>Manager Feedback</div>
-              <div className={styles.feedbackCard}>
-                <div className={styles.feedbackRow}>
-                  <div className={styles.feedbackIcon}>
-                    <ChatMultiple20Regular
-                      style={{ color: "#0118D8", fontSize: 18 }}
-                    />
+              {isEditing ? (
+                <Textarea
+                  value={editDetail.managerFeedback || ""}
+                  onChange={(_, d) => setEditDetail(p => ({ ...p, managerFeedback: d.value }))}
+                  style={{ width: "100%" }}
+                  rows={4}
+                />
+              ) : (
+                <div className={styles.feedbackCard}>
+                  <div className={styles.feedbackRow}>
+                    <div className={styles.feedbackIcon}>
+                      <ChatMultiple20Regular
+                        style={{ color: "#0118D8", fontSize: 18 }}
+                      />
+                    </div>
+                    <span className={styles.feedbackText}>{managerFeedback}</span>
                   </div>
-                  <span className={styles.feedbackText}>{managerFeedback}</span>
                 </div>
-              </div>
+              )}
             </div>
 
             <div style={{ marginBottom: "16px" }}>
@@ -1076,46 +1253,147 @@ export function EmployeeReviews() {
                 appearance="filled-lighter"
                 resize="none"
                 rows={3}
-                value={areasForGrowth}
-                onChange={(_, data) => setAreasForGrowth(data.value)}
+                value={isEditing ? (editDetail.areasForGrowth || "") : areasForGrowth}
+                onChange={(_, data) => isEditing 
+                  ? setEditDetail(p => ({ ...p, areasForGrowth: data.value }))
+                  : setAreasForGrowth(data.value)
+                }
                 className={styles.growthTextarea}
               />
             </div>
 
             <div style={{ marginBottom: "16px" }}>
               <div className={styles.sectionTitle}>Goals for Next Period</div>
-              <ul className={styles.goalsList}>
-                {goals.map((t, idx) => (
-                  <li key={idx} className={styles.goalItem}>
-                    <div className={styles.goalIconCircle}>
-                      <TargetArrow20Regular
-                        style={{ color: "#0118D8", fontSize: 14 }}
+              {isEditing ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {(editDetail.goals || []).map((t, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: "8px" }}>
+                      <Input
+                        value={t}
+                        onChange={(_, d) => setEditDetail(p => {
+                          const arr = [...(p.goals || [])];
+                          arr[idx] = d.value;
+                          return { ...p, goals: arr };
+                        })}
+                        style={{ flex: 1 }}
                       />
+                      <Button onClick={() => setEditDetail(p => ({
+                        ...p,
+                        goals: (p.goals || []).filter((_, i) => i !== idx)
+                      }))}>-</Button>
                     </div>
-                    <span className={styles.goalText}>{t}</span>
-                  </li>
-                ))}
-              </ul>
+                  ))}
+                  <Button onClick={() => setEditDetail(p => ({
+                    ...p,
+                    goals: [...(p.goals || []), ""]
+                  }))}>Add Goal</Button>
+                </div>
+              ) : (
+                <ul className={styles.goalsList}>
+                  {goals.map((t, idx) => (
+                    <li key={idx} className={styles.goalItem}>
+                      <div className={styles.goalIconCircle}>
+                        <TargetArrow20Regular
+                          style={{ color: "#0118D8", fontSize: 14 }}
+                        />
+                      </div>
+                      <span className={styles.goalText}>{t}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             <div className={styles.detailButtonsRow}>
-              <Button
-                appearance="primary"
-                className={styles.primaryDetailButton}
-                onClick={onSaveReview}
-              >
-                Save Review
-              </Button>
-              <Button
-                appearance="outline"
-                className={styles.secondaryDetailButton}
-              >
-                Export PDF
-              </Button>
+              {isEditing ? (
+                <>
+                  <Button
+                    appearance="primary"
+                    className={styles.primaryDetailButton}
+                    onClick={onSaveReview}
+                  >
+                    Save Changes
+                  </Button>
+                  <Button
+                    appearance="outline"
+                    className={styles.secondaryDetailButton}
+                    onClick={() => setIsEditing(false)}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {detail?.status !== "Completed" && (
+                    <Button
+                      appearance="primary"
+                      className={styles.primaryDetailButton}
+                      onClick={onCompleteReview}
+                      style={{ backgroundColor: "#10B981" }} // Green for completion
+                    >
+                      Complete Review
+                    </Button>
+                  )}
+                  <Button
+                    appearance="outline"
+                    className={styles.secondaryDetailButton}
+                    onClick={toggleEdit}
+                  >
+                    Edit Details
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
       </Card>
     </div>
+      <Dialog open={isScheduleOpen} onOpenChange={(_, d) => setIsScheduleOpen(d.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Schedule Performance Review</DialogTitle>
+            <DialogContent style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <Field label="Employee" required>
+                <select
+                  value={newReview.employeeId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const emp = employees.find(x => x.id === id);
+                    setNewReview(p => ({ ...p, employeeId: id, employeeName: emp?.name || "" }));
+                  }}
+                  style={{
+                    padding: "8px",
+                    borderRadius: "4px",
+                    border: "1px solid #D1D5DB"
+                  }}
+                >
+                  <option value="">Select Employee...</option>
+                  {employees.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Position" required>
+                <Input
+                  value={newReview.position}
+                  onChange={(_, d) => setNewReview(p => ({ ...p, position: d.value }))}
+                />
+              </Field>
+              <Field label="Date" required>
+                <Input
+                  type="date"
+                  value={newReview.reviewDate}
+                  onChange={(_, d) => setNewReview(p => ({ ...p, reviewDate: d.value }))}
+                />
+              </Field>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setIsScheduleOpen(false)}>Cancel</Button>
+              <Button appearance="primary" onClick={onSubmitSchedule}>Schedule</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+    </>
   );
 }

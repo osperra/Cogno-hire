@@ -322,6 +322,18 @@ export function TopBar({
     setUnreadCount(data.unreadCount ?? 0);
   };
 
+  const clearAllNotifications = async () => {
+    try {
+      await api("/api/notifications/clear-all", {
+        method: "DELETE",
+      });
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     let alive = true;
 
@@ -538,7 +550,6 @@ export function TopBar({
     }
   };
 
-  // ===== theme-aware colors via tokens =====
   const searchBgIdle = tokens.colorNeutralBackground3;
   const searchBgFocused = tokens.colorNeutralBackground1;
   const searchText = tokens.colorNeutralForeground1;
@@ -1006,6 +1017,9 @@ export function TopBar({
               </Text>
 
               <div style={{ display: "flex", gap: 8 }}>
+                <Button appearance="subtle" size="small" onClick={clearAllNotifications} style={{ color: tokens.colorNeutralForeground4 }}>
+                  Clear all
+                </Button>
                 <Button appearance="outline" size="small" onClick={markAllRead}>
                   Mark all read
                 </Button>
@@ -1098,8 +1112,13 @@ export function TopBar({
                     >
                       {n.description}
                     </div>
-                    <div style={{ fontSize: 11, color: searchSubText }}>
-                      {n.timeAgo}
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: searchSubText,
+                      }}
+                    >
+                      <span>{n.timeAgo}</span>
                     </div>
                   </div>
                 ))}

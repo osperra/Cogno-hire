@@ -5,6 +5,7 @@ import { Job } from "../models/Jobs.js";
 import { Application } from "../models/Application.js";
 import { User } from "../models/User.js";
 import { Notification } from "../models/Notification.js";
+import { CompanyProfile } from "../models/CompanyProfile.js";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth.js";
 
 export const jobsRouter = Router();
@@ -172,7 +173,27 @@ jobsRouter.get("/", async (req, res) => {
   }
 
   const [items, total] = await Promise.all([
-    Job.find(filter).sort(sortObj).skip(skip).limit(limit),
+    Job.aggregate([
+      { $match: filter },
+      { $sort: sortObj },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: "company_profiles",
+          localField: "employerId",
+          foreignField: "employerId",
+          as: "profile",
+        },
+      },
+      {
+        $addFields: {
+          company: { $ifNull: ["$companyName", { $arrayElemAt: ["$profile.companyName", 0] }, "$company", "Company"] },
+          logoUrl: { $arrayElemAt: ["$profile.logoUrl", 0] },
+        },
+      },
+      { $project: { profile: 0 } },
+    ]),
     Job.countDocuments(filter),
   ]);
 
@@ -320,9 +341,13 @@ jobsRouter.post(
     const sr = parsed.data.salaryRange;
     const normalizedSalaryRange = typeof sr === "string" ? undefined : sr;
 
+    const profile = await CompanyProfile.findOne({ employerId: req.user!.id }).select("companyName").lean();
+    const finalCompanyName = parsed.data.companyName ?? parsed.data.company ?? profile?.companyName ?? "Company";
+
     const job = await Job.create({
       employerId: req.user!.id,
       ...parsed.data,
+      companyName: finalCompanyName,
       salaryRange: normalizedSalaryRange,
     });
 
@@ -360,9 +385,12 @@ jobsRouter.patch(
       .select("_id status isActive title company companyName")
       .lean();
 
+    const profile = await CompanyProfile.findOne({ employerId: req.user!.id }).select("companyName").lean();
+    const finalCompanyName = parsed.data.companyName ?? parsed.data.company ?? profile?.companyName ?? before?.companyName ?? "Company";
+
     const updated = await Job.findOneAndUpdate(
       { _id: req.params.id, employerId: req.user!.id },
-      { $set: { ...parsed.data, salaryRange: normalizedSalaryRange } },
+      { $set: { ...parsed.data, companyName: finalCompanyName, salaryRange: normalizedSalaryRange } },
       { new: true }
     );
 

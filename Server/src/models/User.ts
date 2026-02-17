@@ -45,15 +45,36 @@ const UserSchema = new Schema(
     },
 
     preferences: {
-      jobTypes: [{ type: String }], 
-      workModes: [{ type: String }], 
-      locations: [{ type: String }], 
+      jobTypes: [{ type: String }],
+      workModes: [{ type: String }],
+      locations: [{ type: String }],
       salary: {
         min: { type: Number },
         max: { type: Number },
         currency: { type: String, default: "USD" },
       },
       relocation: { type: Boolean, default: false },
+      preferences: {
+        jobTypes: [{ type: String }],
+        workModes: [{ type: String }],
+        locations: [{ type: String }],
+        salary: {
+          min: { type: Number },
+          max: { type: Number },
+          currency: { type: String, default: "USD" },
+        },
+        relocation: { type: Boolean, default: false },
+      },
+
+      settings: {
+        emailNotifications: { type: Boolean, default: true },
+        productUpdates: { type: Boolean, default: true },
+        marketingEmails: { type: Boolean, default: false },
+        desktopNotifications: { type: Boolean, default: false },
+        weeklySummary: { type: Boolean, default: true },
+        defaultLanding: { type: String, default: "dashboard" },
+        theme: { type: String, default: "system" },
+      },
     },
   },
   { timestamps: true }

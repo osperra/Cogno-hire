@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Card, Badge, makeStyles, shorthands } from "@fluentui/react-components";
 import {
-  ArrowLeft20Regular,
   CheckmarkCircle20Regular,
   Warning20Regular,
   ArrowTrending20Regular,
@@ -125,7 +124,7 @@ export type AnalysisData = {
   improvements: { title: string; description: string }[];
 };
 
-type NavStateWrapper = { applicationId?: string; analysis?: unknown };
+type NavStateWrapper = { applicationId?: string; logoUrl?: string; analysis?: unknown };
 
 type LocationState = NavStateWrapper | AnalysisData | undefined;
 
@@ -192,6 +191,8 @@ export function CandidateInterviewResults() {
   const state = location.state as LocationState;
   const applicationId =
     isNavStateWrapper(state) && typeof state.applicationId === "string" ? state.applicationId : undefined;
+
+  const nState = state as NavStateWrapper;
 
   const initialAnalysis =
     (isNavStateWrapper(state) ? normalizeAnalysis(state.analysis) : undefined) || normalizeAnalysis(state);
@@ -261,11 +262,31 @@ export function CandidateInterviewResults() {
   return (
     <div className={styles.root}>
       <div className={styles.headerRow}>
-        <Button
-          appearance="subtle"
-          icon={<ArrowLeft20Regular />}
-          onClick={() => navigate(ROUTES.candidateHome)}
-        />
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 12,
+            backgroundImage: nState?.logoUrl ? "none" : "linear-gradient(135deg, #0118D8, #1B56FD)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "white",
+            fontWeight: 600,
+            overflow: "hidden",
+            flexShrink: 0,
+          }}
+        >
+          {nState?.logoUrl ? (
+            <img
+              src={nState.logoUrl}
+              alt="Company"
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          ) : (
+            "C"
+          )}
+        </div>
         <div className={styles.headerTitleBlock}>
           <div className={styles.headerTitle}>Interview Results</div>
           <div className={styles.headerSubtitle}>Here is how you performed</div>

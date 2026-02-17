@@ -78,7 +78,7 @@ authRouter.post("/login", async (req, res) => {
     const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
     if (!ok) return res.status(401).json({ message: "Invalid credentials" });
 
-    const token = jwt.sign({ role: user.role }, jwtSecret, {
+    const token = jwt.sign({ role: user.role, name: user.name }, jwtSecret, {
       subject: String(user._id),
       expiresIn: "7d",
     });
@@ -93,14 +93,12 @@ authRouter.post("/login", async (req, res) => {
   }
 });
 
-// GET /api/auth/me
 authRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
   const user = await User.findById(req.user!.id).select("-passwordHash");
   if (!user) return res.status(404).json({ message: "User not found" });
   return res.json(user);
 });
 
-// PUT /api/auth/me
 authRouter.put("/me", requireAuth, async (req: AuthedRequest, res) => {
   const schema = z.object({
     name: z.string().trim().min(2).max(80),
@@ -119,6 +117,35 @@ authRouter.put("/me", requireAuth, async (req: AuthedRequest, res) => {
 
   if (!updated) return res.status(404).json({ message: "User not found" });
   return res.json(updated);
+});
+
+authRouter.post("/change-password", requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const schema = z.object({
+      oldPassword: z.string().min(1),
+      newPassword: z.string().min(6),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid input", issues: parsed.error.issues });
+    }
+
+    const user = await User.findById(req.user!.id);
+    if (!user || !user.passwordHash) return res.status(404).json({ message: "User not found" });
+
+    const ok = await bcrypt.compare(parsed.data.oldPassword, user.passwordHash);
+    if (!ok) return res.status(401).json({ message: "Incorrect old password" });
+
+    const newHash = await bcrypt.hash(parsed.data.newPassword, 10);
+    user.passwordHash = newHash;
+    await user.save();
+
+    return res.json({ message: "Password updated successfully" });
+  } catch (e) {
+    console.error("CHANGE_PASSWORD_ERROR:", e);
+    return res.status(500).json({ message: "Server error" });
+  }
 });
 
 export default authRouter;

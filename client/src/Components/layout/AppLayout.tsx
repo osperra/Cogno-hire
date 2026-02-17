@@ -315,11 +315,13 @@ export default function AppLayout() {
       const applicationId = typeof st.applicationId === "string" ? st.applicationId : undefined;
       const jobTitle = typeof st.jobTitle === "string" ? st.jobTitle : "Interview";
       const company = typeof st.company === "string" ? st.company : "Company";
+      const logoUrl = typeof st.logoUrl === "string" ? st.logoUrl : undefined;
 
       return (
         <InterviewRoom
           jobTitle={jobTitle}
           company={company}
+          logoUrl={logoUrl}
           applicationId={applicationId}
           onComplete={(payload) => {
             navigate(ROUTES.candidateResults, { state: payload || { applicationId } });

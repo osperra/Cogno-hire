@@ -1,6 +1,3 @@
-// client/src/Components/Employer/EmployerJobEdit.tsx (COMPLETE updated file)
-// Fix: Accept jobId prop because AppLayout renders this component manually (no react-router params).
-
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -311,8 +308,6 @@ function stripHtml(html?: string) {
 export function EmployerJobEdit({ jobId: jobIdProp }: { jobId?: string }) {
   const styles = useStyles();
   const navigate = useNavigate();
-
-  // If you ever convert to real react-router routes later, this still works.
   const params = useParams<{ jobId: string }>();
   const effectiveJobId = useMemo(
     () => jobIdProp ?? params.jobId,

@@ -32,6 +32,7 @@ interface EnhancedJobCardProps {
   difficulty: string;
   skills: string[];
   match?: number;
+  logoUrl?: string;
   onApply?: () => void;
   onViewDetails?: () => void;
 }
@@ -238,6 +239,7 @@ export const EnhancedJobCard: React.FC<EnhancedJobCardProps> = ({
   difficulty,
   skills,
   match,
+  logoUrl,
   onApply,
   onViewDetails,
 }) => {
@@ -274,7 +276,20 @@ export const EnhancedJobCard: React.FC<EnhancedJobCardProps> = ({
               : styles.logoWrapper
           }
         >
-          {companyLogo}
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={company}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                borderRadius: "inherit",
+              }}
+            />
+          ) : (
+            companyLogo
+          )}
         </div>
 
         <div className={styles.content}>

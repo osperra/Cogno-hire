@@ -57,6 +57,7 @@ type JobFromDB = {
   createdAt?: string;
   status?: "draft" | "open" | "closed";
   isActive?: boolean;
+  logoUrl?: string;
 };
 
 type JobsResponse = {
@@ -79,6 +80,7 @@ type JobCardUI = {
   difficulty: "Easy" | "Medium" | "Hard";
   skills: string[];
   match: number;
+  logoUrl?: string;
   _raw?: JobFromDB;
 };
 
@@ -259,6 +261,7 @@ function toCard(j: JobFromDB, matchMap?: Record<string, number>): JobCardUI {
     difficulty,
     skills,
     match,
+    logoUrl: j.logoUrl,
     _raw: j,
   };
 }
@@ -851,6 +854,7 @@ const CandidateJobs: React.FC<CandidateJobsProps> = ({ onNavigate }) => {
             postedDate={job.postedDate}
             difficulty={job.difficulty}
             skills={job.skills}
+            logoUrl={job.logoUrl}
             match={job.match}
             onApply={() => onNavigate("apply", { jobId: job.id })}
             onViewDetails={() => onNavigate("job-details", { jobId: job.id })}

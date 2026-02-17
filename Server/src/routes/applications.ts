@@ -7,7 +7,8 @@ import { storage } from "../config/cloudinary.js";
 import { Application } from "../models/Application.js";
 import { Document } from "../models/Document.js";
 import { Job } from "../models/Jobs.js";
-import { Notification } from "../models/Notification.js"; 
+import { Notification } from "../models/Notification.js";
+import { CompanyProfile } from "../models/CompanyProfile.js";
 
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
 
@@ -266,20 +267,37 @@ applicationsRouter.get(
       if (tab === "pending")
         match.hiringStatus = { $in: ["PENDING", "INVITED", "UNDER_REVIEW", "SHORTLISTED"] };
 
-      let apps = await Application.find(match)
+      const appsRaw = await Application.find(match)
         .sort({ createdAt: -1 })
         .limit(limit)
-        .populate("jobId", "title location jobType salaryRange company companyName")
+        .populate("jobId", "title location jobType salaryRange company companyName employerId")
         .lean();
 
+      const employerIds = appsRaw.map((a: any) => a.jobId?.employerId).filter(Boolean);
+      const profiles = await CompanyProfile.find({ employerId: { $in: employerIds } }).select("employerId companyName logoUrl").lean();
+      const profileMap = new Map(profiles.map(p => [String(p.employerId), p]));
+
+      const apps = appsRaw.map((a: any) => {
+        const job = a.jobId || {};
+        const profile = profileMap.get(String(job.employerId));
+        return {
+          ...a,
+          jobId: {
+            ...job,
+            companyName: job.companyName ?? profile?.companyName ?? job.company ?? "Company",
+            logoUrl: profile?.logoUrl,
+          }
+        };
+      });
+
       if (q) {
-        apps = apps.filter((a: any) => {
+        return res.json(apps.filter((a: any) => {
           const j = a.jobId || {};
           const title = String(j.title || "").toLowerCase();
-          const company = String(j.companyName || j.company || "").toLowerCase();
+          const company = String(j.companyName || "").toLowerCase();
           const location = String(j.location || "").toLowerCase();
           return title.includes(q) || company.includes(q) || location.includes(q);
-        });
+        }));
       }
 
       return res.json(apps);

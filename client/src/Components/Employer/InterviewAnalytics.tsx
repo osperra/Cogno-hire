@@ -35,8 +35,33 @@ interface InterviewAnalyticsProps {
   onNavigate: (page: string) => void;
 }
 
+interface StrengthItem {
+  title: string;
+  description: string;
+}
+
+interface ImprovementItem {
+  title: string;
+  description: string;
+}
+
+interface SkillScore {
+  skill: string;
+  score: number;
+}
+
+interface AnalyticsData {
+  overallScore: number;
+  feedback: string;
+  skills: SkillScore[];
+  strengths: StrengthItem[];
+  improvements: ImprovementItem[];
+  jobTitle: string;
+  createdAt: string;
+}
+
 const useStyles = makeStyles({
- root: {
+  root: {
     display: "flex",
     flexDirection: "column",
     rowGap: "24px",
@@ -480,12 +505,12 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
   const styles = useStyles();
 
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<AnalyticsData | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await api<any>("/api/ai/analytics");
+        const res = await api<AnalyticsData>("/api/ai/analytics");
         setData(res);
       } catch (e) {
         console.error("Failed to fetch analytics", e);
@@ -527,7 +552,6 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
     );
   }
 
-  // Use real data from "data" object
   const { overallScore, feedback, skills, strengths, improvements, jobTitle, createdAt } = data;
 
   const dateStr = new Date(createdAt).toLocaleDateString();
@@ -593,7 +617,7 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
             </div>
 
             <div className={styles.candidateBadgesRow}>
-              {strengths?.slice(0, 3).map((s: any, i: number) => (
+              {strengths?.slice(0, 3).map((s: StrengthItem, i: number) => (
                 <Badge key={i} className={styles.badgeStrong}>
                   {s.title}
                 </Badge>
@@ -647,7 +671,7 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
             <div className={styles.sectionTitle}>Key Strengths</div>
           </div>
           <ul className={styles.bulletList}>
-            {strengths?.map((item: any, idx: number) => (
+            {strengths?.map((item: StrengthItem, idx: number) => (
               <li key={idx} className={styles.bulletItem}>
                 <div className={styles.bulletIcon}>
                   <CheckmarkCircle20Regular style={{ color: "#16A34A" }} />
@@ -669,7 +693,7 @@ export function InterviewAnalytics({ onNavigate }: InterviewAnalyticsProps) {
             <div className={styles.sectionTitle}>Areas for Improvement</div>
           </div>
           <ul className={styles.bulletList}>
-            {improvements?.map((item: any, idx: number) => (
+            {improvements?.map((item: ImprovementItem, idx: number) => (
               <li key={idx} className={styles.bulletItem}>
                 <div className={styles.bulletIcon}>
                   <Warning20Regular style={{ color: "#EA580C" }} />

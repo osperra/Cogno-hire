@@ -414,7 +414,7 @@ aiInterviewRouter.post(
     if (session.applicationId) {
       await Application.updateOne(
         { _id: session.applicationId, candidateId: session.userId },
-        { $set: { interviewStatus: "COMPLETED", overallScore } }
+        { $set: { interviewStatus: "COMPLETED", hiringStatus: "UNDER_REVIEW", overallScore } }
       );
     }
 

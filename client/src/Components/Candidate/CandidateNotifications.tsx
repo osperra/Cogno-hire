@@ -441,14 +441,32 @@ export const CandidateNotifications: React.FC = () => {
   };
 
   const dismissOne = async (id: string) => {
-    setItems((prev) => prev.map((x) => (x.id === id ? { ...x, read: true } : x)));
-    setUnreadCount((c) => Math.max(0, c - 1));
+    setItems((prev) => prev.filter((x) => x.id !== id));
+    const wasUnread = items.find((x) => x.id === id)?.read === false;
+    if (wasUnread) setUnreadCount((c) => Math.max(0, c - 1));
 
     try {
-      await apiPatch<{ message?: string }>(`/api/notifications/${id}/read`);
+      await fetch(`${API_BASE}/api/notifications/${id}`, {
+        method: "DELETE",
+        headers: { ...authHeaders() },
+      });
     } catch (e: unknown) {
       await fetchNotifications();
       const msg = e instanceof Error ? e.message : "Failed to dismiss.";
+      setError(msg);
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    try {
+      await fetch(`${API_BASE}/api/notifications/clear-all`, {
+        method: "DELETE",
+        headers: { ...authHeaders() },
+      });
+      setItems([]);
+      setUnreadCount(0);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to clear notifications.";
       setError(msg);
     }
   };
@@ -628,6 +646,9 @@ export const CandidateNotifications: React.FC = () => {
         </div>
 
         <div className={styles.headerActions}>
+          <Button appearance="subtle" size="small" onClick={clearAllNotifications}>
+            Clear All
+          </Button>
           <Button appearance="outline" size="small" className={styles.buttons} onClick={markAllRead}>
             Mark All as Read
           </Button>

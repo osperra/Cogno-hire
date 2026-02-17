@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Button,
   Card,
@@ -12,6 +12,14 @@ import {
   TableCell,
   makeStyles,
   shorthands,
+  Dialog,
+  DialogSurface,
+  DialogTitle,
+  DialogBody,
+  DialogActions,
+  DialogContent,
+  Field,
+  Input,
 } from "@fluentui/react-components";
 
 import {
@@ -141,13 +149,49 @@ async function apiPut<T>(
   return data as T;
 }
 
+async function apiPost<T>(
+  url: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(url, {
+    method: "POST",
+    signal,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await safeJson(res);
+
+  if (!res.ok) {
+    const msg =
+      (data &&
+        typeof data === "object" &&
+        "message" in data &&
+        (data).message) ||
+      `${res.status} ${res.statusText}`;
+    throw new Error(msg);
+  }
+
+  return data as T;
+}
+
 
 function fetchOnboardingStats(signal?: AbortSignal) {
   return apiGet<OnboardingStatsDto>("/api/onboarding/stats", signal);
 }
 
 function fetchOnboardingList(signal?: AbortSignal) {
-  return apiGet<OnboardingRow[]>("/api/onboarding?status=active", signal);
+  return apiGet<OnboardingRow[]>("/api/onboarding", signal);
+}
+
+function fetchEmployeeLookup(signal?: AbortSignal) {
+  return apiGet<{ id: string; name: string }[]>("/api/reviews/employees", signal);
 }
 
 function fetchOnboardingDetail(id: string | number, signal?: AbortSignal) {
@@ -494,7 +538,6 @@ const useStyles = makeStyles({
 export function OnboardingWorkflow() {
   const styles = useStyles();
 
-  // ======== dynamic data states (UI unchanged) ========
   const [stats, setStats] = useState<OnboardingStatsDto>({
     activeOnboardingCount: 0,
     completedCount: 0,
@@ -505,45 +548,62 @@ export function OnboardingWorkflow() {
   const [mockOnboarding, setMockOnboarding] = useState<OnboardingRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | number | null>(null);
 
-  // keep same variable name "onboardingSteps" for your existing UI mapping
   const [onboardingSteps, setOnboardingSteps] = useState<
     { category: string; icon: React.ComponentType<{ style?: React.CSSProperties }>; tasks: OnboardingTask[] }[]
   >([]);
 
   const [workflowName, setWorkflowName] = useState<string>("—");
 
-  // ======== load stats + table ========
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [employees, setEmployees] = useState<{ id: string; name: string }[]>([]);
+  const [newOnboarding, setNewOnboarding] = useState({
+    employeeId: "",
+    employeeName: "",
+    position: "",
+    startDate: new Date().toISOString().split("T")[0],
+  });
+
+  const [error, setError] = useState<string | null>(null);
+
+  const activeOnboardingCount = stats.activeOnboardingCount;
+  const completedCount = stats.completedCount;
+  const avgCompletion = stats.avgCompletion;
+  const successRate = stats.successRate;
+
+  const load = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const [s, list, emps] = await Promise.all([
+        fetchOnboardingStats(signal),
+        fetchOnboardingList(signal),
+        fetchEmployeeLookup(signal),
+      ]);
+
+      setStats(s);
+      const rows = Array.isArray(list) ? list : [];
+      setMockOnboarding(rows);
+      setEmployees(Array.isArray(emps) ? emps : []);
+
+      if (rows.length > 0 && !selectedId) {
+        setSelectedId(rows[0].id);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return;
+      console.error("Load failed", e);
+    }
+  }, [selectedId]);
+
   useEffect(() => {
     const controller = new AbortController();
-
     (async () => {
       try {
-        const [s, list] = await Promise.all([
-          fetchOnboardingStats(controller.signal),
-          fetchOnboardingList(controller.signal),
-        ]);
-
-        setStats(s);
-        setMockOnboarding(Array.isArray(list) ? list : []);
-
-        const first = Array.isArray(list) ? list[0] : undefined;
-        setSelectedId(first ? first.id : null);
-      } catch {
-        setStats({
-          activeOnboardingCount: 0,
-          completedCount: 0,
-          avgCompletion: "0 days",
-          successRate: "0%",
-        });
-        setMockOnboarding([]);
-        setSelectedId(null);
-        setOnboardingSteps([]);
-        setWorkflowName("—");
+        await load(controller.signal);
+      } catch (e: unknown) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        console.error("Load failed", e);
       }
     })();
-
     return () => controller.abort();
-  }, []);
+  }, [load]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -566,7 +626,8 @@ export function OnboardingWorkflow() {
         }));
 
         setOnboardingSteps(steps);
-      } catch {
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
         setOnboardingSteps([]);
         setWorkflowName("—");
       }
@@ -575,13 +636,25 @@ export function OnboardingWorkflow() {
     return () => controller.abort();
   }, [selectedId]);
 
-  const activeOnboardingCount = stats.activeOnboardingCount;
-  const completedCount = stats.completedCount;
-  const avgCompletion = stats.avgCompletion;
-  const successRate = stats.successRate;
+  async function onSubmitOnboarding() {
+    if (!newOnboarding.employeeId) {
+      setError("Please select an employee");
+      return;
+    }
+    try {
+      setError(null);
+      const res: { id: string } = await apiPost("/api/onboarding", newOnboarding);
+      setIsDialogOpen(false);
+      setSelectedId(res.id);
+      void load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Start failed");
+    }
+  }
 
   return (
-    <div className={styles.root}>
+    <>
+      <div className={styles.root}>
       <div className={styles.headerRow}>
         <div className={styles.headerTitleBlock}>
           <span className={styles.headerTitle}>Employee Onboarding</span>
@@ -594,6 +667,7 @@ export function OnboardingWorkflow() {
           appearance="primary"
           className={styles.primaryButton}
           icon={<PersonAdd20Regular />}
+          onClick={() => setIsDialogOpen(true)}
         >
           Start Onboarding
         </Button>
@@ -857,13 +931,12 @@ export function OnboardingWorkflow() {
                     {step.tasks.map((task) => (
                       <div key={task.id} className={styles.taskItem}>
                         <Checkbox
-                          defaultChecked={task.completed}
+                          checked={task.completed}
                           onChange={async (_e, data) => {
                             if (!selectedId) return;
 
                             const next = !!data.checked;
 
-                            // optimistic update (keeps UI same)
                             setOnboardingSteps((prev) =>
                               prev.map((s) =>
                                 s.category !== step.category
@@ -881,20 +954,9 @@ export function OnboardingWorkflow() {
 
                             try {
                               await updateTask(selectedId, task.id, next);
+                              void load(); 
                             } catch {
-                              try {
-                                const d = await fetchOnboardingDetail(selectedId);
-                                setWorkflowName(d.employee || "—");
-                                setOnboardingSteps(
-                                  (d.steps || []).map((s) => ({
-                                    category: s.category,
-                                    icon: iconFromKey(s.iconKey),
-                                    tasks: s.tasks || [],
-                                  })),
-                                );
-                              } catch {
-                                // ignore
-                              }
+                              void load();
                             }
                           }}
                         />
@@ -940,5 +1002,52 @@ export function OnboardingWorkflow() {
         </div>
       </Card>
     </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={(_, d) => setIsDialogOpen(d.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Start New Onboarding</DialogTitle>
+            <DialogContent style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px" }}>
+              {error && <div style={{ color: "#DC2626", fontSize: "0.85rem", marginBottom: "8px" }}>{error}</div>}
+              
+              <Field label="Employee" required>
+                <select
+                  value={newOnboarding.employeeId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const emp = employees.find(x => x.id === id);
+                    setNewOnboarding(p => ({ ...p, employeeId: id, employeeName: emp?.name || "" }));
+                  }}
+                  style={{ padding: "8px", borderRadius: "4px", border: "1px solid #D1D5DB" }}
+                >
+                  <option value="">Select Employee...</option>
+                  {employees.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </Field>
+
+              <Field label="Position" required>
+                <Input
+                  value={newOnboarding.position}
+                  onChange={(_, d) => setNewOnboarding(p => ({ ...p, position: d.value }))}
+                  placeholder="e.g. Senior Software Engineer"
+                />
+              </Field>
+
+              <Field label="Start Date" required>
+                <Input
+                  type="date"
+                  value={newOnboarding.startDate}
+                  onChange={(_, d) => setNewOnboarding(p => ({ ...p, startDate: d.value }))}
+                />
+              </Field>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+              <Button appearance="primary" onClick={onSubmitOnboarding}>Start Process</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+    </>
   );
 }

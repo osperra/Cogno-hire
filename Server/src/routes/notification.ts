@@ -79,6 +79,11 @@ notificationsRouter.patch("/read-all", requireAuth, async (req: AuthedRequest, r
   return res.json({ message: "All marked read", modifiedCount });
 });
 
+notificationsRouter.delete("/clear-all", requireAuth, async (req: AuthedRequest, res) => {
+  await Notification.deleteMany({ userId: req.user!.id });
+  return res.json({ message: "All notifications cleared" });
+});
+
 notificationsRouter.delete("/:id", requireAuth, async (req: AuthedRequest, res) => {
   const deleted = await Notification.findOneAndDelete({
     _id: req.params.id,

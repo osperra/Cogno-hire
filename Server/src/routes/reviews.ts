@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth.js";
 import { EmployeeReview } from "../models/EmployeeReview.js";
+import { User } from "../models/User.js";
 
 export const reviewsRouter = Router();
 
@@ -115,6 +116,22 @@ reviewsRouter.get(
 );
 
 reviewsRouter.get(
+  "/employees",
+  requireAuth,
+  requireRole(["employer", "hr"]),
+  async (_req, res) => {
+    try {
+      const users = await User.find({ role: { $in: ["candidate", "hr"] } })
+        .select("_id name")
+        .lean();
+      res.json(users.map((u: any) => ({ id: String(u._id), name: u.name })));
+    } catch (e) {
+      res.status(500).json({ message: "Failed to fetch employees" });
+    }
+  }
+);
+
+reviewsRouter.get(
   "/:id",
   requireAuth,
   requireRole(["employer", "hr"]),
@@ -153,13 +170,26 @@ reviewsRouter.post(
   requireAuth,
   requireRole(["employer", "hr"]),
   async (req: AuthedRequest, res) => {
-    const review = await EmployeeReview.create({
-      ...req.body,
-      reviewerId: req.user!.id,
-      reviewerName: req.user!.name,
-    });
+    try {
+      const { employeeId, employeeName, position, reviewDate } = req.body;
 
-    res.status(201).json({ id: review._id });
+      if (!employeeId || !employeeName || !position || !reviewDate) {
+        return res.status(400).json({
+          message: "employeeId, employeeName, position, and reviewDate are required"
+        });
+      }
+
+      const review = await EmployeeReview.create({
+        ...req.body,
+        reviewerId: req.user!.id,
+        reviewerName: req.user!.name || "Direct Reviewer",
+      });
+
+      res.status(201).json({ id: review._id });
+    } catch (e: any) {
+      console.error("POST_REVIEW_ERROR:", e);
+      res.status(400).json({ message: e.message || "Failed to create review" });
+    }
   }
 );
 

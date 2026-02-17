@@ -35,6 +35,7 @@ type InterviewCompletePayload = { applicationId?: string; analysis?: AnalysisDat
 interface InterviewRoomProps {
   jobTitle: string;
   company: string;
+  logoUrl?: string;
   applicationId?: string;
   onComplete: (payload?: InterviewCompletePayload) => void;
 }
@@ -226,7 +227,7 @@ function extractSpeechError(ev: unknown): string {
   return "Speech recognition error";
 }
 
-export function InterviewRoom({ jobTitle, company, applicationId, onComplete }: InterviewRoomProps) {
+export function InterviewRoom({ jobTitle, company, logoUrl, applicationId, onComplete }: InterviewRoomProps) {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isSoundOn, setIsSoundOn] = useState(true);
 
@@ -685,11 +686,13 @@ export function InterviewRoom({ jobTitle, company, applicationId, onComplete }: 
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundImage: "linear-gradient(135deg, #0118D8, #1B56FD)",
+    backgroundImage: logoUrl ? "none" : "linear-gradient(135deg, #0118D8, #1B56FD)",
+    backgroundColor: logoUrl ? "transparent" : undefined,
     color: "#FFFFFF",
     fontWeight: 600,
     fontSize: isCompact ? 16 : 20,
     flexShrink: 0,
+    overflow: "hidden",
   };
 
   const jobTitleBlockStyle: React.CSSProperties = { display: "flex", flexDirection: "column", rowGap: 2 };
@@ -951,7 +954,22 @@ export function InterviewRoom({ jobTitle, company, applicationId, onComplete }: 
       <div style={topBarStyle}>
         <div style={topBarInnerStyle}>
           <div style={topBarLeftStyle}>
-            <div style={logoStyle}>AI</div>
+            <div style={logoStyle}>
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt={company}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    borderRadius: "inherit",
+                  }}
+                />
+              ) : (
+                company[0] || "C"
+              )}
+            </div>
             <div style={jobTitleBlockStyle}>
               <div style={jobTitleTextStyle}>{jobTitle}</div>
               <div style={jobCompanyStyle}>{company}</div>

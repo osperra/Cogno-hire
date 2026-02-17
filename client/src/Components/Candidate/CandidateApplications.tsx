@@ -65,8 +65,10 @@ type JobPopulated =
   | {
       _id: string;
       title?: string;
+      companyName?: string;
       company?: string;
       location?: string;
+      logoUrl?: string;
     };
 
 type ApplicationFromApi = {
@@ -88,6 +90,7 @@ type ApplicationUI = {
   status: ApplicationStatus;
   interviewStatus: InterviewStatus;
   score: number | null;
+  logoUrl?: string;
 };
 
 type CandidateCountsResponse = {
@@ -118,12 +121,13 @@ function companyInitials(name: string) {
 
 function getJob(jobId: JobPopulated) {
   if (typeof jobId === "string") {
-    return { title: "Unknown Job", company: "—", location: "—" };
+    return { title: "Unknown Job", company: "—", location: "—", logoUrl: undefined };
   }
   return {
     title: jobId.title ?? "Unknown Job",
-    company: jobId.company ?? "—",
+    company: jobId.companyName ?? jobId.company ?? "—",
     location: jobId.location ?? "—",
+    logoUrl: jobId.logoUrl,
   };
 }
 
@@ -166,9 +170,14 @@ function toUI(a: ApplicationFromApi): ApplicationUI {
     title: job.title,
     location: job.location,
     appliedDate: formatDate(a.createdAt),
-    status: mapHiringToUI(a.hiringStatus),
+    status:
+      a.interviewStatus === "COMPLETED" &&
+      (a.hiringStatus === "PENDING" || a.hiringStatus === "INVITED")
+        ? "Under Review"
+        : mapHiringToUI(a.hiringStatus),
     interviewStatus: mapInterviewToUI(a.interviewStatus),
     score: typeof a.overallScore === "number" ? a.overallScore : null,
+    logoUrl: job.logoUrl,
   };
 }
 
@@ -530,7 +539,20 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({
                       <TableCell>
                         <div className={styles.companyCell}>
                           <div className={styles.companyLogo}>
-                            {app.companyLogo}
+                            {app.logoUrl ? (
+                              <img
+                                src={app.logoUrl}
+                                alt={app.company}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                  borderRadius: "inherit",
+                                }}
+                              />
+                            ) : (
+                              app.companyLogo
+                            )}
                           </div>
                           <div>
                             <Text weight="semibold" style={{ color: "#0B1220" }}>

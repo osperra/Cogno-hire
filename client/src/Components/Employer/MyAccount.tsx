@@ -228,6 +228,38 @@ export default function MyAccount() {
     }
   };
 
+  const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
+  const [oldPass, setOldPass] = React.useState("");
+  const [newPass, setNewPass] = React.useState("");
+  const [changingPass, setChangingPass] = React.useState(false);
+  const [changePassMsg, setChangePassMsg] = React.useState<{ type: "success" | "error", text: string } | null>(null);
+
+  const changePassword = async () => {
+    setChangingPass(true);
+    setChangePassMsg(null);
+    try {
+      if(!oldPass || newPass.length < 6) {
+        setChangePassMsg({ type: "error", text: "Invalid input. New password must be at least 6 chars."});
+        return;
+      }
+
+      await api("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldPassword: oldPass, newPassword: newPass }),
+      });
+
+      setChangePassMsg({ type: "success", text: "Password changed successfully." });
+      setOldPass("");
+      setNewPass("");
+      setTimeout(() => setChangePasswordOpen(false), 1500);
+    } catch(e) {
+      setChangePassMsg({ type: "error", text: e instanceof Error ? e.message : "Failed to change password"});
+    } finally {
+      setChangingPass(false);
+    }
+  };
+
   const deleteAccount = async () => {
     setDeleteMsg("");
 
@@ -387,10 +419,10 @@ export default function MyAccount() {
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <Text weight="semibold">Password</Text>
                 <Text className={styles.muted} size={200}>
-                  Coming soon.
+                  Update your password.
                 </Text>
               </div>
-              <Button appearance="outline" disabled title="Coming soon">
+              <Button appearance="outline" onClick={() => setChangePasswordOpen(true)}>
                 Change password
               </Button>
             </div>
@@ -596,6 +628,35 @@ export default function MyAccount() {
                 style={{ backgroundColor: "#dc2626", color: "#fff" }}
               >
                 {deleting ? "Deleting..." : "Delete"}
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      <Dialog open={changePasswordOpen} onOpenChange={(_, d) => setChangePasswordOpen(d.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogContent style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 6 }}>
+              {changePassMsg && (
+                 <MessageBar intent={changePassMsg.type}>
+                   <MessageBarBody>{changePassMsg.text}</MessageBarBody>
+                 </MessageBar>
+              )}
+              
+              <Field label="Old Password">
+                <Input type="password" value={oldPass} onChange={(_, d) => setOldPass(d.value)} />
+              </Field>
+
+              <Field label="New Password (min 6 chars)">
+                <Input type="password" value={newPass} onChange={(_, d) => setNewPass(d.value)} />
+              </Field>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setChangePasswordOpen(false)} disabled={changingPass}>Cancel</Button>
+              <Button appearance="primary" onClick={() => void changePassword()} disabled={changingPass}>
+                {changingPass ? "Changing..." : "Change Password"}
               </Button>
             </DialogActions>
           </DialogBody>

@@ -5,6 +5,7 @@ import { User } from "../models/User.js";
 import { Job } from "../models/Jobs.js";
 import { Application } from "../models/Application.js";
 import { Notification } from "../models/Notification.js";
+import { CompanyProfile } from "../models/CompanyProfile.js";
 
 const router = Router();
 
@@ -103,19 +104,47 @@ router.get(
 
       if (!me) return res.status(404).json({ message: "User not found" });
 
-      const recommendedDocs = await Job.find({ isActive: true, status: "open" })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .lean();
+      const recommendedDocs = await Job.aggregate([
+        { $match: { isActive: true, status: "open" } },
+        { $sort: { createdAt: -1 } },
+        { $limit: 10 },
+        {
+          $lookup: {
+            from: "company_profiles",
+            localField: "employerId",
+            foreignField: "employerId",
+            as: "profile",
+          },
+        },
+        {
+          $addFields: {
+            company: { $ifNull: ["$companyName", { $arrayElemAt: ["$profile.companyName", 0] }, "$company", "Company"] },
+            logoUrl: { $arrayElemAt: ["$profile.logoUrl", 0] },
+          },
+        },
+        { $project: { profile: 0 } },
+      ]);
 
-      const invitedDocs = await Job.find({
-        isActive: true,
-        status: "open",
-        invitedCandidates: userObjectId,
-      })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .lean();
+      const invitedDocs = await Job.aggregate([
+        { $match: { isActive: true, status: "open", invitedCandidates: userObjectId } },
+        { $sort: { createdAt: -1 } },
+        { $limit: 10 },
+        {
+          $lookup: {
+            from: "company_profiles",
+            localField: "employerId",
+            foreignField: "employerId",
+            as: "profile",
+          },
+        },
+        {
+          $addFields: {
+            company: { $ifNull: ["$companyName", { $arrayElemAt: ["$profile.companyName", 0] }, "$company", "Company"] },
+            logoUrl: { $arrayElemAt: ["$profile.logoUrl", 0] },
+          },
+        },
+        { $project: { profile: 0 } },
+      ]);
 
       const recommendedJobs = recommendedDocs.map((d: any, i: number) => toDashboardJob(d, i));
       const invitedJobs = invitedDocs.map((d: any, i: number) => toDashboardJob(d, i));
@@ -125,12 +154,21 @@ router.get(
         const appDocs = await Application.find({ candidateId: userObjectId })
           .sort({ createdAt: -1 })
           .limit(10)
-          .populate("jobId", "title company companyName")
+          .populate({
+            path: "jobId",
+            select: "title company companyName employerId",
+          })
           .lean();
 
+        const employerIds = appDocs.map((a: any) => a.jobId?.employerId).filter(Boolean);
+        const profiles = await CompanyProfile.find({ employerId: { $in: employerIds } }).select("employerId companyName logoUrl").lean();
+        const profileMap = new Map(profiles.map((p: any) => [String(p.employerId), p]));
+
         recentApplications = appDocs.map((a: any, i: number) => {
-          const job = a?.jobId || {};
-          const company = safeStr(job?.companyName, safeStr(job?.company, "Company"));
+          const job = (a?.jobId as any) || {};
+          const profile = profileMap.get(String(job.employerId));
+          const company = safeStr(job.companyName, safeStr(profile?.companyName, safeStr(job.company, "Company")));
+          const logoUrl = (profile as any)?.logoUrl || "";
           const title = safeStr(job?.title, "Job");
 
           const statusRaw = safeStr(a?.status, safeStr(a?.hiringStatus, "Pending"));
@@ -147,7 +185,7 @@ router.get(
           return {
             id: i + 1,
             company,
-            companyLogo: safeStr(a?.companyLogo, shortLogo(company)),
+            companyLogo: logoUrl || shortLogo(company),
             title,
             appliedDate: a?.createdAt ? new Date(a.createdAt).toISOString() : new Date().toISOString(),
             status,

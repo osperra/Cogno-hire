@@ -296,6 +296,10 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
           const c = getCandidate(a.candidateId);
           const j = getJob(a.jobId);
 
+          const isCompletedPending =
+            a.interviewStatus === "COMPLETED" &&
+            (a.hiringStatus === "PENDING" || a.hiringStatus === "INVITED");
+
           return {
             id: a._id,
             candidateId: c.id,
@@ -306,7 +310,7 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
             appliedDate: formatDate(a.createdAt),
             interviewStatus: a.interviewStatus,
             score: typeof a.overallScore === "number" ? a.overallScore : null,
-            hiringStatus: a.hiringStatus,
+            hiringStatus: isCompletedPending ? "UNDER_REVIEW" : a.hiringStatus,
           };
         });
 

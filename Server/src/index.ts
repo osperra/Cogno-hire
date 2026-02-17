@@ -26,6 +26,7 @@ import { aiInterviewRouter } from "./routes/aiInterviewRouter.js";
 import { searchRouter } from "./routes/search.js";
 import { accountRouter } from "./routes/account.js";
 import aiMatchRouter from "./routes/aiMatchRouter.js";
+import preferencesRouter from "./routes/preferences.js";
 
 const app = express();
 
@@ -64,6 +65,7 @@ app.use("/api/ai", aiInterviewRouter);
 app.use("/api", searchRouter);
 app.use("/api/account", accountRouter);
 app.use("/api/ai", aiMatchRouter);
+app.use("/api/preferences", preferencesRouter);
 
 const port = Number(process.env.PORT || 5000);
 
