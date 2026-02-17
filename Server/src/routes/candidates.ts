@@ -37,6 +37,13 @@ type CandidateMeLean = {
   resumeUrl?: string;
   resumeDocId?: Types.ObjectId | null;
   resumeFileName?: string;
+  preferences?: {
+    jobTypes?: string[];
+    workModes?: string[];
+    locations?: string[];
+    salary?: { min?: number; max?: number; currency?: string };
+    relocation?: boolean;
+  };
 };
 
 
@@ -95,6 +102,7 @@ function userToCandidateProfile(me: CandidateMeLean) {
     resumeUrl: me.resumeUrl,
     resumeDocId: me.resumeDocId ? String(me.resumeDocId) : "",
     resumeFileName: me.resumeFileName,
+    preferences: me.preferences || {},
   };
 }
 
@@ -106,7 +114,7 @@ function isResumeAllowed(file: Express.Multer.File) {
 
 const uploadResume = multer({
   storage: resumeStorage,
-  limits: { fileSize: 10 * 1024 * 1024 }, 
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const ok =
       file.mimetype === "application/pdf" ||
@@ -176,7 +184,7 @@ candidatesRouter.get("/me", requireAuth, requireRole(["candidate"]), async (req:
   try {
     const me = await User.findById(req.user!.id)
       .select(
-        "_id name email phone location headline about experienceLevel skills linkedin github portfolio resumeUrl resumeDocId resumeFileName"
+        "_id name email phone location headline about experienceLevel skills linkedin github portfolio resumeUrl resumeDocId resumeFileName preferences"
       )
       .lean<CandidateMeLean>()
       .exec();
@@ -201,6 +209,21 @@ candidatesRouter.patch("/me", requireAuth, requireRole(["candidate"]), async (re
       linkedin: z.string().optional(),
       github: z.string().optional(),
       portfolio: z.string().optional(),
+      preferences: z
+        .object({
+          jobTypes: z.array(z.string()).optional(),
+          workModes: z.array(z.string()).optional(),
+          locations: z.array(z.string()).optional(),
+          salary: z
+            .object({
+              min: z.number().optional(),
+              max: z.number().optional(),
+              currency: z.string().optional(),
+            })
+            .optional(),
+          relocation: z.boolean().optional(),
+        })
+        .optional(),
     });
 
     const parsed = schema.safeParse(req.body);
@@ -214,7 +237,7 @@ candidatesRouter.patch("/me", requireAuth, requireRole(["candidate"]), async (re
 
     const updated = await User.findByIdAndUpdate(req.user!.id, update, { new: true })
       .select(
-        "_id name email phone location headline about experienceLevel skills linkedin github portfolio resumeUrl resumeDocId resumeFileName"
+        "_id name email phone location headline about experienceLevel skills linkedin github portfolio resumeUrl resumeDocId resumeFileName preferences"
       )
       .lean<CandidateMeLean>()
       .exec();

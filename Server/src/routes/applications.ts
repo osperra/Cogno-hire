@@ -1,9 +1,3 @@
-// Server/src/routes/applications.ts (COMPLETE updated file)
-// ✅ Updates:
-// 1) Employer gets notification when a candidate applies (application_created)
-// 2) Candidate gets notification when employer changes hiring/interview status (application_status_changed)
-// NOTE: Candidate gets notification when new job is posted => implement in jobs route (not here)
-
 import { Router, type Request } from "express";
 import { z } from "zod";
 import multer from "multer";
@@ -13,7 +7,7 @@ import { storage } from "../config/cloudinary.js";
 import { Application } from "../models/Application.js";
 import { Document } from "../models/Document.js";
 import { Job } from "../models/Jobs.js";
-import { Notification } from "../models/Notification.js"; // ✅ NEW
+import { Notification } from "../models/Notification.js"; 
 
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
 
@@ -53,7 +47,6 @@ async function createNotification(params: {
   link?: string;
   meta?: Record<string, unknown>;
 }) {
-  // userId in Notification model is typically ObjectId ref; pass string is fine for mongoose
   return Notification.create({
     userId: params.userId,
     type: params.type,
@@ -69,7 +62,7 @@ applicationsRouter.post(
   "/upload-resume",
   requireAuth,
   requireRole(["candidate"]),
-  uploadResume.single("resume"),
+  uploadResume.single("file"),
   async (req: MulterAuthedRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: "Unauthorized" });
@@ -137,7 +130,6 @@ applicationsRouter.post(
         return res.status(400).json({ message: "Invalid jobId" });
       }
 
-      // ✅ Fetch employerId + title so we can notify employer
       const job = await Job.findById(parsed.data.jobId).select("_id employerId title").lean();
       if (!job) return res.status(404).json({ message: "Job not found" });
 
@@ -171,7 +163,6 @@ applicationsRouter.post(
         }
       }
 
-      // ✅ EMPLOYER NOTIFICATION: someone applied to their job
       try {
         const employerId = String((job as any).employerId ?? "");
         if (Types.ObjectId.isValid(employerId)) {
@@ -190,7 +181,6 @@ applicationsRouter.post(
         }
       } catch (e) {
         console.error("NOTIFY_EMPLOYER_ON_APPLY_ERROR:", e);
-        // do not block application creation
       }
 
       return res.status(201).json({
@@ -204,10 +194,6 @@ applicationsRouter.post(
   }
 );
 
-/**
- * ✅ EMPLOYER: Get applicants of a specific job
- * URL: GET /api/applications/employer/job/:jobId
- */
 applicationsRouter.get(
   "/employer/job/:jobId",
   requireAuth,
@@ -220,7 +206,6 @@ applicationsRouter.get(
         return res.status(400).json({ message: "Invalid jobId" });
       }
 
-      // Ensure job belongs to this employer/hr
       const job = await Job.findOne({
         _id: new Types.ObjectId(jobId),
         employerId: new Types.ObjectId(req.user!.id),
@@ -237,7 +222,6 @@ applicationsRouter.get(
         .populate("candidateId", "name email")
         .lean();
 
-      // normalize for UI
       const result = apps.map((a: any) => ({
         _id: String(a._id),
         name: a?.candidateId?.name,
@@ -474,7 +458,6 @@ applicationsRouter.patch(
       return res.status(400).json({ message: "Invalid input", issues: parsed.error.issues });
     }
 
-    // ✅ need candidateId to notify candidate
     const app = await Application.findById(req.params.id).select("_id jobId candidateId hiringStatus interviewStatus").lean();
     if (!app) return res.status(404).json({ message: "Application not found" });
 
@@ -491,7 +474,6 @@ applicationsRouter.patch(
 
     if (!updated) return res.status(404).json({ message: "Application not found" });
 
-    // ✅ CANDIDATE NOTIFICATION: status changed (only if relevant fields changed)
     try {
       const candidateId = String((app as any).candidateId ?? "");
       if (Types.ObjectId.isValid(candidateId)) {
@@ -527,7 +509,6 @@ applicationsRouter.patch(
       }
     } catch (e) {
       console.error("NOTIFY_CANDIDATE_STATUS_CHANGE_ERROR:", e);
-      // do not block update
     }
 
     res.json(updated);

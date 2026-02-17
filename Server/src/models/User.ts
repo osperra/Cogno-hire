@@ -32,16 +32,28 @@ const UserSchema = new Schema(
     github: { type: String, trim: true },
     portfolio: { type: String, trim: true },
 
-    resumeUrl: { type: String, trim: true }, 
+    resumeUrl: { type: String, trim: true },
     resumeDocId: { type: Schema.Types.ObjectId, ref: "Document" },
     resumeFileName: { type: String, trim: true },
 
     resumePublicId: { type: String, trim: true, index: true },
-    resumeFormat: { type: String, trim: true, default: "pdf" }, 
+    resumeFormat: { type: String, trim: true, default: "pdf" },
     resumeResourceType: {
       type: String,
       enum: ["raw", "image", "video"],
       default: "raw",
+    },
+
+    preferences: {
+      jobTypes: [{ type: String }], 
+      workModes: [{ type: String }], 
+      locations: [{ type: String }], 
+      salary: {
+        min: { type: Number },
+        max: { type: Number },
+        currency: { type: String, default: "USD" },
+      },
+      relocation: { type: Boolean, default: false },
     },
   },
   { timestamps: true }

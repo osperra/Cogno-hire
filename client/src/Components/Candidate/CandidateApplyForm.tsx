@@ -186,7 +186,7 @@ export const CandidateApplyForm: React.FC<CandidateApplyFormProps> = ({ onNaviga
 
         <div style={{ marginTop: 12 }} className={styles.row}>
           <div className={styles.field}>
-            <Label>Resume (PDF/DOC/DOCX, optional)</Label>
+            <Label>Resume / CV / Cover Letter (PDF/DOC/DOCX, optional)</Label>
 
             <div className={styles.row}>
               <Button
