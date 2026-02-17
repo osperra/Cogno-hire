@@ -190,10 +190,6 @@ type CandidateDashboard = {
   recentApplications: Application[];
 };
 
-/* =========================
-   helpers (safe typing)
-   ========================= */
-
 type JsonObject = Record<string, unknown>;
 function isRecord(v: unknown): v is JsonObject {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -418,7 +414,6 @@ async function tryFetchMe(): Promise<CandidateMe | null> {
   const candidates = ["/api/candidates/me", "/candidates/me", "/me"];
   for (const path of candidates) {
     try {
-      // avoid api<{}>() to prevent {} inference
       const raw: unknown = await api(path, {
         method: "GET",
         cache: "no-store",
@@ -432,11 +427,6 @@ async function tryFetchMe(): Promise<CandidateMe | null> {
   }
   return null;
 }
-
-/* =========================
-   match helpers (same as CandidateJobs)
-   ========================= */
-
 type ResumeTextSource = "resume" | "profile" | "none";
 
 async function tryGetResumeTextFromBackend(
@@ -547,10 +537,6 @@ async function tryComputeJobMatches(args: {
   }
 }
 
-/* =========================
-   jobs list fetch (typed, no any, no {} inference)
-   ========================= */
-
 type JobsListResponse = { items: JobFromDB[]; total: number };
 type JobsApiShape = {
   items?: unknown;
@@ -577,10 +563,6 @@ function readTotalFromUnknown(raw: unknown): number | null {
 
   return null;
 }
-
-/* =========================
-   styles
-   ========================= */
 
 const PROFILE_BANNER_DISMISS_KEY = "candidate_home_profile_banner_dismissed";
 
@@ -1084,8 +1066,6 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
       if (args.invited) params.set("invited", "1");
 
       const url = `/api/jobs?${params.toString()}`;
-
-      // IMPORTANT: keep as unknown to avoid `{}` inference issues
       const raw: unknown = await api(url, {
         cache: "no-store",
         credentials: "include",
@@ -1154,7 +1134,6 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
       fetchCounts(),
     ]);
 
-    // compute match for the jobs shown on home (recommended + invited)
     let matchMap: Record<string, number> = {};
     try {
       const combined = [...recRes.items, ...invRes.items];
@@ -1200,7 +1179,6 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
         pendingInterviews,
         offersReceived:
           counts.hired || recentApps.filter((a) => a.status === "Hired").length,
-        // counts on the home headline should reflect totals, not just the 2 cards
         newRecommendations: recRes.total || recommendedCards.length,
         invitedCount: invRes.total || invitedCards.length,
       },

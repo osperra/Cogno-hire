@@ -5,11 +5,8 @@ import { cloudinary } from "../config/cloudinary.js";
 import Document from "../models/Document.js";
 import { createRequire } from "module";
 import { createHash } from "crypto";
-
 import { generateTextWithFallback } from "../ai/generateWithFallback.js";
 import JobMatchCache from "../models/JobMatchCache.js";
-
-// ✅ adjust this import to your project auth middleware
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 
 const router = Router();
@@ -25,7 +22,6 @@ type JobMatchInput = {
   workType?: string;
   jobType?: string;
   experience?: number;
-  // optionally: updatedAt?: string; // if you want hash based on updatedAt
 };
 
 type ResolvedResume = {
@@ -541,7 +537,6 @@ function localMatchFallback(resumeText: string, jobs: JobMatchInput[]) {
   return out;
 }
 
-// ✅ Require auth so we can persist matches per candidate
 router.post("/jobs/match-batch", requireAuth, async (req: AuthedRequest, res: Response) => {
   try {
     const { resumeText, jobs } = req.body as { resumeText?: string; jobs?: JobMatchInput[] };
@@ -566,12 +561,11 @@ router.post("/jobs/match-batch", requireAuth, async (req: AuthedRequest, res: Re
       return { job: j, jobHash };
     });
 
-    // 1) Fetch cached matches for this candidate+resumeHash
     const cachedDocs = await JobMatchCache.find({
       candidateId,
       resumeHash,
       jobId: { $in: jobMeta.map((x) => String(x.job.id)) },
-      jobHash: { $in: jobMeta.map((x) => x.jobHash) }, // jobHash must match too
+      jobHash: { $in: jobMeta.map((x) => x.jobHash) }, 
     })
       .select("jobId jobHash match provider")
       .lean();
@@ -591,7 +585,6 @@ router.post("/jobs/match-batch", requireAuth, async (req: AuthedRequest, res: Re
       else missing.push(jm);
     }
 
-    // 2) Compute only missing (chunked)
     const CHUNK = 8;
     const bulkOps: any[] = [];
 
@@ -634,7 +627,6 @@ ${JSON.stringify(payloadForPrompt)}
         raw = out.text;
         providerUsed = out.provider;
       } catch {
-        // provider failure => local fallback for this chunk
         const partial = localMatchFallback(resumeText, chunk.map((c) => c.job));
         for (const c of chunk) {
           const id = String(c.job.id);
@@ -651,7 +643,6 @@ ${JSON.stringify(payloadForPrompt)}
         continue;
       }
 
-      // Parse JSON
       let parsed: any = null;
       const jsonText = String(raw).trim();
       try {
@@ -663,7 +654,6 @@ ${JSON.stringify(payloadForPrompt)}
 
       const list: any[] = Array.isArray(parsed?.matches) ? parsed.matches : [];
 
-      // If provider returned nothing => local fallback
       if (!list.length) {
         const partial = localMatchFallback(resumeText, chunk.map((c) => c.job));
         for (const c of chunk) {
@@ -681,7 +671,6 @@ ${JSON.stringify(payloadForPrompt)}
         continue;
       }
 
-      // Fill results
       const temp = new Map<string, number>();
       for (const item of list) {
         const id = String(item?.id || "").trim();
@@ -704,12 +693,10 @@ ${JSON.stringify(payloadForPrompt)}
       }
     }
 
-    // 3) Persist newly computed matches
     if (bulkOps.length) {
       await JobMatchCache.bulkWrite(bulkOps, { ordered: false });
     }
 
-    // 4) return full map
     return res.json({
       matches,
       cached: missing.length === 0,

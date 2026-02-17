@@ -29,9 +29,6 @@ jobMatchCacheSchema.index(
   { unique: true }
 );
 
-// Optional TTL cleanup (30 days)
-// jobMatchCacheSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 });
-
 const JobMatchCache = model<JobMatchCacheDoc>(
   "JobMatchCache",
   jobMatchCacheSchema,

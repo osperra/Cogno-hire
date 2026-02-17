@@ -2,11 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { makeStyles, shorthands } from "@fluentui/react-components";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api/http";
-
 import { Sidebar } from "./SideBar";
 import { TopBar } from "./TopBar";
 import { FloatingActionButton } from "./FloatingActionButton";
-
 import { EmployerDashboard } from "../Employer/EmployerDashboard";
 import { EmployerJobs } from "../Employer/EmployerJobs";
 import { EmployerJobDetails } from "../Employer/EmployerJobDetails";
@@ -15,7 +13,6 @@ import { EmployerCreateJob } from "../Employer/EmployerCreateJob";
 import { EmployerApplicants } from "../Employer/EmployerApplicants";
 import { CompanyProfile } from "../Employer/CompanyProfile";
 import { InterviewAnalytics } from "../Employer/InterviewAnalytics";
-
 import { CandidateHome } from "../Candidate/CandidateHome";
 import CandidateJobs from "../Candidate/CandidateJobs";
 import { CandidateApplications } from "../Candidate/CandidateApplications";
@@ -29,11 +26,9 @@ import { DocumentManagement } from "../hr/DocumentManagement";
 import { EmployeeReviews } from "../hr/EmployeeReviews";
 import { OnboardingWorkflow } from "../hr/OnboardingWorkflow";
 import { AIJobDescriptionGenerator } from "../hr/AIJobDescriptionGenerator";
-
 import MyAccount from "../Employer/MyAccount";
 import ProfileSettings from "../Employer/ProfileSettings";
 import Preferences from "../Employer/Preferences";
-
 import CandidateMyAccount from "../Candidate/CandidateMyAccount";
 import CandidateProfileSettings from "../Candidate/CandidateProfileSettings";
 import CandidatePreferences from "../Candidate/CandidatePreferences";
@@ -50,17 +45,14 @@ export const ROUTES = {
   employerApplicants: "/app/employer/applicants",
   employerCompany: "/app/employer/company",
   employerAnalytics: "/app/employer/analytics",
-
   employerPipeline: "/app/employer/pipeline",
   employerDocuments: "/app/employer/documents",
   employerReviews: "/app/employer/reviews",
   employerOnboarding: "/app/employer/onboarding",
   employerAIJobDescription: "/app/employer/ai-job-description",
-
   employerMyAccount: "/app/employer/account",
   employerProfileSettings: "/app/employer/profile",
   employerPreferences: "/app/employer/preferences",
-
   candidateHome: "/app/candidate/home",
   candidateJobs: "/app/candidate/jobs",
   candidateApplications: "/app/candidate/applications",
@@ -68,10 +60,7 @@ export const ROUTES = {
   candidateInterview: "/app/candidate/interview",
   candidateResults: "/app/candidate/results",
   candidateApply: "/app/candidate/apply",
-
-  // ✅ NEW: candidate analytics route (matches sidebar path)
   candidateAnalytics: "/app/candidate/analytics",
-
   candidateMyAccount: "/app/candidate/account",
   candidateProfileSettings: "/app/candidate/profile",
   candidatePreferences: "/app/candidate/preferences",
@@ -172,7 +161,6 @@ function metaForPath(pathname: string): PageMeta {
   if (startsWithPath(pathname, ROUTES.candidateResults))
     return { title: "Results", breadcrumbs: ["Results"] };
 
-  // ✅ NEW
   if (startsWithPath(pathname, ROUTES.candidateAnalytics))
     return { title: "Interview Analytics", breadcrumbs: ["Analytics"] };
 
@@ -216,7 +204,6 @@ export default function AppLayout() {
   const pageMeta = useMemo(() => metaForPath(location.pathname), [location.pathname]);
 
   const onNavigate = (to: string, data?: Record<string, unknown>) => {
-    // ✅ Sidebar passes absolute paths like "/app/candidate/analytics"
     if (to.startsWith("/")) return navigate(to);
 
     if (role === "candidate" && to === "apply") {
@@ -234,7 +221,6 @@ export default function AppLayout() {
       return navigate(ROUTES.candidateResults, { state: data || {} });
     }
 
-    // ✅ NEW: allow string-based navigation as well (optional)
     if (role === "candidate" && to === "analytics") {
       return navigate(ROUTES.candidateAnalytics);
     }
@@ -322,7 +308,6 @@ export default function AppLayout() {
     if (startsWithPath(p, ROUTES.candidateNotifications)) return <CandidateNotifications />;
     if (startsWithPath(p, ROUTES.candidateApply)) return <CandidateApplyForm onNavigate={onNavigate} />;
 
-    // ✅ NEW: candidate analytics (shows interview results list/summary)
     if (startsWithPath(p, ROUTES.candidateAnalytics)) return <CandidateInterviewAnalytics />;
 
     if (startsWithPath(p, ROUTES.candidateInterview)) {
