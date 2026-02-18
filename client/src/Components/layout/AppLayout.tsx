@@ -45,9 +45,21 @@ import { OnboardingWorkflow } from "../hr/OnboardingWorkflow";
 import { AIJobDescriptionGenerator } from "../hr/AIJobDescriptionGenerator";
 import EmployerSettings from "../Employer/EmployerSettings";
 import CandidateSettings from "../Candidate/CandidateSettings";
+import CandidateCareerGoals from "../Candidate/CandidateCareerGoals";
+import CandidateSkillTest from "../Candidate/CandidateSkillTest";
 
 export type Role = "employer" | "candidate";
-type MeResponse = { _id: string; name: string; email: string; role: Role };
+type MeResponse = {
+  _id: string;
+  name: string;
+  email: string;
+  role: Role;
+  preferences?: {
+    settings?: {
+      defaultLanding?: string;
+    };
+  };
+};
 
 export const ROUTES = {
   employerDashboard: "/app/employer/dashboard",
@@ -77,6 +89,8 @@ export const ROUTES = {
   candidateMyAccount: "/app/candidate/account",
   candidateProfileSettings: "/app/candidate/profile",
   candidatePreferences: "/app/candidate/preferences",
+  candidateCareerGoals: "/app/candidate/career-goals",
+  candidateSkillTests: "/app/candidate/skill-tests",
   employerSettings: "/app/employer/settings",
   candidateSettings: "/app/candidate/settings",
 } as const;
@@ -139,6 +153,10 @@ function metaForPath(pathname: string): PageMeta {
     return { title: "Profile Settings", breadcrumbs: ["Account", "Profile"] };
   if (startsWithPath(pathname, ROUTES.candidatePreferences))
     return { title: "Preferences", breadcrumbs: ["Account", "Preferences"] };
+  if (startsWithPath(pathname, ROUTES.candidateCareerGoals))
+    return { title: "Career Goals", breadcrumbs: ["Career Goals"] };
+  if (startsWithPath(pathname, ROUTES.candidateSkillTests))
+    return { title: "Skill Tests", breadcrumbs: ["Skill Tests"] };
 
   if (startsWithPath(pathname, ROUTES.employerDashboard)) return { title: "Dashboard" };
   if (startsWithPath(pathname, ROUTES.employerCreateJob))
@@ -205,10 +223,18 @@ export default function AppLayout() {
         if (!alive) return;
         setMe(data);
 
+        const prefs = data.preferences?.settings?.defaultLanding;
+        
         if (location.pathname === "/app" || location.pathname === "/app/") {
-          navigate(data.role === "employer" ? ROUTES.employerDashboard : ROUTES.candidateHome, {
-            replace: true,
-          });
+           if (data.role === "employer") {
+              if (prefs === "jobs") navigate(ROUTES.employerJobs, { replace: true });
+              else if (prefs === "applicants") navigate(ROUTES.employerApplicants, { replace: true });
+              else if (prefs === "company") navigate(ROUTES.employerCompany, { replace: true });
+              else if (prefs === "analytics") navigate(ROUTES.employerAnalytics, { replace: true });
+              else navigate(ROUTES.employerDashboard, { replace: true });
+           } else {
+             navigate(ROUTES.candidateHome, { replace: true });
+           }
         }
       } catch {
         localStorage.removeItem("token");
@@ -249,6 +275,14 @@ export default function AppLayout() {
 
     if (role === "candidate" && to === "analytics") {
       return navigate(ROUTES.candidateAnalytics);
+    }
+    
+    if (role === "candidate" && to === "career-goals") {
+      return navigate(ROUTES.candidateCareerGoals);
+    }
+    
+    if (role === "candidate" && to === "skill-tests") {
+      return navigate(ROUTES.candidateSkillTests);
     }
 
     if (role === "employer" && to === "job-details") {
@@ -341,6 +375,8 @@ export default function AppLayout() {
     if (startsWithPath(p, ROUTES.candidateApply)) return <CandidateApplyForm onNavigate={onNavigate} />;
 
     if (startsWithPath(p, ROUTES.candidateAnalytics)) return <CandidateInterviewAnalytics />;
+    if (startsWithPath(p, ROUTES.candidateCareerGoals)) return <CandidateCareerGoals />;
+    if (startsWithPath(p, ROUTES.candidateSkillTests)) return <CandidateSkillTest />;
 
     if (startsWithPath(p, ROUTES.candidateInterview)) {
       const st = (location.state || {}) as Record<string, unknown>;

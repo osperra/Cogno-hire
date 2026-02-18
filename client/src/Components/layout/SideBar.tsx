@@ -16,6 +16,8 @@ import {
   ChevronRight20Regular,
   ArrowTrendingRegular,
   Settings20Regular,
+  TargetArrowRegular,
+  Certificate20Regular,
 } from "@fluentui/react-icons";
 
 const useStyles = makeStyles({
@@ -165,6 +167,8 @@ const CANDIDATE_NAV: NavItem[] = [
   { id: "jobs", label: "Find Jobs", icon: <Briefcase20Regular />, path: "/app/candidate/jobs" },
   { id: "applications", label: "Applications", icon: <DocumentBulletListRegular />, path: "/app/candidate/applications" },
   { id: "notifications", label: "Notifications", icon: <Alert24Regular />, path: "/app/candidate/notifications" },
+  { id: "career-goals", label: "Career Goals", icon: <TargetArrowRegular />, path: "/app/candidate/career-goals" },
+  { id: "skill-tests", label: "Skill Tests", icon: <Certificate20Regular />, path: "/app/candidate/skill-tests" },
 ];
 
 type ApiErrorBody = { message?: string };

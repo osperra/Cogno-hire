@@ -85,6 +85,21 @@ const UserSchema = new Schema(
         defaultLanding: { type: String, default: "dashboard" },
         theme: { type: String, default: "system" },
       },
+      careerGoals: {
+        targetRole: { type: String, trim: true },
+        targetSalary: {
+          min: { type: Number },
+          max: { type: Number },
+          currency: { type: String, default: "USD" },
+        },
+        targetIndustries: [{ type: String, trim: true }],
+        timeline: {
+          type: String,
+          enum: ["Immediate", "1-3 Months", "3-6 Months", "6-12 Months", "Open"],
+        },
+        skillsToAcquire: [{ type: String, trim: true }],
+        notes: { type: String, trim: true },
+      },
     },
   },
   { timestamps: true }
@@ -135,6 +150,18 @@ export interface IUser extends mongoose.Document {
       weeklySummary?: boolean;
       defaultLanding?: string;
       theme?: string;
+    };
+    careerGoals?: {
+      targetRole?: string;
+      targetSalary?: {
+        min?: number;
+        max?: number;
+        currency?: string;
+      };
+      targetIndustries?: string[];
+      timeline?: "Immediate" | "1-3 Months" | "3-6 Months" | "6-12 Months" | "Open";
+      skillsToAcquire?: string[];
+      notes?: string;
     };
   };
   createdAt: Date;

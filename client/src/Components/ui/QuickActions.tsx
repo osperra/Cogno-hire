@@ -233,7 +233,7 @@ export function QuickActions({ userRole, onNavigate }: QuickActionsProps) {
       title: "Career Goals",
       subtitle: "Set preferences",
       bgClass: styles.quickActionIconGreen,
-      onClick: () => undefined,
+      onClick: () => onNavigate("career-goals"),
     },
     {
       key: "skill-tests",
@@ -241,7 +241,7 @@ export function QuickActions({ userRole, onNavigate }: QuickActionsProps) {
       title: "Skill Tests",
       subtitle: "Take assessments",
       bgClass: styles.quickActionIconOrange,
-      onClick: () => undefined,
+      onClick: () => onNavigate("skill-tests"),
     },
   ];
 

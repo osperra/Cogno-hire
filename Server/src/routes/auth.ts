@@ -93,12 +93,15 @@ authRouter.post("/login", async (req, res) => {
 authRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
   const user = await User.findById(req.user!.id).select("-passwordHash");
   if (!user) return res.status(404).json({ message: "User not found" });
-  return res.json(user);
+
+  const userObj = user.toObject();
+  return res.json(userObj);
 });
 
 authRouter.put("/me", requireAuth, async (req: AuthedRequest, res) => {
   const schema = z.object({
-    name: z.string().trim().min(2).max(80),
+    name: z.string().trim().min(2).max(80).optional(),
+    preferences: z.any().optional(),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -106,9 +109,17 @@ authRouter.put("/me", requireAuth, async (req: AuthedRequest, res) => {
     return res.status(400).json({ message: "Invalid input", issues: parsed.error.issues });
   }
 
+  const updates: Record<string, any> = {};
+  if (parsed.data.name) updates.name = parsed.data.name;
+  if (parsed.data.preferences) updates.preferences = parsed.data.preferences;
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ message: "No updates provided" });
+  }
+
   const updated = await User.findByIdAndUpdate(
     req.user!.id,
-    { $set: { name: parsed.data.name } },
+    { $set: updates },
     { new: true }
   ).select("-passwordHash");
 

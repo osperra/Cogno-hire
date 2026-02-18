@@ -632,7 +632,7 @@ export default function CandidateProfileSettings({
             </div>
 
             <Divider style={{ margin: "12px 0" }} />
-
+ 
             <div className={styles.field}>
               <Text style={{ fontWeight: 900, color: "#0B1220" }}>Links</Text>
               <Text className={styles.hint}>Optional, but improves trust.</Text>
@@ -765,10 +765,6 @@ export default function CandidateProfileSettings({
 
             {profile.resumeUrl ? (
               <div className={styles.resumeDebug}>
-                <span className={styles.debugPill}>publicId: {profile.resumePublicId || "—"}</span>
-                <span className={styles.debugPill}>format: {profile.resumeFormat || "—"}</span>
-                <span className={styles.debugPill}>resource: {profile.resumeResourceType || "—"}</span>
-                <span className={styles.debugPill}>delivery: {profile.resumeDeliveryType || "—"}</span>
               </div>
             ) : null}
           </Card>

@@ -61,7 +61,7 @@ export default function EmployerSettings({
         )}
         {selectedTab === "account" && <MyAccount hideHeader hidePadding />}
         {selectedTab === "preferences" && (
-          <Preferences hideHeader hidePadding />
+          <Preferences hidePadding />
         )}
       </div>
     </div>
