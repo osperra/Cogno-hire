@@ -20,7 +20,7 @@ import {
 
 interface QuickActionsProps {
   userRole: "employer" | "candidate";
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, data?: Record<string, unknown>) => void;
 }
 
 const useStyles = makeStyles({
@@ -198,7 +198,7 @@ export function QuickActions({ userRole, onNavigate }: QuickActionsProps) {
       title: "View Analytics",
       subtitle: "Performance insights",
       bgClass: styles.quickActionIconGreen,
-      onClick: () => onNavigate("Interview Analytics"),
+      onClick: () => onNavigate("analytics"),
     },
     {
       key: "export-reports",
@@ -206,7 +206,7 @@ export function QuickActions({ userRole, onNavigate }: QuickActionsProps) {
       title: "Export Reports",
       subtitle: "Download data",
       bgClass: styles.quickActionIconOrange,
-      onClick: () => undefined,
+      onClick: () => onNavigate("reports"),
     },
   ];
 
@@ -225,7 +225,7 @@ export function QuickActions({ userRole, onNavigate }: QuickActionsProps) {
       title: "Update Resume",
       subtitle: "Upload latest CV",
       bgClass: styles.quickActionIconPurple,
-      onClick: () => undefined,
+      onClick: () => onNavigate("profile-settings", { scrollTo: "resume" }),
     },
     {
       key: "career-goals",

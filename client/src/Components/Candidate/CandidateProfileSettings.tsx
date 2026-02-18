@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Badge,
   Button,
@@ -292,11 +293,9 @@ function normalizeCandidateProfile(r: CandidateProfileApi): CandidateProfile {
     linkedin: r.linkedin ? String(r.linkedin) : undefined,
     github: r.github ? String(r.github) : undefined,
     portfolio: r.portfolio ? String(r.portfolio) : undefined,
-
     resumeUrl: url,
     resumeDocId: r.resumeDocId ? String(r.resumeDocId) : undefined,
     resumeFileName: r.resumeFileName ? String(r.resumeFileName) : undefined,
-
     resumePublicId: r.resumePublicId ? String(r.resumePublicId) : undefined,
     resumeFormat: r.resumeFormat ? String(r.resumeFormat) : inferred.resumeFormat,
     resumeResourceType: r.resumeResourceType ?? inferred.resumeResourceType,
@@ -304,20 +303,22 @@ function normalizeCandidateProfile(r: CandidateProfileApi): CandidateProfile {
   };
 }
 
-export default function CandidateProfileSettings() {
+export default function CandidateProfileSettings({
+  hideHeader = false,
+  hidePadding = false,
+}: {
+  hideHeader?: boolean;
+  hidePadding?: boolean;
+}) {
   const styles = useStyles();
   const fileRef = useRef<HTMLInputElement | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
-
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [skillsInput, setSkillsInput] = useState("");
-
   const experienceOptions = useMemo(
     () => ["Fresher", "Junior", "Mid", "Senior", "Lead"] as const,
     []
@@ -342,6 +343,16 @@ export default function CandidateProfileSettings() {
   useEffect(() => {
     void load();
   }, []);
+
+  const location = useLocation();
+  useEffect(() => {
+    if (!loading && location.state && (location.state).scrollTo === "resume") {
+      setTimeout(() => {
+        const el = document.getElementById("resume-section");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+  }, [location.state, loading]);
 
   const updateField = <K extends keyof CandidateProfile>(k: K, v: CandidateProfile[K]) => {
     setProfile((p) => (p ? { ...p, [k]: v } : p));
@@ -464,42 +475,72 @@ export default function CandidateProfileSettings() {
   };
 
   return (
-    <div className={styles.root}>
-      <input
-        ref={fileRef}
-        type="file"
-        style={{ display: "none" }}
-        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (!f) return;
-          void uploadResume(f);
-          e.currentTarget.value = "";
-        }}
-      />
+    <div className={hidePadding ? "" : styles.root}>
+      {!hideHeader && (
+        <>
+          <input
+            ref={fileRef}
+            type="file"
+            style={{ display: "none" }}
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              void uploadResume(f);
+              e.currentTarget.value = "";
+            }}
+          />
 
-      <div className={styles.headerBar}>
-        <div className={styles.headerLeft}>
-          <div className={styles.titleRow}>
-            <div className={styles.title}>Profile Settings</div>
-            <Badge appearance="tint" color="brand">
-              Candidate
-            </Badge>
+          <div className={styles.headerBar}>
+            <div className={styles.headerLeft}>
+              <div className={styles.titleRow}>
+                <div className={styles.title}>Profile Settings</div>
+                <Badge appearance="tint" color="brand">
+                  Candidate
+                </Badge>
+              </div>
+              <div className={styles.sub}>
+                Manage your candidate profile and resume.
+              </div>
+              {error ? <div className={styles.msgError}>{error}</div> : null}
+              {ok ? <div className={styles.msgOk}>{ok}</div> : null}
+            </div>
+
+            <div className={styles.actions}>
+              <Button
+                appearance="outline"
+                onClick={() => void load()}
+                disabled={loading || saving || uploading}
+              >
+                Refresh
+              </Button>
+              <Button
+                appearance="primary"
+                className={styles.primaryButton}
+                onClick={() => void save()}
+                disabled={loading || saving || uploading || !profile}
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
           </div>
-          <div className={styles.sub}>Manage your candidate profile and resume.</div>
-          {error ? <div className={styles.msgError}>{error}</div> : null}
-          {ok ? <div className={styles.msgOk}>{ok}</div> : null}
-        </div>
+        </>
+      )}
 
-        <div className={styles.actions}>
-          <Button appearance="outline" onClick={() => void load()} disabled={loading || saving || uploading}>
-            Refresh
-          </Button>
-          <Button appearance="primary" className={styles.primaryButton} onClick={() => void save()} disabled={loading || saving || uploading || !profile}>
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
-        </div>
-      </div>
+      {hideHeader && (
+        <input
+          ref={fileRef}
+          type="file"
+          style={{ display: "none" }}
+          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            void uploadResume(f);
+            e.currentTarget.value = "";
+          }}
+        />
+      )}
 
       {loading ? (
         <Card className={styles.card}>
@@ -660,7 +701,7 @@ export default function CandidateProfileSettings() {
             </div>
           </Card>
 
-          <Card className={`${styles.card} ${styles.full}`}>
+          <Card className={`${styles.card} ${styles.full}`} id="resume-section">
             <div className={styles.cardHeader}>
               <div className={styles.headerTitle}>
                 <span className={styles.iconPill}><DocumentRegular /></span>

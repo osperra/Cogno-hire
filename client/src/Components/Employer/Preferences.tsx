@@ -23,7 +23,6 @@ type PreferencesResponse = {
   desktopNotifications?: boolean;
   weeklySummary?: boolean;
   defaultLanding?: "dashboard" | "jobs" | "applicants" | "company" | "analytics";
-  theme?: "light" | "dark" | "system";
 };
 
 type PreferencesForm = {
@@ -33,7 +32,6 @@ type PreferencesForm = {
   desktopNotifications: boolean;
   weeklySummary: boolean;
   defaultLanding: "dashboard" | "jobs" | "applicants" | "company" | "analytics";
-  theme: "light" | "dark" | "system";
 };
 
 const useStyles = makeStyles({
@@ -51,13 +49,19 @@ const useStyles = makeStyles({
   },
   titleWrap: { display: "flex", flexDirection: "column", gap: "4px" },
   grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+    display: "flex",
     gap: "16px",
     alignItems: "start",
     "@media (max-width: 980px)": {
-      gridTemplateColumns: "1fr",
+      flexDirection: "column",
     },
+  },
+  column: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+    minWidth: 0,
   },
   card: {
     backgroundColor: tokens.colorNeutralBackground1,
@@ -99,7 +103,6 @@ const DEFAULTS: PreferencesForm = {
   desktopNotifications: false,
   weeklySummary: true,
   defaultLanding: "dashboard",
-  theme: "system",
 };
 
 async function requestDesktopNotificationPermission(): Promise<boolean> {
@@ -110,7 +113,13 @@ async function requestDesktopNotificationPermission(): Promise<boolean> {
   return p === "granted";
 }
 
-export default function Preferences() {
+export default function Preferences({
+  hideHeader = false,
+  hidePadding = false,
+}: {
+  hideHeader?: boolean;
+  hidePadding?: boolean;
+}) {
   const styles = useStyles();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -198,26 +207,36 @@ export default function Preferences() {
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.headerRow}>
-        <div className={styles.titleWrap}>
-          <Text size={700} weight="semibold">
-            Preferences
-          </Text>
-          <Text className={styles.muted} size={300}>
-            Manage your notifications, theme, and default views.
-          </Text>
-        </div>
+    <div className={hidePadding ? "" : styles.page}>
+      {!hideHeader && (
+        <div className={styles.headerRow}>
+          <div className={styles.titleWrap}>
+            <Text size={700} weight="semibold">
+              Preferences
+            </Text>
+            <Text className={styles.muted} size={300}>
+              Manage your notifications, theme, and default views.
+            </Text>
+          </div>
 
-        <div style={{ display: "flex", gap: "12px" }}>
-          <Button appearance="outline" onClick={reset} disabled={saving || !dirty}>
-            Reset
-          </Button>
-          <Button appearance="primary" onClick={() => void save()} disabled={saving || !dirty}>
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <Button
+              appearance="outline"
+              onClick={reset}
+              disabled={saving || !dirty}
+            >
+              Reset
+            </Button>
+            <Button
+              appearance="primary"
+              onClick={() => void save()}
+              disabled={saving || !dirty}
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {msg && (
         <MessageBar intent={msg.type === "success" ? "success" : "error"} style={{ marginBottom: "16px" }}>
@@ -231,171 +250,152 @@ export default function Preferences() {
       )}
 
       <div className={styles.grid}>
-        <section className={styles.card}>
-          <div className={styles.cardTitle}>
-            <Text size={500} weight="semibold">
-              General Settings
-            </Text>
-          </div>
+        <div className={styles.column}>
+          <section className={styles.card}>
+            <div className={styles.cardTitle}>
+              <Text size={500} weight="semibold">
+                General Settings
+              </Text>
+            </div>
 
-          <div className={styles.row}>
-             <div className={styles.left}>
-                <Text weight="semibold">Theme</Text>
+
+            <div className={styles.row}>
+              <div className={styles.left}>
+                <Text weight="semibold">Default Landing Page</Text>
                 <Text size={200} className={styles.muted}>
-                  Choose your preferred appearance.
+                  The page you see when you log in.
                 </Text>
-             </div>
-             <Dropdown
-                value={prefs.theme.charAt(0).toUpperCase() + prefs.theme.slice(1)}
-                selectedOptions={[prefs.theme]}
-                onOptionSelect={(_, data) => {
-                  const nextTheme = (data.optionValue as "light" | "dark" | "system") || "system";
+              </div>
+              <Dropdown
+                value={
+                  prefs.defaultLanding.charAt(0).toUpperCase() +
+                  prefs.defaultLanding.slice(1)
+                }
+                selectedOptions={[prefs.defaultLanding]}
+                onOptionSelect={(_, data) =>
                   setPrefs((p) => ({
                     ...p,
-                    theme: nextTheme,
-                  }));
-                }}
-                style={{ minWidth: "120px" }}
+                    defaultLanding:
+                      (data.optionValue as PreferencesForm["defaultLanding"]) ||
+                      "dashboard",
+                  }))
+                }
+                style={{ minWidth: "140px" }}
               >
-                <Option value="light">Light</Option>
-                <Option value="dark">Dark</Option>
-                <Option value="system">System</Option>
+                <Option value="dashboard">Dashboard</Option>
+                <Option value="jobs">Jobs</Option>
+                <Option value="applicants">Applicants</Option>
+                <Option value="company">Company</Option>
+                <Option value="analytics">Analytics</Option>
               </Dropdown>
-          </div>
+            </div>
+          </section>
+        </div>
 
-          <Divider />
-
-          <div className={styles.row}>
-            <div className={styles.left}>
-              <Text weight="semibold">Default Landing Page</Text>
-              <Text size={200} className={styles.muted}>
-                The page you see when you log in.
+        <div className={styles.column}>
+          <section className={styles.card}>
+            <div className={styles.cardTitle}>
+              <Text size={500} weight="semibold">
+                Notifications
               </Text>
             </div>
-            <Dropdown
-              value={prefs.defaultLanding.charAt(0).toUpperCase() + prefs.defaultLanding.slice(1)}
-              selectedOptions={[prefs.defaultLanding]}
-              onOptionSelect={(_, data) =>
-                setPrefs((p) => ({
-                  ...p,
-                  defaultLanding:
-                    (data.optionValue as PreferencesForm["defaultLanding"]) ||
-                    "dashboard",
-                }))
-              }
-              style={{ minWidth: "140px" }}
-            >
-              <Option value="dashboard">Dashboard</Option>
-              <Option value="jobs">Jobs</Option>
-              <Option value="applicants">Applicants</Option>
-              <Option value="company">Company</Option>
-              <Option value="analytics">Analytics</Option>
-            </Dropdown>
-          </div>
-        </section>
 
-        <section className={styles.card}>
-          <div className={styles.cardTitle}>
-            <Text size={500} weight="semibold">
-              Notifications
-            </Text>
-          </div>
-
-          <div className={styles.row}>
-            <div className={styles.left}>
-              <Text weight="semibold">Email notifications</Text>
-              <Text size={200} className={styles.muted}>
-                Get updates on jobs and applicants.
-              </Text>
+            <div className={styles.row}>
+              <div className={styles.left}>
+                <Text weight="semibold">Email notifications</Text>
+                <Text size={200} className={styles.muted}>
+                  Get updates on jobs and applicants.
+                </Text>
+              </div>
+              <Switch
+                checked={prefs.emailNotifications}
+                onChange={(_, d) =>
+                  setPrefs((p) => ({ ...p, emailNotifications: d.checked }))
+                }
+              />
             </div>
-            <Switch
-              checked={prefs.emailNotifications}
-              onChange={(_, d) =>
-                setPrefs((p) => ({ ...p, emailNotifications: d.checked }))
-              }
-            />
-          </div>
 
-          <Divider />
+            <Divider />
 
-          <div className={styles.row}>
-            <div className={styles.left}>
-              <Text weight="semibold">Weekly summary</Text>
-              <Text size={200} className={styles.muted}>
-                Receive a weekly activity digest.
-              </Text>
+            <div className={styles.row}>
+              <div className={styles.left}>
+                <Text weight="semibold">Weekly summary</Text>
+                <Text size={200} className={styles.muted}>
+                  Receive a weekly activity digest.
+                </Text>
+              </div>
+              <Switch
+                checked={prefs.weeklySummary}
+                onChange={(_, d) =>
+                  setPrefs((p) => ({ ...p, weeklySummary: d.checked }))
+                }
+              />
             </div>
-            <Switch
-              checked={prefs.weeklySummary}
-              onChange={(_, d) =>
-                setPrefs((p) => ({ ...p, weeklySummary: d.checked }))
-              }
-            />
-          </div>
 
-          <Divider />
+            <Divider />
 
-          <div className={styles.row}>
-            <div className={styles.left}>
-              <Text weight="semibold">Product updates</Text>
-              <Text size={200} className={styles.muted}>
-                News about new features and improvements.
-              </Text>
+            <div className={styles.row}>
+              <div className={styles.left}>
+                <Text weight="semibold">Product updates</Text>
+                <Text size={200} className={styles.muted}>
+                  News about new features and improvements.
+                </Text>
+              </div>
+              <Switch
+                checked={prefs.productUpdates}
+                onChange={(_, d) =>
+                  setPrefs((p) => ({ ...p, productUpdates: d.checked }))
+                }
+              />
             </div>
-            <Switch
-              checked={prefs.productUpdates}
-              onChange={(_, d) =>
-                setPrefs((p) => ({ ...p, productUpdates: d.checked }))
-              }
-            />
-          </div>
 
-          <Divider />
+            <Divider />
 
-          <div className={styles.row}>
-            <div className={styles.left}>
-              <Text weight="semibold">Marketing emails</Text>
-              <Text size={200} className={styles.muted}>
-                Tips, offers, and announcements.
-              </Text>
+            <div className={styles.row}>
+              <div className={styles.left}>
+                <Text weight="semibold">Marketing emails</Text>
+                <Text size={200} className={styles.muted}>
+                  Tips, offers, and announcements.
+                </Text>
+              </div>
+              <Switch
+                checked={prefs.marketingEmails}
+                onChange={(_, d) =>
+                  setPrefs((p) => ({ ...p, marketingEmails: d.checked }))
+                }
+              />
             </div>
-            <Switch
-              checked={prefs.marketingEmails}
-              onChange={(_, d) =>
-                setPrefs((p) => ({ ...p, marketingEmails: d.checked }))
-              }
-            />
-          </div>
 
-          <Divider />
+            <Divider />
 
-          <div className={styles.row}>
-             <div className={styles.left}>
-               <Text weight="semibold">Desktop notifications</Text>
-               <Text size={200} className={styles.muted}>
-                 Browser notifications (requires permission).
-               </Text>
-             </div>
-             <Switch
-               checked={prefs.desktopNotifications}
-               onChange={async (_, d) => {
-                 const next = d.checked;
-                 if (next) {
-                   const ok = await requestDesktopNotificationPermission();
-                   if (!ok) {
-                     setMsg({
-                       type: "error",
-                       text: "Desktop notifications permission was not granted.",
-                     });
-                     setPrefs((p) => ({ ...p, desktopNotifications: false }));
-                     return;
-                   }
-                 }
-                 setPrefs((p) => ({ ...p, desktopNotifications: next }));
-               }}
-             />
-          </div>
-        </section>
+            <div className={styles.row}>
+              <div className={styles.left}>
+                <Text weight="semibold">Desktop notifications</Text>
+                <Text size={200} className={styles.muted}>
+                  Browser notifications (requires permission).
+                </Text>
+              </div>
+              <Switch
+                checked={prefs.desktopNotifications}
+                onChange={async (_, d) => {
+                  const next = d.checked;
+                  if (next) {
+                    const ok = await requestDesktopNotificationPermission();
+                    if (!ok) {
+                      setMsg({
+                        type: "error",
+                        text: "Desktop notifications permission was not granted.",
+                      });
+                      setPrefs((p) => ({ ...p, desktopNotifications: false }));
+                      return;
+                    }
+                  }
+                  setPrefs((p) => ({ ...p, desktopNotifications: next }));
+                }}
+              />
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );

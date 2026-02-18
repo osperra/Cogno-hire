@@ -10,7 +10,7 @@ import {
 } from "@fluentui/react-icons";
 import { DayPicker } from "react-day-picker";
 
-import { buttonVariants } from "./button";
+import { useButtonVariants as buttonVariants } from "./button-variants";
 
 function mergeClassNames(...classes: Array<string | undefined>): string {
   return classes.filter(Boolean).join(" ");

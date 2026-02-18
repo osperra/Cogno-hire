@@ -410,4 +410,45 @@ jobsRouter.patch(
   }
 );
 
+
+
+jobsRouter.post(
+  "/:id/save",
+  requireAuth,
+  requireRole(["candidate"]),
+  async (req: AuthedRequest, res) => {
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid job id" });
+    }
+
+    const job = await Job.findById(id).select("_id").lean();
+    if (!job) return res.status(404).json({ message: "Job not found" });
+
+    await User.findByIdAndUpdate(req.user!.id, {
+      $addToSet: { savedJobs: id },
+    });
+
+    return res.json({ ok: true });
+  }
+);
+
+jobsRouter.delete(
+  "/:id/save",
+  requireAuth,
+  requireRole(["candidate"]),
+  async (req: AuthedRequest, res) => {
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid job id" });
+    }
+
+    await User.findByIdAndUpdate(req.user!.id, {
+      $pull: { savedJobs: id },
+    });
+
+    return res.json({ ok: true });
+  }
+);
+
 export default jobsRouter;

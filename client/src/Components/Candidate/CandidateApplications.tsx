@@ -34,6 +34,22 @@ import {
 
 import { StatusPill } from "../ui/StatusPill";
 import { api } from "../../api/http";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "../ui/sheet";
+import {
+  Dialog,
+  DialogSurface,
+  DialogTitle,
+  DialogBody,
+  DialogActions,
+  DialogContent,
+} from "@fluentui/react-components";
+import { Link } from "@fluentui/react-components";
 
 interface CandidateApplicationsProps {
   onNavigate: (page: string, data?: Record<string, unknown>) => void;
@@ -69,6 +85,8 @@ type JobPopulated =
       company?: string;
       location?: string;
       logoUrl?: string;
+      description?: string;
+      about?: string;
     };
 
 type ApplicationFromApi = {
@@ -78,6 +96,23 @@ type ApplicationFromApi = {
   interviewStatus: InterviewStatusApi;
   overallScore?: number;
   createdAt: string;
+  contactEmail?: string;
+  phone?: string;
+  website?: string;
+  industry?: string;
+  companySize?: string;
+  companyDescription?: string;
+  headquarters?: string;
+  foundedYear?: number;
+  tagline?: string;
+  mission?: string;
+  values?: string;
+  culture?: string;
+  benefits?: string;
+  linkedin?: string;
+  twitter?: string;
+  github?: string;
+  facebook?: string;
 };
 
 type ApplicationUI = {
@@ -91,6 +126,25 @@ type ApplicationUI = {
   interviewStatus: InterviewStatus;
   score: number | null;
   logoUrl?: string;
+  description?: string;
+  about?: string;
+  contactEmail?: string;
+  phone?: string;
+  website?: string;
+  industry?: string;
+  companySize?: string;
+  companyDescription?: string;
+  headquarters?: string;
+  foundedYear?: number;
+  tagline?: string;
+  mission?: string;
+  values?: string;
+  culture?: string;
+  benefits?: string;
+  linkedin?: string;
+  twitter?: string;
+  github?: string;
+  facebook?: string;
 };
 
 type CandidateCountsResponse = {
@@ -128,6 +182,8 @@ function getJob(jobId: JobPopulated) {
     company: jobId.companyName ?? jobId.company ?? "—",
     location: jobId.location ?? "—",
     logoUrl: jobId.logoUrl,
+    description: jobId.description,
+    about: jobId.about,
   };
 }
 
@@ -178,6 +234,25 @@ function toUI(a: ApplicationFromApi): ApplicationUI {
     interviewStatus: mapInterviewToUI(a.interviewStatus),
     score: typeof a.overallScore === "number" ? a.overallScore : null,
     logoUrl: job.logoUrl,
+    description: job.description,
+    about: job.about,
+    contactEmail: a.contactEmail,
+    phone: a.phone,
+    website: a.website,
+    industry: a.industry,
+    companySize: a.companySize,
+    companyDescription: a.companyDescription,
+    headquarters: a.headquarters,
+    foundedYear: a.foundedYear,
+    tagline: a.tagline,
+    mission: a.mission,
+    values: a.values,
+    culture: a.culture,
+    benefits: a.benefits,
+    linkedin: a.linkedin,
+    twitter: a.twitter,
+    github: a.github,
+    facebook: a.facebook,
   };
 }
 
@@ -356,20 +431,42 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({
   onNavigate,
 }) => {
   const styles = useStyles();
-
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedTab, setSelectedTab] = React.useState<TabValue>("all");
-
   const [apps, setApps] = React.useState<ApplicationUI[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-
   const [counts, setCounts] = React.useState<CandidateCountsResponse>({
     all: 0,
     pending: 0,
     hired: 0,
     rejected: 0,
   });
+
+  const [selectedApp, setSelectedApp] = React.useState<ApplicationUI | null>(null);
+  const [isViewJobOpen, setIsViewJobOpen] = React.useState(false);
+  const [isContactOpen, setIsContactOpen] = React.useState(false);
+  const [isCompanyProfileOpen, setIsCompanyProfileOpen] = React.useState(false);
+  const [isResultsOpen, setIsResultsOpen] = React.useState(false);
+  const handleViewJob = (app: ApplicationUI) => {
+    setSelectedApp(app);
+    setIsViewJobOpen(true);
+  };
+
+  const handleContact = (app: ApplicationUI) => {
+    setSelectedApp(app);
+    setIsContactOpen(true);
+  };
+
+  const handleCompanyProfile = (app: ApplicationUI) => {
+    setSelectedApp(app);
+    setIsCompanyProfileOpen(true);
+  };
+
+  const handleViewResults = (app: ApplicationUI) => {
+    setSelectedApp(app);
+    setIsResultsOpen(true);
+  };
 
   const getStatusType = (status: ApplicationStatus) => {
     if (status === "Hired") return "success";
@@ -655,50 +752,34 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({
                                 <MoreVertical20Regular />
                               </button>
                             </MenuTrigger>
-                            <MenuPopover>
-                              <MenuList>
-                                <MenuItem
-                                  icon={<DataHistogram20Regular />}
-                                  onClick={() =>
-                                    onNavigate("results", {
-                                      applicationId: app.id,
-                                    })
-                                  }
-                                >
-                                  View Results
-                                </MenuItem>
-                                <MenuItem
-                                  icon={<Eye20Regular />}
-                                  onClick={() =>
-                                    onNavigate("job-details", {
-                                      applicationId: app.id,
-                                    })
-                                  }
-                                >
-                                  View Job
-                                </MenuItem>
-                                <MenuItem
-                                  icon={<Chat20Regular />}
-                                  onClick={() =>
-                                    onNavigate("contact-employer", {
-                                      applicationId: app.id,
-                                    })
-                                  }
-                                >
-                                  Contact Employer
-                                </MenuItem>
-                                <MenuItem
-                                  icon={<Open20Regular />}
-                                  onClick={() =>
-                                    onNavigate("company-profile", {
-                                      applicationId: app.id,
-                                    })
-                                  }
-                                >
-                                  Company Profile
-                                </MenuItem>
-                              </MenuList>
-                            </MenuPopover>
+                              <MenuPopover>
+                                <MenuList>
+                                  <MenuItem
+                                    icon={<DataHistogram20Regular />}
+                                    onClick={() => handleViewResults(app)}
+                                  >
+                                    View Results
+                                  </MenuItem>
+                                  <MenuItem
+                                    icon={<Eye20Regular />}
+                                    onClick={() => handleViewJob(app)}
+                                  >
+                                    View Job
+                                  </MenuItem>
+                                  <MenuItem
+                                    icon={<Chat20Regular />}
+                                    onClick={() => handleContact(app)}
+                                  >
+                                    Contact Employer
+                                  </MenuItem>
+                                  <MenuItem
+                                    icon={<Open20Regular />}
+                                    onClick={() => handleCompanyProfile(app)}
+                                  >
+                                    Company Profile
+                                  </MenuItem>
+                                </MenuList>
+                              </MenuPopover>
                           </Menu>
                         )}
                       </TableCell>
@@ -729,6 +810,194 @@ export const CandidateApplications: React.FC<CandidateApplicationsProps> = ({
             </div>
           </Card>
         </div>
+
+        <Sheet
+          open={isViewJobOpen}
+          onOpenChange={setIsViewJobOpen}
+        >
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>{selectedApp?.title}</SheetTitle>
+              <SheetDescription>
+                {selectedApp?.company} • {selectedApp?.location}
+              </SheetDescription>
+            </SheetHeader>
+            <div style={{ padding: "24px", overflowY: "auto" }}>
+              <Text as="h3" weight="semibold" size={400} style={{ marginBottom: "8px" }}>
+                About the Role
+              </Text>
+              <Text style={{ whiteSpace: "pre-wrap", color: "#424242" }}>
+                {selectedApp?.description || selectedApp?.about || "No description available."}
+              </Text>
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        <Sheet
+          open={isCompanyProfileOpen}
+          onOpenChange={setIsCompanyProfileOpen}
+        >
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>{selectedApp?.company}</SheetTitle>
+              {selectedApp?.tagline && (
+                <Text style={{ color: "#5B6475", fontStyle: "italic", marginBottom: "4px", display: "block" }}>
+                  {selectedApp.tagline}
+                </Text>
+              )}
+              <SheetDescription>
+                {[
+                  selectedApp?.industry,
+                  selectedApp?.companySize,
+                  selectedApp?.headquarters,
+                  selectedApp?.foundedYear ? `Est. ${selectedApp.foundedYear}` : null
+                ].filter(Boolean).join(" • ")}
+              </SheetDescription>
+            </SheetHeader>
+            <div style={{ padding: "24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "24px" }}>
+              
+              <div>
+                <Text weight="semibold" style={{ display: "block", marginBottom: "8px", fontSize: "16px" }}>About</Text>
+                <Text style={{ whiteSpace: "pre-wrap", color: "#424242" }}>
+                  {selectedApp?.companyDescription || "No company description available."}
+                </Text>
+              </div>
+
+              {selectedApp?.mission && (
+                <div>
+                  <Text weight="semibold" style={{ display: "block", marginBottom: "8px", fontSize: "16px" }}>Mission</Text>
+                  <Text style={{ whiteSpace: "pre-wrap", color: "#424242" }}>{selectedApp.mission}</Text>
+                </div>
+              )}
+
+              {selectedApp?.values && (
+                <div>
+                  <Text weight="semibold" style={{ display: "block", marginBottom: "8px", fontSize: "16px" }}>Values</Text>
+                  <Text style={{ whiteSpace: "pre-wrap", color: "#424242" }}>{selectedApp.values}</Text>
+                </div>
+              )}
+
+              {(selectedApp?.culture || selectedApp?.benefits) && (
+                 <div>
+                    <Text weight="semibold" style={{ display: "block", marginBottom: "8px", fontSize: "16px" }}>Culture & Benefits</Text>
+                    {selectedApp?.culture && (
+                      <Text style={{ whiteSpace: "pre-wrap", color: "#424242", display: "block", marginBottom: "8px" }}>
+                        {selectedApp.culture}
+                      </Text>
+                    )}
+                    {selectedApp?.benefits && (
+                      <Text style={{ whiteSpace: "pre-wrap", color: "#424242", display: "block" }}>
+                        {selectedApp.benefits}
+                      </Text>
+                    )}
+                 </div>
+              )}
+
+              <div>
+                <Text weight="semibold" style={{ display: "block", marginBottom: "8px", fontSize: "16px" }}>Contact</Text>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {selectedApp?.website && (
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <Text weight="medium" style={{ width: "80px" }}>Website:</Text>
+                      <Link href={selectedApp.website} target="_blank" rel="noopener noreferrer">{selectedApp.website}</Link>
+                    </div>
+                  )}
+                   {selectedApp?.contactEmail && (
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <Text weight="medium" style={{ width: "80px" }}>Email:</Text>
+                      <Text>{selectedApp.contactEmail}</Text>
+                    </div>
+                  )}
+                  {selectedApp?.phone && (
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <Text weight="medium" style={{ width: "80px" }}>Phone:</Text>
+                      <Text>{selectedApp.phone}</Text>
+                    </div>
+                  )}
+                  
+                  <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
+                     {selectedApp?.linkedin && <Link href={selectedApp.linkedin} target="_blank">LinkedIn</Link>}
+                     {selectedApp?.twitter && <Link href={selectedApp.twitter} target="_blank">Twitter</Link>}
+                     {selectedApp?.github && <Link href={selectedApp.github} target="_blank">GitHub</Link>}
+                     {selectedApp?.facebook && <Link href={selectedApp.facebook} target="_blank">Facebook</Link>}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        <Dialog open={isContactOpen} onOpenChange={(_, data) => setIsContactOpen(data.open)}>
+          <DialogSurface>
+            <DialogBody>
+              <DialogTitle>Contact {selectedApp?.company}</DialogTitle>
+              <DialogContent>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {selectedApp?.phone ? (
+                    <div>
+                      <Text weight="semibold">Phone:</Text>{" "}
+                      <Link href={`tel:${selectedApp.phone}`}>{selectedApp.phone}</Link>
+                    </div>
+                  ) : (
+                    <Text>No phone number available.</Text>
+                  )}
+                  {selectedApp?.contactEmail ? (
+                    <div>
+                      <Text weight="semibold">Email:</Text>{" "}
+                      <Link href={`mailto:${selectedApp.contactEmail}`}>{selectedApp.contactEmail}</Link>
+                    </div>
+                  ) : (
+                    <Text>No email available.</Text>
+                  )}
+                </div>
+              </DialogContent>
+              <DialogActions>
+                <Button appearance="secondary" onClick={() => setIsContactOpen(false)}>
+                  Close
+                </Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
+
+         <Dialog open={isResultsOpen} onOpenChange={(_, data) => setIsResultsOpen(data.open)}>
+          <DialogSurface>
+            <DialogBody>
+              <DialogTitle>Application Results</DialogTitle>
+              <DialogContent>
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", alignItems: "center", padding: "24px 0" }}>
+                  {selectedApp?.score != null ? (
+                    <>
+                      <div style={{ fontSize: "48px", fontWeight: "bold", color: "#0118D8" }}>
+                        {selectedApp.score}%
+                      </div>
+                      <Text weight="semibold">Overall Match Score</Text>
+                      {selectedApp.status === "Rejected" && (
+                         <Text style={{ color: "#dc2626", marginTop: "8px" }}>
+                           Unfortunately, this application was not selected.
+                         </Text>
+                      )}
+                      {selectedApp.status === "Hired" && (
+                         <Text style={{ color: "#10b981", marginTop: "8px" }}>
+                           Congratulations! You have been hired for this role.
+                         </Text>
+                      )}
+                    </>
+                  ) : (
+                    <Text>No results available yet.</Text>
+                  )}
+                </div>
+              </DialogContent>
+              <DialogActions>
+                <Button appearance="primary" onClick={() => setIsResultsOpen(false)}>
+                  Close
+                </Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
+
       </div>
     </div>
   );

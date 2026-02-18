@@ -1,39 +1,60 @@
 import * as React from "react";
-import {
-  Button,
-  Card,
-  Text,
-  ProgressBar,
-  Tab,
-  TabList,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
-  makeStyles,
-  tokens,
-  Spinner,
-} from "@fluentui/react-components";
-
-import {
-  Briefcase20Regular,
-  Clock20Regular,
-  CheckmarkCircle20Regular,
-  DocumentText20Regular,
-  Warning20Regular,
-  PlayRegular,
-  DataHistogram20Regular,
-  Dismiss20Regular,
-  ChevronRight20Regular,
-} from "@fluentui/react-icons";
-
 import { AnimatedStats } from "../ui/AnimatedStats";
 import { QuickActions } from "../ui/QuickActions";
 import { ActivityTimeline, type ActivityItem } from "../ui/ActivityTimeline";
 import { FeatureHighlight } from "../ui/FeatureHighlight";
 import { StatusPill } from "../ui/StatusPill";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "../ui/sheet";
+import {
+  Dialog,
+  DialogSurface,
+  DialogTitle,
+  DialogBody,
+  DialogActions,
+  DialogContent,
+  Link,
+  Menu,
+  MenuTrigger,
+  MenuPopover,
+  MenuList,
+  MenuItem,
+  makeStyles,
+  tokens,
+  Button,
+  Text,
+  Card,
+  ProgressBar,
+  TabList,
+  Tab,
+  Spinner,
+  Table,
+  TableHeader,
+  TableRow,
+  TableHeaderCell,
+  TableBody,
+  TableCell,
+} from "@fluentui/react-components";
+import {
+  Briefcase20Regular,
+  Clock20Regular,
+  CheckmarkCircle20Regular,
+  Dismiss20Regular,
+  Warning20Regular,
+  MoreVertical20Regular,
+  DataHistogram20Regular,
+  Eye20Regular,
+  Chat20Regular,
+  Open20Regular,
+  PlayRegular,
+  ChevronRight20Regular,
+  DocumentText20Regular,
+} from "@fluentui/react-icons";
 
 import { api } from "../../api/http";
 
@@ -106,7 +127,11 @@ type JobPopulated =
       _id: string;
       title?: string;
       company?: string;
+      companyName?: string;
       location?: string;
+      logoUrl?: string;
+      description?: string;
+      about?: string;
     };
 
 type ApplicationFromApi = {
@@ -116,6 +141,23 @@ type ApplicationFromApi = {
   interviewStatus: InterviewStatusApi;
   overallScore?: number;
   createdAt: string;
+  contactEmail?: string;
+  phone?: string;
+  website?: string;
+  industry?: string;
+  companySize?: string;
+  companyDescription?: string;
+  headquarters?: string;
+  foundedYear?: number;
+  tagline?: string;
+  mission?: string;
+  values?: string;
+  culture?: string;
+  benefits?: string;
+  linkedin?: string;
+  twitter?: string;
+  github?: string;
+  facebook?: string;
 };
 
 type CandidateCountsResponse = {
@@ -140,10 +182,30 @@ type Application = {
   companyLogo: string;
   title: string;
   appliedDate: string;
-  createdAtIso: string;
+  createdAtIso?: string;
   status: ApplicationStatus;
   interviewStatus: InterviewStatus;
   score?: number | null;
+  contactEmail?: string;
+  phone?: string;
+  website?: string;
+  industry?: string;
+  companySize?: string;
+  companyDescription?: string;
+  headquarters?: string;
+  foundedYear?: number;
+  tagline?: string;
+  mission?: string;
+  values?: string;
+  culture?: string;
+  benefits?: string;
+  linkedin?: string;
+  twitter?: string;
+  github?: string;
+  facebook?: string;
+  description?: string;
+  about?: string;
+  location?: string;
 };
 
 type CandidateMe = {
@@ -343,7 +405,7 @@ function generateCandidateActivities(apps: Application[]): ActivityItem[] {
     const ts = a.createdAtIso;
 
     acts.push({
-      icon: Briefcase20Regular ,
+      icon: Briefcase20Regular,
       bg: "rgba(37,99,235,0.12)",
       color: "#2563EB",
       title: "New Application",
@@ -386,7 +448,7 @@ function generateCandidateActivities(apps: Application[]): ActivityItem[] {
       });
     } else if (a.status === "Rejected") {
       acts.push({
-        icon: Dismiss20Regular ,
+        icon: Dismiss20Regular,
         bg: "rgba(220,38,38,0.12)",
         color: "#DC2626",
         title: "Application Updated",
@@ -396,7 +458,7 @@ function generateCandidateActivities(apps: Application[]): ActivityItem[] {
       });
     } else if (a.status === "Shortlisted") {
       acts.push({
-        icon: Clock20Regular ,
+        icon: Clock20Regular,
         bg: "rgba(37,99,235,0.12)",
         color: "#2563EB",
         title: "Application Shortlisted",
@@ -409,8 +471,8 @@ function generateCandidateActivities(apps: Application[]): ActivityItem[] {
 
   return acts
     .sort((x, y) => {
-      const tx = new Date(x.timeSort || "").getTime();
-      const ty = new Date(y.timeSort || "").getTime();
+      const tx = new Date(x.timeSort ?? 0).getTime();
+      const ty = new Date(y.timeSort ?? 0).getTime();
       return ty - tx;
     })
     .slice(0, 5);
@@ -418,11 +480,21 @@ function generateCandidateActivities(apps: Application[]): ActivityItem[] {
 
 function getJob(jobId: JobPopulated) {
   if (typeof jobId === "string")
-    return { title: "Unknown Job", company: "—", location: "—" };
+    return {
+      title: "Unknown Job",
+      company: "—",
+      location: "—",
+      logoUrl: undefined,
+      description: "",
+      about: "",
+    };
   return {
     title: jobId.title ?? "Unknown Job",
-    company: jobId.company ?? "—",
+    company: jobId.companyName ?? jobId.company ?? "—",
     location: jobId.location ?? "—",
+    logoUrl: jobId.logoUrl,
+    description: jobId.description ?? "",
+    about: jobId.about ?? "",
   };
 }
 
@@ -467,7 +539,7 @@ function toHomeApplication(a: ApplicationFromApi): Application {
   return {
     id: a._id,
     company: job.company,
-    companyLogo: initials(job.company || "Company"),
+    companyLogo: job.logoUrl || initials(job.company || "Company"),
     title: job.title,
     appliedDate: formatDate(a.createdAt),
     createdAtIso: a.createdAt,
@@ -478,6 +550,26 @@ function toHomeApplication(a: ApplicationFromApi): Application {
         : mapHiringToUI(a.hiringStatus),
     interviewStatus: mapInterviewToUI(a.interviewStatus),
     score: typeof a.overallScore === "number" ? a.overallScore : null,
+    contactEmail: a.contactEmail,
+    phone: a.phone,
+    website: a.website,
+    industry: a.industry,
+    companySize: a.companySize,
+    companyDescription: a.companyDescription,
+    headquarters: a.headquarters,
+    foundedYear: a.foundedYear,
+    tagline: a.tagline,
+    mission: a.mission,
+    values: a.values,
+    culture: a.culture,
+    benefits: a.benefits,
+    linkedin: a.linkedin,
+    twitter: a.twitter,
+    github: a.github,
+    facebook: a.facebook,
+    description: job.description,
+    about: job.about,
+    location: job.location,
   };
 }
 
@@ -1136,6 +1228,34 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
     activities: [],
   }));
 
+  const [selectedApp, setSelectedApp] = React.useState<Application | null>(
+    null,
+  );
+  const [isViewJobOpen, setIsViewJobOpen] = React.useState(false);
+  const [isContactOpen, setIsContactOpen] = React.useState(false);
+  const [isCompanyProfileOpen, setIsCompanyProfileOpen] = React.useState(false);
+  const [isResultsOpen, setIsResultsOpen] = React.useState(false);
+
+  const handleViewJob = (app: Application) => {
+    setSelectedApp(app);
+    setIsViewJobOpen(true);
+  };
+
+  const handleContact = (app: Application) => {
+    setSelectedApp(app);
+    setIsContactOpen(true);
+  };
+
+  const handleCompanyProfile = (app: Application) => {
+    setSelectedApp(app);
+    setIsCompanyProfileOpen(true);
+  };
+
+  const handleViewResults = (app: Application) => {
+    setSelectedApp(app);
+    setIsResultsOpen(true);
+  };
+
   const dismissProfileBanner = () => {
     setProfileBannerDismissed(true);
     try {
@@ -1209,8 +1329,8 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
     const list = (data ?? []).map(toHomeApplication);
 
     const sorted = [...list].sort((a, b) => {
-      const da = new Date(a.createdAtIso).getTime();
-      const db = new Date(b.createdAtIso).getTime();
+      const da = new Date(a.createdAtIso || "").getTime();
+      const db = new Date(b.createdAtIso || "").getTime();
       if (Number.isNaN(da) || Number.isNaN(db)) return 0;
       return db - da;
     });
@@ -1388,7 +1508,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
         subtitle: "Recruiters prefer profiles with resumes.",
         done: hasResume,
         actionText: hasResume ? "Done" : "Upload",
-        onClick: () => onNavigate("profile-settings"),
+        onClick: () => onNavigate("profile-settings", { scrollTo: "resume" }),
       },
       {
         key: "skills",
@@ -1788,7 +1908,9 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                           <div className={styles.companyCell}>
                             <div className={styles.companyLogo}>
                               {app.companyLogo &&
-                              app.companyLogo.startsWith("http") ? (
+                              (app.companyLogo.startsWith("http") ||
+                                app.companyLogo.startsWith("/") ||
+                                app.companyLogo.includes("static")) ? (
                                 <img
                                   src={app.companyLogo}
                                   alt={app.company}
@@ -1851,8 +1973,7 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
 
                         <TableCell className={styles.actionsCell}>
                           <span className={styles.mobileLabel}>Actions</span>
-                          {app.interviewStatus === "Not Started" ||
-                          app.interviewStatus === "In Progress" ? (
+                          {app.interviewStatus === "Not Started" ? (
                             <Button
                               size="small"
                               appearance="primary"
@@ -1867,23 +1988,62 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
                               }
                             >
                               <PlayRegular className={styles.iconInline} />
-                              {app.interviewStatus === "In Progress"
-                                ? "Continue"
-                                : "Start Interview"}
+                              Start Interview
                             </Button>
-                          ) : (
+                          ) : app.interviewStatus === "In Progress" ? (
                             <Button
                               size="small"
                               appearance="outline"
+                              style={{
+                                color: "#F59E0B",
+                                borderColor: "#F59E0B",
+                              }}
                               onClick={() =>
-                                onNavigate("results", { applicationId: app.id })
+                                onNavigate("interview", {
+                                  applicationId: app.id,
+                                })
                               }
                             >
-                              <DataHistogram20Regular
-                                className={styles.iconInline}
-                              />
-                              View Results
+                              <PlayRegular className={styles.iconInline} />
+                              Continue
                             </Button>
+                          ) : (
+                            <Menu>
+                              <MenuTrigger disableButtonEnhancement>
+                                <Button
+                                  appearance="transparent"
+                                  icon={<MoreVertical20Regular />}
+                                />
+                              </MenuTrigger>
+                              <MenuPopover>
+                                <MenuList>
+                                  <MenuItem
+                                    icon={<DataHistogram20Regular />}
+                                    onClick={() => handleViewResults(app)}
+                                  >
+                                    View Results
+                                  </MenuItem>
+                                  <MenuItem
+                                    icon={<Eye20Regular />}
+                                    onClick={() => handleViewJob(app)}
+                                  >
+                                    View Job
+                                  </MenuItem>
+                                  <MenuItem
+                                    icon={<Chat20Regular />}
+                                    onClick={() => handleContact(app)}
+                                  >
+                                    Contact Employer
+                                  </MenuItem>
+                                  <MenuItem
+                                    icon={<Open20Regular />}
+                                    onClick={() => handleCompanyProfile(app)}
+                                  >
+                                    Company Profile
+                                  </MenuItem>
+                                </MenuList>
+                              </MenuPopover>
+                            </Menu>
                           )}
                         </TableCell>
                       </TableRow>
@@ -1895,6 +2055,340 @@ export const CandidateHome: React.FC<CandidateHomeProps> = ({ onNavigate }) => {
           </Card>
         </div>
       </div>
+
+      <Sheet open={isViewJobOpen} onOpenChange={setIsViewJobOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>{selectedApp?.title}</SheetTitle>
+            <SheetDescription>
+              {selectedApp?.company} • {selectedApp?.location}
+            </SheetDescription>
+          </SheetHeader>
+          <div style={{ padding: "24px", overflowY: "auto" }}>
+            <Text
+              as="h3"
+              weight="semibold"
+              size={400}
+              style={{ marginBottom: "8px" }}
+            >
+              About the Role
+            </Text>
+            <Text style={{ whiteSpace: "pre-wrap", color: "#424242" }}>
+              {selectedApp?.description ||
+                selectedApp?.about ||
+                "No description available."}
+            </Text>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={isCompanyProfileOpen} onOpenChange={setIsCompanyProfileOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>{selectedApp?.company}</SheetTitle>
+            {selectedApp?.tagline && (
+              <Text
+                style={{
+                  color: "#5B6475",
+                  fontStyle: "italic",
+                  marginBottom: "4px",
+                  display: "block",
+                }}
+              >
+                {selectedApp.tagline}
+              </Text>
+            )}
+            <SheetDescription>
+              {[
+                selectedApp?.industry,
+                selectedApp?.companySize,
+                selectedApp?.headquarters,
+                selectedApp?.foundedYear
+                  ? `Est. ${selectedApp.foundedYear}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" • ")}
+            </SheetDescription>
+          </SheetHeader>
+          <div
+            style={{
+              padding: "24px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "24px",
+            }}
+          >
+            <div>
+              <Text
+                weight="semibold"
+                style={{
+                  display: "block",
+                  marginBottom: "8px",
+                  fontSize: "16px",
+                }}
+              >
+                About
+              </Text>
+              <Text style={{ whiteSpace: "pre-wrap", color: "#424242" }}>
+                {selectedApp?.companyDescription ||
+                  "No company description available."}
+              </Text>
+            </div>
+
+            {selectedApp?.mission && (
+              <div>
+                <Text
+                  weight="semibold"
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontSize: "16px",
+                  }}
+                >
+                  Mission
+                </Text>
+                <Text style={{ whiteSpace: "pre-wrap", color: "#424242" }}>
+                  {selectedApp.mission}
+                </Text>
+              </div>
+            )}
+
+            {selectedApp?.values && (
+              <div>
+                <Text
+                  weight="semibold"
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontSize: "16px",
+                  }}
+                >
+                  Values
+                </Text>
+                <Text style={{ whiteSpace: "pre-wrap", color: "#424242" }}>
+                  {selectedApp.values}
+                </Text>
+              </div>
+            )}
+
+            {(selectedApp?.culture || selectedApp?.benefits) && (
+              <div>
+                <Text
+                  weight="semibold"
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontSize: "16px",
+                  }}
+                >
+                  Culture & Benefits
+                </Text>
+                {selectedApp?.culture && (
+                  <Text
+                    style={{
+                      whiteSpace: "pre-wrap",
+                      color: "#424242",
+                      display: "block",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    {selectedApp.culture}
+                  </Text>
+                )}
+                {selectedApp?.benefits && (
+                  <Text
+                    style={{
+                      whiteSpace: "pre-wrap",
+                      color: "#424242",
+                      display: "block",
+                    }}
+                  >
+                    {selectedApp.benefits}
+                  </Text>
+                )}
+              </div>
+            )}
+
+            <div>
+              <Text
+                weight="semibold"
+                style={{
+                  display: "block",
+                  marginBottom: "8px",
+                  fontSize: "16px",
+                }}
+              >
+                Contact
+              </Text>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              >
+                {selectedApp?.website && (
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <Text weight="medium" style={{ width: "80px" }}>
+                      Website:
+                    </Text>
+                    <Link
+                      href={selectedApp.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {selectedApp.website}
+                    </Link>
+                  </div>
+                )}
+                {selectedApp?.contactEmail && (
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <Text weight="medium" style={{ width: "80px" }}>
+                      Email:
+                    </Text>
+                    <Text>{selectedApp.contactEmail}</Text>
+                  </div>
+                )}
+                {selectedApp?.phone && (
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <Text weight="medium" style={{ width: "80px" }}>
+                      Phone:
+                    </Text>
+                    <Text>{selectedApp.phone}</Text>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
+                  {selectedApp?.linkedin && (
+                    <Link href={selectedApp.linkedin} target="_blank">
+                      LinkedIn
+                    </Link>
+                  )}
+                  {selectedApp?.twitter && (
+                    <Link href={selectedApp.twitter} target="_blank">
+                      Twitter
+                    </Link>
+                  )}
+                  {selectedApp?.github && (
+                    <Link href={selectedApp.github} target="_blank">
+                      GitHub
+                    </Link>
+                  )}
+                  {selectedApp?.facebook && (
+                    <Link href={selectedApp.facebook} target="_blank">
+                      Facebook
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Dialog
+        open={isContactOpen}
+        onOpenChange={(_, data) => setIsContactOpen(data.open)}
+      >
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Contact {selectedApp?.company}</DialogTitle>
+            <DialogContent>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                {selectedApp?.phone ? (
+                  <div>
+                    <Text weight="semibold">Phone:</Text>{" "}
+                    <Link href={`tel:${selectedApp.phone}`}>
+                      {selectedApp.phone}
+                    </Link>
+                  </div>
+                ) : (
+                  <Text>No phone number available.</Text>
+                )}
+                {selectedApp?.contactEmail ? (
+                  <div>
+                    <Text weight="semibold">Email:</Text>{" "}
+                    <Link href={`mailto:${selectedApp.contactEmail}`}>
+                      {selectedApp.contactEmail}
+                    </Link>
+                  </div>
+                ) : (
+                  <Text>No email available.</Text>
+                )}
+              </div>
+            </DialogContent>
+            <DialogActions>
+              <Button
+                appearance="secondary"
+                onClick={() => setIsContactOpen(false)}
+              >
+                Close
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      <Dialog
+        open={isResultsOpen}
+        onOpenChange={(_, data) => setIsResultsOpen(data.open)}
+      >
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Application Results</DialogTitle>
+            <DialogContent>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                  alignItems: "center",
+                  padding: "24px 0",
+                }}
+              >
+                {selectedApp?.score != null ? (
+                  <>
+                    <div
+                      style={{
+                        fontSize: "48px",
+                        fontWeight: "bold",
+                        color: "#0118D8",
+                      }}
+                    >
+                      {selectedApp.score}%
+                    </div>
+                    <Text weight="semibold">Overall Match Score</Text>
+                    {selectedApp.status === "Rejected" && (
+                      <Text style={{ color: "#dc2626", marginTop: "8px" }}>
+                        Unfortunately, this application was not selected.
+                      </Text>
+                    )}
+                    {selectedApp.status === "Hired" && (
+                      <Text style={{ color: "#10b981", marginTop: "8px" }}>
+                        Congratulations! You have been hired for this role.
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <Text>No results available yet.</Text>
+                )}
+              </div>
+            </DialogContent>
+            <DialogActions>
+              <Button
+                appearance="primary"
+                onClick={() => setIsResultsOpen(false)}
+              >
+                Close
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </div>
   );
 };

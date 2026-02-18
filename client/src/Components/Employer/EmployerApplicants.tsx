@@ -144,6 +144,44 @@ type UiApplicantRow = {
   hiringStatus: HiringStatusApi;
 };
 
+interface CandidateProfile {
+  name?: string;
+  headline?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  experienceLevel?: string;
+  about?: string;
+  skills?: string[];
+  linkedin?: string;
+  github?: string;
+  portfolio?: string;
+  resumeUrl?: string;
+  resumeFileName?: string;
+}
+
+interface JobDetails {
+  title?: string;
+  location?: string;
+  workType?: string;
+  jobType?: string;
+  description?: string;
+  about?: string;
+  techStack?: string[];
+  salaryRange?:
+    | string
+    | {
+        currency?: string;
+        start?: string | number;
+        end?: string | number;
+      };
+  workExperience?: string | number;
+  interviewSettings?: {
+    interviewDuration?: number;
+    difficultyLevel?: string;
+  };
+}
+
 type TabCounts = {
   all: number;
   pending: number;
@@ -234,10 +272,8 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
 
   const [candidateSheetOpen, setCandidateSheetOpen] = useState(false);
   const [jobSheetOpen, setJobSheetOpen] = useState(false);
-  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [candidateData, setCandidateData] = useState<Record<string, unknown> | null>(null);
-  const [jobData, setJobData] = useState<Record<string, unknown> | null>(null);
+  const [candidateData, setCandidateData] = useState<CandidateProfile | null>(null);
+  const [jobData, setJobData] = useState<JobDetails | null>(null);
   const [loadingCandidate, setLoadingCandidate] = useState(false);
   const [loadingJob, setLoadingJob] = useState(false);
 
@@ -364,13 +400,12 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
   }
 
   async function handleViewCandidate(candidateId: string) {
-    setSelectedCandidateId(candidateId);
     setCandidateSheetOpen(true);
     setLoadingCandidate(true);
     setCandidateData(null);
 
     try {
-      const data = await apiJson<Record<string, unknown>>(`/api/candidates/profile/${candidateId}`);
+      const data = await apiJson<CandidateProfile>(`/api/candidates/profile/${candidateId}`);
       setCandidateData(data);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to load candidate";
@@ -381,13 +416,12 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
   }
 
   async function handleViewJob(jobId: string) {
-    setSelectedJobId(jobId);
     setJobSheetOpen(true);
     setLoadingJob(true);
     setJobData(null);
 
     try {
-      const data = await apiJson<Record<string, unknown>>(`/api/jobs/${jobId}`);
+      const data = await apiJson<JobDetails>(`/api/jobs/${jobId}`);
       setJobData(data);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to load job";
@@ -736,7 +770,6 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
         </TabsContent>
       </Tabs>
 
-      {/* Candidate Details Sheet */}
       <Sheet open={candidateSheetOpen} onOpenChange={setCandidateSheetOpen}>
         <SheetContent side="right" style={{ width: "500px", maxWidth: "90vw", overflow: "auto", padding: "24px" }}>
           <SheetHeader>
@@ -812,7 +845,7 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
                     Skills
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                    {(candidateData.skills as unknown[]).map((skill: unknown, idx: number) => (
+                    {candidateData.skills.map((skill, idx) => (
                       <span
                         key={idx}
                         style={{
@@ -899,7 +932,6 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
         </SheetContent>
       </Sheet>
 
-      {/* Job Details Sheet */}
       <Sheet open={jobSheetOpen} onOpenChange={setJobSheetOpen}>
         <SheetContent side="right" style={{ width: "500px", maxWidth: "90vw", overflow: "auto", padding: "24px" }}>
           <SheetHeader>
@@ -942,7 +974,7 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
                     Tech Stack
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                    {(jobData.techStack as unknown[]).map((tech: unknown, idx: number) => (
+                    {jobData.techStack.map((tech, idx) => (
                       <span
                         key={idx}
                         style={{
@@ -974,10 +1006,10 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
                         {typeof jobData.salaryRange === "string"
                           ? jobData.salaryRange
                           : typeof jobData.salaryRange === "object" && jobData.salaryRange
-                          ? `${(jobData.salaryRange as Record<string, unknown>).currency || ""}${
-                              (jobData.salaryRange as Record<string, unknown>).start || ""
-                            } - ${(jobData.salaryRange as Record<string, unknown>).currency || ""}${
-                              (jobData.salaryRange as Record<string, unknown>).end || ""
+                          ? `${jobData.salaryRange.currency || ""}${
+                              jobData.salaryRange.start || ""
+                            } - ${jobData.salaryRange.currency || ""}${
+                              jobData.salaryRange.end || ""
                             }`
                           : "-"}
                       </span>
@@ -989,28 +1021,24 @@ export function EmployerApplicants({ onNavigate }: EmployerApplicantsProps) {
                       <span style={{ color: "#0B1220" }}>{String(jobData.workExperience)}+ years</span>
                     </div>
                   )}
-                  {jobData.interviewSettings &&
-                    typeof jobData.interviewSettings === "object" &&
-                    (jobData.interviewSettings as Record<string, unknown>).interviewDuration && (
-                      <div style={{ fontSize: "13px" }}>
-                        <span style={{ color: "#6B7280", width: "120px", display: "inline-block" }}>
-                          Interview Duration:
-                        </span>
-                        <span style={{ color: "#0B1220" }}>
-                          {String((jobData.interviewSettings as Record<string, unknown>).interviewDuration)} minutes
-                        </span>
-                      </div>
-                    )}
-                  {jobData.interviewSettings &&
-                    typeof jobData.interviewSettings === "object" &&
-                    (jobData.interviewSettings as Record<string, unknown>).difficultyLevel && (
-                      <div style={{ fontSize: "13px" }}>
-                        <span style={{ color: "#6B7280", width: "120px", display: "inline-block" }}>Difficulty:</span>
-                        <span style={{ color: "#0B1220" }}>
-                          {String((jobData.interviewSettings as Record<string, unknown>).difficultyLevel)}
-                        </span>
-                      </div>
-                    )}
+                  {jobData.interviewSettings?.interviewDuration && (
+                    <div style={{ fontSize: "13px" }}>
+                      <span style={{ color: "#6B7280", width: "120px", display: "inline-block" }}>
+                        Interview Duration:
+                      </span>
+                      <span style={{ color: "#0B1220" }}>
+                        {String(jobData.interviewSettings.interviewDuration)} minutes
+                      </span>
+                    </div>
+                  )}
+                  {jobData.interviewSettings?.difficultyLevel && (
+                    <div style={{ fontSize: "13px" }}>
+                      <span style={{ color: "#6B7280", width: "120px", display: "inline-block" }}>Difficulty:</span>
+                      <span style={{ color: "#0B1220" }}>
+                        {String(jobData.interviewSettings.difficultyLevel)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

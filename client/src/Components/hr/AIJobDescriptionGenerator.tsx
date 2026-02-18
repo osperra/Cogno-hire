@@ -1,4 +1,6 @@
 import * as React from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../../api/http";
 import {
   Button,
   Card,
@@ -19,9 +21,44 @@ import {
   Copy20Regular,
   ArrowDownload20Regular,
   Send20Regular,
-  Globe20Regular,
   CheckmarkCircle20Regular,
 } from "@fluentui/react-icons";
+
+const LinkedInIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    width="18"
+    height="18"
+    aria-hidden="true"
+  >
+    <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
+  </svg>
+);
+
+const IndeedIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    width="20"
+    height="20"
+    aria-hidden="true"
+  >
+    <path d="M12.91 1.95v12.16s2.57-2.93 6.64-1.28c0 0-2.38.35-3.66 2.05 0 0 5.4 0 7.42 4.67 0 0-3.3 0-5.32-2.19v4.5s-2.58 1.29-6.91 0c0 0-4.63-.94-4-5.59 0 0-.25-5.36 5.83-14.32zM8.3 12.04c.78 0 1.42-.64 1.42-1.42 0-.78-.64-1.42-1.42-1.42-.78 0-1.42.64-1.42 1.42 0 .78.64 1.42 1.42 1.42z" />
+  </svg>
+);
+
+const GlassdoorIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    width="18"
+    height="18"
+    aria-hidden="true"
+  >
+    <path d="M21 3H3a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm-6 13h-4v-8h4v2H13v4h2v2z" />
+  </svg>
+);
 
 const EXPERIENCE_OPTIONS = [
   { value: "junior", label: "Junior (0-2 years)" },
@@ -319,6 +356,7 @@ type ApiError = { message?: string };
 
 export const AIJobDescriptionGenerator: React.FC = () => {
   const styles = useStyles();
+  const navigate = useNavigate();
   const [jobTitle, setJobTitle] = React.useState("Senior Frontend Developer");
   const [experienceLevel, setExperienceLevel] =
     React.useState<string>("senior");
@@ -332,9 +370,11 @@ export const AIJobDescriptionGenerator: React.FC = () => {
   const [additionalRequirements, setAdditionalRequirements] =
     React.useState("");
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [isPublishing, setIsPublishing] = React.useState(false);
   const [generationProgress, setGenerationProgress] = React.useState(0);
   const [generatedJD, setGeneratedJD] = React.useState("");
   const [error, setError] = React.useState<string>("");
+  const [publishError, setPublishError] = React.useState<string>("");
   const canGenerate =
     jobTitle.trim() &&
     experienceLevel.trim() &&
@@ -386,6 +426,79 @@ export const AIJobDescriptionGenerator: React.FC = () => {
     } finally {
       if (timer) window.clearInterval(timer);
       setIsGenerating(false);
+    }
+  };
+
+  const parseSalaryRange = (input: string): { start?: number; end?: number } => {
+    const raw = input.trim();
+    if (!raw) return {};
+    const cleaned = raw.replace(/[₹$,]/g, "").replace(/[–—]/g, "-").toLowerCase();
+    const parts = cleaned
+      .split(/-|to/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+    const start = parts[0] ? Number(parts[0]) : undefined;
+    const end = parts[1] ? Number(parts[1]) : undefined;
+
+    return {
+      start: Number.isFinite(start as number) ? (start as number) : undefined,
+      end: Number.isFinite(end as number) ? (end as number) : undefined,
+    };
+  };
+
+  const handlePublish = async () => {
+    if (!generatedJD || isPublishing) return;
+    setPublishError("");
+    setIsPublishing(true);
+
+    try {
+      const salaryRangeParsed = parseSalaryRange(salaryRange);
+      const expMap: Record<string, number> = {
+        junior: 1,
+        mid: 3,
+        senior: 5,
+        lead: 7,
+      };
+
+      const payload = {
+        title: jobTitle.trim(),
+        description: generatedJD.trim(),
+        about: `<p>${generatedJD.trim().replace(/\n\n/g, "</p><p>")}</p>`,
+        location: location.trim() || "Remote",
+        workType: "remote",
+        jobType: employmentType,
+        salaryRange: salaryRangeParsed.start
+          ? { start: salaryRangeParsed.start, end: salaryRangeParsed.end }
+          : undefined,
+        isActive: true,
+        workExperience: expMap[experienceLevel] || 3,
+        techStack: keySkills.split(",").map((s) => s.trim()),
+        status: "open",
+        interviewSettings: {
+          maxCandidates: 10,
+          interviewDuration: 15,
+          difficultyLevel: "medium",
+          language: "english",
+        },
+      };
+
+      const res = await api<{ _id: string }>("/api/jobs", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      if (res?._id) {
+        navigate(`/app/employer/jobs/${res._id}`);
+      } else {
+        navigate("/app/employer/jobs");
+      }
+    } catch (e) {
+      setPublishError(
+        e instanceof Error ? e.message : "Failed to publish job post",
+      );
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -647,7 +760,7 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                       className={styles.postLogoBox}
                       style={{ backgroundColor: "#0077B5" }}
                     >
-                      <Globe20Regular style={{ color: "#ffffff" }} />
+                      <LinkedInIcon />
                     </div>
                     <div className={styles.postTextBlock}>
                       <div className={styles.postMain}>Post to LinkedIn</div>
@@ -669,7 +782,7 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                       className={styles.postLogoBox}
                       style={{ backgroundColor: "#2557A7" }}
                     >
-                      <Globe20Regular style={{ color: "#ffffff" }} />
+                      <IndeedIcon />
                     </div>
                     <div className={styles.postTextBlock}>
                       <div className={styles.postMain}>Post to Indeed</div>
@@ -688,7 +801,7 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                       className={styles.postLogoBox}
                       style={{ backgroundColor: "#0CAA41" }}
                     >
-                      <Globe20Regular style={{ color: "#ffffff" }} />
+                      <GlassdoorIcon />
                     </div>
                     <div className={styles.postTextBlock}>
                       <div className={styles.postMain}>Post to Glassdoor</div>
@@ -701,6 +814,8 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                   <Button
                     appearance="primary"
                     icon={<Send20Regular />}
+                    disabled={isPublishing}
+                    onClick={handlePublish}
                     style={{
                       backgroundImage:
                         "linear-gradient(to right,#0118D8,#1B56FD)",
@@ -708,8 +823,19 @@ export const AIJobDescriptionGenerator: React.FC = () => {
                       border: "none",
                     }}
                   >
-                    Post to All Platforms
+                    {isPublishing ? "Publishing..." : "Publish to Cogno-hire"}
                   </Button>
+                  {publishError && (
+                    <div
+                      style={{
+                        color: "#DC2626",
+                        fontSize: "0.8rem",
+                        marginTop: 4,
+                      }}
+                    >
+                      {publishError}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

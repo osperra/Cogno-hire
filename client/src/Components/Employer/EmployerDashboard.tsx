@@ -376,14 +376,34 @@ function timeAgo(iso?: string) {
 export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
   const [jobs, setJobs] = useState<UiJobRow[]>([]);
   const [applications, setApplications] = useState<UiApplicationRow[]>([]);
-
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [loadingApps, setLoadingApps] = useState(true);
-
   const [errorJobs, setErrorJobs] = useState("");
   const [errorApps, setErrorApps] = useState("");
-
   const [savingHiringId, setSavingHiringId] = useState<string | null>(null);
+  const [delLoadingId, setDelLoadingId] = useState<string | null>(null);
+  const handleDelete = async (jobId: string) => {
+    if (!window.confirm("Are you sure you want to delete this job?")) return;
+
+    try {
+      setDelLoadingId(jobId);
+      const res = await fetch(`${API_BASE}/api/jobs/${jobId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to delete job");
+      }
+
+      setJobs((prev) => prev.filter((j) => j.id !== jobId));
+    } catch (error) {
+      console.error("Failed to delete job:", error);
+      alert("Failed to delete job. Please try again.");
+    } finally {
+      setDelLoadingId(null);
+    }
+  };
 
   const isNarrow = useMediaQuery(1024);
 
@@ -730,7 +750,7 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
     const isSaving = savingHiringId === rowId;
 
     return (
-      <DropdownMenu>
+      <DropdownMenu positioning="below-end">
         <DropdownMenuTrigger>
           <button
             type="button"
@@ -958,7 +978,7 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                       {job.responses}
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
+                      <DropdownMenu positioning="below-end">
                         <DropdownMenuTrigger>
                           <Button variant="ghost" style={iconButtonStyle}>
                             <MoreVerticalRegular
@@ -968,7 +988,11 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                           <DropdownMenuItem
-                            onClick={() => onNavigate("job", { jobId: job.id })}
+                            onClick={() =>
+                              onNavigate(
+                                `/app/employer/jobs/${encodeURIComponent(job.id)}`,
+                              )
+                            }
                           >
                             <Eye20Regular
                               style={{ width: 14, height: 14, marginRight: 8 }}
@@ -976,21 +1000,26 @@ export function EmployerDashboard({ onNavigate }: EmployerDashboardProps) {
                             <span>View Details</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() =>
-                              onNavigate("jobs", { editJobId: job.id })
-                            }
+                           onClick={() =>
+                            onNavigate(`/app/employer/jobs/${encodeURIComponent(job.id)}/edit`)
+                          }
                           >
                             <Edit20Regular
                               style={{ width: 14, height: 14, marginRight: 8 }}
                             />
                             <span>Edit Job</span>
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Delete20Regular
-                              style={{ width: 14, height: 14, marginRight: 8 }}
-                            />
-                            <span style={{ color: "#DC2626" }}>Delete</span>
-                          </DropdownMenuItem>
+                    <DropdownMenuItem
+                          onClick={() => handleDelete(job.id)}
+                          disabled={delLoadingId === job.id}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Delete20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
+                            <span style={{ lineHeight: 1.2, color: "#DC2626" }}>
+                              {delLoadingId === job.id ? "Deleting..." : "Delete"}
+                            </span>
+                          </div>
+                        </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

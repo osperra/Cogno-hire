@@ -67,13 +67,19 @@ const useStyles = makeStyles({
   },
   titleWrap: { display: "flex", flexDirection: "column", gap: "4px" },
   grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+    display: "flex",
     gap: "16px",
     alignItems: "start",
     "@media (max-width: 980px)": {
-      gridTemplateColumns: "1fr",
+      flexDirection: "column",
     },
+  },
+  column: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+    minWidth: 0,
   },
   card: {
     backgroundColor: "#fff",
@@ -136,7 +142,13 @@ function mapProfileToForm(p?: CompanyProfileResponse | null): CompanyForm {
   };
 }
 
-export default function MyAccount() {
+export default function MyAccount({
+  hideHeader = false,
+  hidePadding = false,
+}: {
+  hideHeader?: boolean;
+  hidePadding?: boolean;
+}) {
   const styles = useStyles();
   const [loading, setLoading] = React.useState(true);
   const [me, setMe] = React.useState<MeResponse | null>(null);
@@ -224,14 +236,20 @@ export default function MyAccount() {
   const [oldPass, setOldPass] = React.useState("");
   const [newPass, setNewPass] = React.useState("");
   const [changingPass, setChangingPass] = React.useState(false);
-  const [changePassMsg, setChangePassMsg] = React.useState<{ type: "success" | "error", text: string } | null>(null);
+  const [changePassMsg, setChangePassMsg] = React.useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const changePassword = async () => {
     setChangingPass(true);
     setChangePassMsg(null);
     try {
-      if(!oldPass || newPass.length < 6) {
-        setChangePassMsg({ type: "error", text: "Invalid input. New password must be at least 6 chars."});
+      if (!oldPass || newPass.length < 6) {
+        setChangePassMsg({
+          type: "error",
+          text: "Invalid input. New password must be at least 6 chars.",
+        });
         return;
       }
 
@@ -241,12 +259,18 @@ export default function MyAccount() {
         body: JSON.stringify({ oldPassword: oldPass, newPassword: newPass }),
       });
 
-      setChangePassMsg({ type: "success", text: "Password changed successfully." });
+      setChangePassMsg({
+        type: "success",
+        text: "Password changed successfully.",
+      });
       setOldPass("");
       setNewPass("");
       setTimeout(() => setChangePasswordOpen(false), 1500);
-    } catch(e) {
-      setChangePassMsg({ type: "error", text: e instanceof Error ? e.message : "Failed to change password"});
+    } catch (e) {
+      setChangePassMsg({
+        type: "error",
+        text: e instanceof Error ? e.message : "Failed to change password",
+      });
     } finally {
       setChangingPass(false);
     }
@@ -285,21 +309,23 @@ export default function MyAccount() {
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.headerRow}>
-        <div className={styles.titleWrap}>
-          <Text size={700} weight="semibold">
-            My Account
-          </Text>
-          <Text className={styles.muted} size={300}>
-            Account summary, company details, security, and delete account.
-          </Text>
-        </div>
+    <div className={hidePadding ? "" : styles.page}>
+      {!hideHeader && (
+        <div className={styles.headerRow}>
+          <div className={styles.titleWrap}>
+            <Text size={700} weight="semibold">
+              My Account
+            </Text>
+            <Text className={styles.muted} size={300}>
+              Account summary, company details, security, and delete account.
+            </Text>
+          </div>
 
-        <Button appearance="outline" onClick={() => void load()}>
-          Refresh
-        </Button>
-      </div>
+          <Button appearance="outline" onClick={() => void load()}>
+            Refresh
+          </Button>
+        </div>
+      )}
 
       {!!error && (
         <MessageBar intent="error">
@@ -311,167 +337,191 @@ export default function MyAccount() {
       )}
 
       <div className={styles.grid}>
-        <section className={styles.card}>
-          <div className={styles.cardTitle}>
-            <Text size={500} weight="semibold">
-              Account Summary
-            </Text>
-          </div>
+        <div className={styles.column}>
+          <section className={styles.card}>
+            <div className={styles.cardTitle}>
+              <Text size={500} weight="semibold">
+                Account Summary
+              </Text>
+            </div>
 
-          <div className={styles.row} style={{ marginBottom: 12 }}>
-            <Avatar name={me?.name ?? "User"} size={48} color="brand" />
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                minWidth: 0,
-              }}
-            >
-              <Text
-                weight="semibold"
-                size={400}
+            <div className={styles.row} style={{ marginBottom: 12 }}>
+              <Avatar name={me?.name ?? "User"} size={48} color="brand" />
+              <div
                 style={{
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                  minWidth: 0,
                 }}
               >
-                {me?.name ?? "—"}
-              </Text>
-              <Text className={styles.muted} size={300}>
-                {me?.email ?? "—"}
-              </Text>
-            </div>
-          </div>
-
-          <Divider />
-
-          <div style={{ marginTop: 12 }} className={styles.kv}>
-            <div className={styles.k}>Role</div>
-            <div className={styles.v}>{me?.role ?? "—"}</div>
-
-            <div className={styles.k}>Email verified</div>
-            <div className={styles.v}>{me?.emailVerified ? "Yes" : "No"}</div>
-
-            <div className={styles.k}>Member since</div>
-            <div className={styles.v}>{fmtDate(me?.createdAt)}</div>
-
-            <div className={styles.k}>Last login</div>
-            <div className={styles.v}>{fmtDate(me?.lastLoginAt)}</div>
-          </div>
-        </section>
-
-        <section className={styles.card}>
-          <div className={styles.cardTitle}>
-            <Text size={500} weight="semibold">
-              Company Details
-            </Text>
-
-            <Button appearance="outline" onClick={() => setEditCompanyOpen(true)}>
-              Edit
-            </Button>
-          </div>
-
-          <div className={styles.kv}>
-            <div className={styles.k}>Company</div>
-            <div className={styles.v}>{company?.companyName ?? "—"}</div>
-            <div className={styles.k}>Website</div>
-            <div className={styles.v}>{company?.website ?? "—"}</div>
-            <div className={styles.k}>Industry</div>
-            <div className={styles.v}>{company?.industry ?? "—"}</div>
-            <div className={styles.k}>Size</div>
-            <div className={styles.v}>{company?.companySize ?? "—"}</div>
-            <div className={styles.k}>Location</div>
-            <div className={styles.v}>{company?.headquarters ?? "—"}</div>
-            <div className={styles.k}>Description</div>
-            <div className={styles.v} style={{ fontWeight: 500 }}>
-              {company?.description ?? "—"}
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.card}>
-          <div className={styles.cardTitle}>
-            <Text size={500} weight="semibold">
-              Security
-            </Text>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div
-              className={styles.row}
-              style={{ justifyContent: "space-between" }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <Text weight="semibold">Password</Text>
-                <Text className={styles.muted} size={200}>
-                  Update your password.
+                <Text
+                  weight="semibold"
+                  size={400}
+                  style={{
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {me?.name ?? "—"}
+                </Text>
+                <Text className={styles.muted} size={300}>
+                  {me?.email ?? "—"}
                 </Text>
               </div>
-              <Button appearance="outline" onClick={() => setChangePasswordOpen(true)}>
-                Change password
-              </Button>
             </div>
 
             <Divider />
 
-            <div
-              className={styles.row}
-              style={{ justifyContent: "space-between" }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <Text weight="semibold">Two-factor authentication</Text>
-                <Text className={styles.muted} size={200}>
-                  Add an extra layer of protection (optional).
-                </Text>
+            <div style={{ marginTop: 12 }} className={styles.kv}>
+              <div className={styles.k}>Role</div>
+              <div className={styles.v}>{me?.role ?? "—"}</div>
+
+              <div className={styles.k}>Email verified</div>
+              <div className={styles.v}>{me?.emailVerified ? "Yes" : "No"}</div>
+
+              <div className={styles.k}>Member since</div>
+              <div className={styles.v}>{fmtDate(me?.createdAt)}</div>
+
+              <div className={styles.k}>Last login</div>
+              <div className={styles.v}>{fmtDate(me?.lastLoginAt)}</div>
+            </div>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardTitle}>
+              <Text size={500} weight="semibold">
+                Security
+              </Text>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div
+                className={styles.row}
+                style={{ justifyContent: "space-between" }}
+              >
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 2 }}
+                >
+                  <Text weight="semibold">Password</Text>
+                  <Text className={styles.muted} size={200}>
+                    Update your password.
+                  </Text>
+                </div>
+                <Button
+                  appearance="outline"
+                  onClick={() => setChangePasswordOpen(true)}
+                >
+                  Change password
+                </Button>
               </div>
-              <Button appearance="outline" disabled title="Implement when backend ready">
-                Manage 2FA
+
+              <Divider />
+
+              <div
+                className={styles.row}
+                style={{ justifyContent: "space-between" }}
+              >
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 2 }}
+                >
+                  <Text weight="semibold">Two-factor authentication</Text>
+                  <Text className={styles.muted} size={200}>
+                    Add an extra layer of protection (optional).
+                  </Text>
+                </div>
+                <Button
+                  appearance="outline"
+                  disabled
+                  title="Implement when backend ready"
+                >
+                  Manage 2FA
+                </Button>
+              </div>
+
+              <Divider />
+
+              <div
+                className={styles.row}
+                style={{ justifyContent: "space-between" }}
+              >
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 2 }}
+                >
+                  <Text weight="semibold">Active sessions</Text>
+                  <Text className={styles.muted} size={200}>
+                    Sign out from other devices (optional).
+                  </Text>
+                </div>
+                <Button
+                  appearance="outline"
+                  disabled
+                  title="Implement when backend ready"
+                >
+                  Sign out all
+                </Button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div className={styles.column}>
+          <section className={styles.card}>
+            <div className={styles.cardTitle}>
+              <Text size={500} weight="semibold">
+                Company Details
+              </Text>
+
+              <Button
+                appearance="outline"
+                onClick={() => setEditCompanyOpen(true)}
+              >
+                Edit
               </Button>
             </div>
 
-            <Divider />
-
-            <div
-              className={styles.row}
-              style={{ justifyContent: "space-between" }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <Text weight="semibold">Active sessions</Text>
-                <Text className={styles.muted} size={200}>
-                  Sign out from other devices (optional).
-                </Text>
+            <div className={styles.kv}>
+              <div className={styles.k}>Company</div>
+              <div className={styles.v}>{company?.companyName ?? "—"}</div>
+              <div className={styles.k}>Website</div>
+              <div className={styles.v}>{company?.website ?? "—"}</div>
+              <div className={styles.k}>Industry</div>
+              <div className={styles.v}>{company?.industry ?? "—"}</div>
+              <div className={styles.k}>Size</div>
+              <div className={styles.v}>{company?.companySize ?? "—"}</div>
+              <div className={styles.k}>Location</div>
+              <div className={styles.v}>{company?.headquarters ?? "—"}</div>
+              <div className={styles.k}>Description</div>
+              <div className={styles.v} style={{ fontWeight: 500 }}>
+                {company?.description ?? "—"}
               </div>
-              <Button appearance="outline" disabled title="Implement when backend ready">
-                Sign out all
-              </Button>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section className={`${styles.card} ${styles.dangerCard}`}>
-          <div className={styles.cardTitle}>
-            <Text size={500} weight="semibold" className={styles.dangerText}>
-              Delete Account
+          <section className={`${styles.card} ${styles.dangerCard}`}>
+            <div className={styles.cardTitle}>
+              <Text size={500} weight="semibold" className={styles.dangerText}>
+                Delete Account
+              </Text>
+            </div>
+
+            <Text size={300} className={styles.muted}>
+              This permanently removes your employer account. Jobs and
+              applications may be deleted depending on your policy.
             </Text>
-          </div>
 
-          <Text size={300} className={styles.muted}>
-            This permanently removes your employer account. Jobs and
-            applications may be deleted depending on your policy.
-          </Text>
-
-          <div style={{ marginTop: 12 }}>
-            <Button
-              appearance="primary"
-              style={{ backgroundColor: "#dc2626", color: "#fff" }}
-              onClick={() => setDeleteOpen(true)}
-            >
-              Delete account
-            </Button>
-          </div>
-        </section>
+            <div style={{ marginTop: 12 }}>
+              <Button
+                appearance="primary"
+                style={{ backgroundColor: "#dc2626", color: "#fff" }}
+                onClick={() => setDeleteOpen(true)}
+              >
+                Delete account
+              </Button>
+            </div>
+          </section>
+        </div>
       </div>
 
       <Dialog
@@ -621,28 +671,56 @@ export default function MyAccount() {
         </DialogSurface>
       </Dialog>
 
-      <Dialog open={changePasswordOpen} onOpenChange={(_, d) => setChangePasswordOpen(d.open)}>
+      <Dialog
+        open={changePasswordOpen}
+        onOpenChange={(_, d) => setChangePasswordOpen(d.open)}
+      >
         <DialogSurface>
           <DialogBody>
             <DialogTitle>Change Password</DialogTitle>
-            <DialogContent style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 6 }}>
+            <DialogContent
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                marginTop: 6,
+              }}
+            >
               {changePassMsg && (
-                 <MessageBar intent={changePassMsg.type}>
-                   <MessageBarBody>{changePassMsg.text}</MessageBarBody>
-                 </MessageBar>
+                <MessageBar intent={changePassMsg.type}>
+                  <MessageBarBody>{changePassMsg.text}</MessageBarBody>
+                </MessageBar>
               )}
-              
+
               <Field label="Old Password">
-                <Input type="password" value={oldPass} onChange={(_, d) => setOldPass(d.value)} />
+                <Input
+                  type="password"
+                  value={oldPass}
+                  onChange={(_, d) => setOldPass(d.value)}
+                />
               </Field>
 
               <Field label="New Password (min 6 chars)">
-                <Input type="password" value={newPass} onChange={(_, d) => setNewPass(d.value)} />
+                <Input
+                  type="password"
+                  value={newPass}
+                  onChange={(_, d) => setNewPass(d.value)}
+                />
               </Field>
             </DialogContent>
             <DialogActions>
-              <Button appearance="secondary" onClick={() => setChangePasswordOpen(false)} disabled={changingPass}>Cancel</Button>
-              <Button appearance="primary" onClick={() => void changePassword()} disabled={changingPass}>
+              <Button
+                appearance="secondary"
+                onClick={() => setChangePasswordOpen(false)}
+                disabled={changingPass}
+              >
+                Cancel
+              </Button>
+              <Button
+                appearance="primary"
+                onClick={() => void changePassword()}
+                disabled={changingPass}
+              >
                 {changingPass ? "Changing..." : "Change Password"}
               </Button>
             </DialogActions>

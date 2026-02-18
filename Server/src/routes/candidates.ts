@@ -5,7 +5,7 @@ import { z } from "zod";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
 import { Job } from "../models/Jobs.js";
 import { Application } from "../models/Application.js";
-import { User } from "../models/User.js";
+import { User, IUser } from "../models/User.js";
 import { Document } from "../models/Document.js";
 import { resumeStorage } from "../config/cloudinary.js";
 
@@ -42,6 +42,12 @@ type CandidateMeLean = {
     salary?: { min?: number; max?: number; currency?: string };
     relocation?: boolean;
   };
+  savedSearches?: Array<{
+    _id: Types.ObjectId;
+    title: string;
+    url: string;
+    createdAt: Date;
+  }>;
 };
 
 function initials(name: string) {
@@ -100,6 +106,7 @@ function userToCandidateProfile(me: CandidateMeLean) {
     resumeDocId: me.resumeDocId ? String(me.resumeDocId) : "",
     resumeFileName: me.resumeFileName,
     preferences: me.preferences || {},
+    savedSearches: me.savedSearches || [],
   };
 }
 
@@ -178,7 +185,7 @@ candidatesRouter.get("/me", requireAuth, requireRole(["candidate"]), async (req:
   try {
     const me = await User.findById(req.user!.id)
       .select(
-        "_id name email phone location headline about experienceLevel skills linkedin github portfolio resumeUrl resumeDocId resumeFileName preferences"
+        "_id name email phone location headline about experienceLevel skills linkedin github portfolio resumeUrl resumeDocId resumeFileName preferences savedSearches"
       )
       .lean<CandidateMeLean>()
       .exec();
@@ -240,6 +247,50 @@ candidatesRouter.patch("/me", requireAuth, requireRole(["candidate"]), async (re
     return res.json(userToCandidateProfile(updated));
   } catch (e) {
     return res.status(500).json({ message: "Server error", error: errorToPlain(e) });
+  }
+});
+
+candidatesRouter.post("/me/saved-searches", requireAuth, requireRole(["candidate"]), async (req: AuthedRequest, res) => {
+  try {
+    const { title, url } = req.body;
+    if (!title || !url) return res.status(400).json({ message: "Title and URL are required" });
+
+    const user = await User.findByIdAndUpdate(
+      req.user!.id,
+      {
+        $push: {
+          savedSearches: { title, url, createdAt: new Date() },
+        },
+      },
+      { new: true }
+    )
+      .select("savedSearches")
+      .lean();
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+    return res.json((user as any).savedSearches || []);
+  } catch (e) {
+    return res.status(500).json({ message: "Failed to save search", error: errorToPlain(e) });
+  }
+});
+
+candidatesRouter.delete("/me/saved-searches/:id", requireAuth, requireRole(["candidate"]), async (req: AuthedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findByIdAndUpdate(
+      req.user!.id,
+      {
+        $pull: { savedSearches: { _id: id } },
+      },
+      { new: true }
+    )
+      .select("savedSearches")
+      .lean();
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+    return res.json((user as any).savedSearches || []);
+  } catch (e) {
+    return res.status(500).json({ message: "Failed to delete saved search", error: errorToPlain(e) });
   }
 });
 

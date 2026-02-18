@@ -8,6 +8,7 @@ import { Document } from "../models/Document.js";
 import { Job } from "../models/Jobs.js";
 import { Notification } from "../models/Notification.js";
 import { CompanyProfile } from "../models/CompanyProfile.js";
+import { User } from "../models/User.js";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware/auth.js";
 
 export const applicationsRouter = Router();
@@ -260,21 +261,47 @@ applicationsRouter.get(
       const appsRaw = await Application.find(match)
         .sort({ createdAt: -1 })
         .limit(limit)
-        .populate("jobId", "title location jobType salaryRange company companyName employerId")
+        .populate("jobId", "title location jobType salaryRange company companyName employerId description about")
         .lean();
       const employerIds = appsRaw.map((a: any) => a.jobId?.employerId).filter(Boolean);
-      const profiles = await CompanyProfile.find({ employerId: { $in: employerIds } }).select("employerId companyName logoUrl").lean();
+
+      const profiles = await CompanyProfile.find({ employerId: { $in: employerIds } }).select("employerId companyName logoUrl contactEmail phone website industry companySize description headquarters foundedYear tagline mission values culture benefits linkedin twitter github facebook").lean();
+      const users = await User.find({ _id: { $in: employerIds } }).select("name about location email").lean();
+
       const profileMap = new Map(profiles.map(p => [String(p.employerId), p]));
+      const userMap = new Map(users.map((u: any) => [String(u._id), u]));
+
       const apps = appsRaw.map((a: any) => {
         const job = a.jobId || {};
         const profile = profileMap.get(String(job.employerId));
+        const user = userMap.get(String(job.employerId));
+
         return {
           ...a,
           jobId: {
             ...job,
-            companyName: job.companyName ?? profile?.companyName ?? job.company ?? "Company",
+            companyName: job.companyName ?? profile?.companyName ?? job.company ?? user?.name ?? "Company",
             logoUrl: profile?.logoUrl,
-          }
+            description: job.description,
+            about: job.about,
+          },
+          contactEmail: profile?.contactEmail ?? user?.email,
+          phone: profile?.phone,
+          website: profile?.website,
+          industry: profile?.industry,
+          companySize: profile?.companySize,
+          companyDescription: profile?.description ?? user?.about,
+          headquarters: profile?.headquarters ?? user?.location,
+          foundedYear: profile?.foundedYear,
+          tagline: profile?.tagline,
+          mission: profile?.mission,
+          values: profile?.values,
+          culture: profile?.culture,
+          benefits: profile?.benefits,
+          linkedin: profile?.linkedin,
+          twitter: profile?.twitter,
+          github: profile?.github,
+          facebook: profile?.facebook,
         };
       });
 
@@ -392,9 +419,23 @@ applicationsRouter.get(
       const interviewStatus =
         typeof req.query.interviewStatus === "string" ? req.query.interviewStatus.trim() : "";
       const limit = Math.min(Math.max(parseInt(String(req.query.limit || "200"), 10) || 200, 1), 500);
+
+      const queryJobId = typeof req.query.jobId === "string" ? req.query.jobId.trim() : "";
+
       const jobIds = await getEmployerJobIds(req.user!.id);
       if (!jobIds.length) return res.json([]);
       const match: Record<string, unknown> = { jobId: { $in: jobIds } };
+
+      if (queryJobId) {
+        if (!Types.ObjectId.isValid(queryJobId)) {
+          return res.status(400).json({ message: "Invalid jobId" });
+        }
+        const valid = jobIds.find((id) => String(id) === queryJobId);
+        if (!valid) {
+          return res.json([]);
+        }
+        match.jobId = new Types.ObjectId(queryJobId);
+      }
 
       if (tab === "pending") match.hiringStatus = "PENDING";
       else if (tab === "invited") match.hiringStatus = "INVITED";

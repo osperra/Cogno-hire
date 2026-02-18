@@ -57,12 +57,19 @@ const useStyles = makeStyles({
     backgroundColor: "#fff",
   },
   grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr",
+    display: "flex",
     gap: "12px",
-    "@media (min-width: 960px)": {
-      gridTemplateColumns: "1fr 1fr",
+    alignItems: "start",
+    "@media (max-width: 960px)": {
+      flexDirection: "column",
     },
+  },
+  column: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    minWidth: 0,
   },
   label: { color: "#5B6475", fontSize: "12px" },
   value: { color: "#0B1220", fontSize: "14px", fontWeight: 600 },
@@ -89,8 +96,14 @@ function fmtDate(iso?: string) {
   return d.toLocaleString();
 }
 
-export default function CandidateMyAccount(props: {
+export default function CandidateMyAccount({
+  onNavigate,
+  hideHeader = false,
+  hidePadding = false,
+}: {
   onNavigate: (page: string) => void;
+  hideHeader?: boolean;
+  hidePadding?: boolean;
 }) {
   const styles = useStyles();
 
@@ -116,23 +129,32 @@ export default function CandidateMyAccount(props: {
   }, []);
 
   return (
-    <div className={styles.root}>
-      <div className={styles.header}>
-        <div>
-          <div className={styles.title}>My Account</div>
-          <div className={styles.sub}>View your account information.</div>
-          {error ? <div className={styles.msgError}>{error}</div> : null}
-        </div>
+    <div className={hidePadding ? "" : styles.root}>
+      {!hideHeader && (
+        <div className={styles.header}>
+          <div>
+            <div className={styles.title}>My Account</div>
+            <div className={styles.sub}>View your account information.</div>
+            {error ? <div className={styles.msgError}>{error}</div> : null}
+          </div>
 
-        <div className={styles.actions}>
-          <Button appearance="outline" onClick={() => void load()} disabled={loading}>
-            Refresh
-          </Button>
-          <Button appearance="primary" onClick={() => props.onNavigate("profile-settings")}>
-            Go to Profile Settings
-          </Button>
+          <div className={styles.actions}>
+            <Button
+              appearance="outline"
+              onClick={() => void load()}
+              disabled={loading}
+            >
+              Refresh
+            </Button>
+            <Button
+              appearance="primary"
+              onClick={() => onNavigate("profile-settings")}
+            >
+              Go to Profile Settings
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {loading ? (
         <Card className={styles.card}>
@@ -144,40 +166,44 @@ export default function CandidateMyAccount(props: {
         </Card>
       ) : (
         <div className={styles.grid}>
-          <Card className={styles.card}>
-            <div style={{ fontWeight: 700, color: "#0B1220" }}>Account</div>
-            <Divider style={{ margin: "12px 0" }} />
+          <div className={styles.column}>
+            <Card className={styles.card}>
+              <div style={{ fontWeight: 700, color: "#0B1220" }}>Account</div>
+              <Divider style={{ margin: "12px 0" }} />
 
-            <div className={styles.row}>
-              <div className={styles.label}>Name</div>
-              <div className={styles.value}>{me.name || "-"}</div>
-            </div>
+              <div className={styles.row}>
+                <div className={styles.label}>Name</div>
+                <div className={styles.value}>{me.name || "-"}</div>
+              </div>
 
-            <div style={{ marginTop: 10 }} className={styles.row}>
-              <div className={styles.label}>Email</div>
-              <div className={styles.value}>{me.email || "-"}</div>
-            </div>
+              <div style={{ marginTop: 10 }} className={styles.row}>
+                <div className={styles.label}>Email</div>
+                <div className={styles.value}>{me.email || "-"}</div>
+              </div>
 
-            <div style={{ marginTop: 10 }} className={styles.row}>
-              <div className={styles.label}>Role</div>
-              <div className={styles.value}>{me.role}</div>
-            </div>
-          </Card>
+              <div style={{ marginTop: 10 }} className={styles.row}>
+                <div className={styles.label}>Role</div>
+                <div className={styles.value}>{me.role}</div>
+              </div>
+            </Card>
+          </div>
 
-          <Card className={styles.card}>
-            <div style={{ fontWeight: 700, color: "#0B1220" }}>Activity</div>
-            <Divider style={{ margin: "12px 0" }} />
+          <div className={styles.column}>
+            <Card className={styles.card}>
+              <div style={{ fontWeight: 700, color: "#0B1220" }}>Activity</div>
+              <Divider style={{ margin: "12px 0" }} />
 
-            <div className={styles.row}>
-              <div className={styles.label}>Created</div>
-              <div className={styles.value}>{fmtDate(me.createdAt)}</div>
-            </div>
+              <div className={styles.row}>
+                <div className={styles.label}>Created</div>
+                <div className={styles.value}>{fmtDate(me.createdAt)}</div>
+              </div>
 
-            <div style={{ marginTop: 10 }} className={styles.row}>
-              <div className={styles.label}>Last Updated</div>
-              <div className={styles.value}>{fmtDate(me.updatedAt)}</div>
-            </div>
-          </Card>
+              <div style={{ marginTop: 10 }} className={styles.row}>
+                <div className={styles.label}>Last Updated</div>
+                <div className={styles.value}>{fmtDate(me.updatedAt)}</div>
+              </div>
+            </Card>
+          </div>
         </div>
       )}
     </div>

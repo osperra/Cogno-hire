@@ -11,16 +11,20 @@ router.get("/me", requireAuth, async (req: AuthedRequest, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const user = await User.findById(userId)
-      .select("_id name email role createdAt updatedAt") // ✅ include name
+      .select("_id name email role createdAt updatedAt savedJobs savedSearches") 
       .lean();
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    return res.json(user); 
+    return res.json(user);
   } catch (err) {
     console.error("GET /me error:", err);
     return res.status(500).json({ message: "Server error" });
   }
+
+
 });
+
+
 
 export default router;

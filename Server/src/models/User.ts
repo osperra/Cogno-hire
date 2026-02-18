@@ -44,6 +44,16 @@ const UserSchema = new Schema(
       default: "raw",
     },
 
+    savedJobs: [{ type: Schema.Types.ObjectId, ref: "Job" }],
+
+    savedSearches: [
+      {
+        title: { type: String, required: true },
+        url: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+
     preferences: {
       jobTypes: [{ type: String }],
       workModes: [{ type: String }],
@@ -80,5 +90,56 @@ const UserSchema = new Schema(
   { timestamps: true }
 );
 
+export interface IUser extends mongoose.Document {
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: "candidate" | "employer" | "hr";
+  phone?: string;
+  location?: string;
+  headline?: string;
+  about?: string;
+  experienceLevel?: "Fresher" | "Junior" | "Mid" | "Senior" | "Lead";
+  skills?: string[];
+  linkedin?: string;
+  github?: string;
+  portfolio?: string;
+  resumeUrl?: string;
+  resumeDocId?: mongoose.Types.ObjectId;
+  resumeFileName?: string;
+  resumePublicId?: string;
+  resumeFormat?: string;
+  resumeResourceType?: "raw" | "image" | "video";
+  savedJobs?: mongoose.Types.ObjectId[];
+  savedSearches?: {
+    _id?: mongoose.Types.ObjectId;
+    title: string;
+    url: string;
+    createdAt?: Date;
+  }[];
+  preferences?: {
+    jobTypes?: string[];
+    workModes?: string[];
+    locations?: string[];
+    salary?: {
+      min?: number;
+      max?: number;
+      currency?: string;
+    };
+    relocation?: boolean;
+    settings?: {
+      emailNotifications?: boolean;
+      productUpdates?: boolean;
+      marketingEmails?: boolean;
+      desktopNotifications?: boolean;
+      weeklySummary?: boolean;
+      defaultLanding?: string;
+      theme?: string;
+    };
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export const User =
-  mongoose.models.User || mongoose.model("User", UserSchema, "users");
+  mongoose.models.User || mongoose.model<IUser>("User", UserSchema, "users");

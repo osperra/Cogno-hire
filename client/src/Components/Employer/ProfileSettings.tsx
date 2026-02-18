@@ -75,7 +75,13 @@ const useStyles = makeStyles({
   },
 });
 
-export default function ProfileSettings() {
+export default function ProfileSettings({
+  hideHeader = false,
+  hidePadding = false,
+}: {
+  hideHeader?: boolean;
+  hidePadding?: boolean;
+}) {
   const styles = useStyles();
 
   const [loading, setLoading] = React.useState(true);
@@ -157,30 +163,32 @@ export default function ProfileSettings() {
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.header}>
-        <div className={styles.headerTextWrap}>
-          <Text size={700} weight="semibold" style={{ display: "block" }}>
-            Profile Settings
-          </Text>
+    <div className={hidePadding ? "" : styles.page}>
+      {!hideHeader && (
+        <div className={styles.header}>
+          <div className={styles.headerTextWrap}>
+            <Text size={700} weight="semibold" style={{ display: "block" }}>
+              Profile Settings
+            </Text>
 
-          <Text
-            size={300}
-            className={styles.muted}
-            style={{ marginTop: "4px" }}
+            <Text
+              size={300}
+              className={styles.muted}
+              style={{ marginTop: "4px" }}
+            >
+              Update your public profile details.
+            </Text>
+          </div>
+
+          <Button
+            appearance="outline"
+            onClick={() => void load()}
+            disabled={saving}
           >
-            Update your public profile details.
-          </Text>
+            Refresh
+          </Button>
         </div>
-
-        <Button
-          appearance="outline"
-          onClick={() => void load()}
-          disabled={saving}
-        >
-          Refresh
-        </Button>
-      </div>
+      )}
 
       {msg && (
         <MessageBar intent={msg.type === "success" ? "success" : "error"}>

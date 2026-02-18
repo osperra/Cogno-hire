@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Popover,
+  PopoverSurface,
+  PopoverTrigger,
+} from "@fluentui/react-components";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -101,7 +106,9 @@ function titleCase(s: string) {
 }
 
 function normalizeDifficulty(v: unknown): DifficultyUI {
-  const s = String(v ?? "").trim().toLowerCase();
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
   if (s === "easy" || s === "low" || s === "1") return "Easy";
   if (s === "medium" || s === "mid" || s === "2") return "Medium";
   if (s === "hard" || s === "high" || s === "3") return "Hard";
@@ -160,7 +167,9 @@ function toJobRowUI(j: JobFromDB): JobRowUI {
     duration: durationToText(j.interviewSettings),
     difficulty: normalizeDifficulty(j.interviewSettings?.difficultyLevel),
     status: mapStatus(j),
-    responses: Array.isArray(j.invitedCandidates) ? j.invitedCandidates.length : 0,
+    responses: Array.isArray(j.invitedCandidates)
+      ? j.invitedCandidates.length
+      : 0,
     datePosted: formatDate(j.createdAt),
   };
 }
@@ -173,6 +182,10 @@ const ACTIONS_MENU_POSITIONING: DropdownMenuPositioning = {
 
 export function EmployerJobs() {
   const navigate = useNavigate();
+  const [filterStatus, setFilterStatus] = useState<string[]>([]);
+  const [filterDifficulty, setFilterDifficulty] = useState<string[]>([]);
+  const [filterExperience, setFilterExperience] = useState<string[]>([]);
+  const [filterJobType, setFilterJobType] = useState<string[]>([]);
   const [selectedJobs, setSelectedJobs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [jobType, setJobType] = useState("All Types");
@@ -215,17 +228,55 @@ export function EmployerJobs() {
     return jobs.filter((j) => {
       const q = searchQuery.trim().toLowerCase();
       const matchesSearch = !q || j.title.toLowerCase().includes(q);
-
-      const matchesType =
-        jobType === "All Types" || j.type.toLowerCase() === jobType.toLowerCase();
-
-      const matchesLoc =
+      const matchesTypeLegacy =
+        jobType === "All Types" ||
+        j.type.toLowerCase() === jobType.toLowerCase();
+      const matchesLocLegacy =
         locationType === "All Locations" ||
         j.location.toLowerCase() === locationType.toLowerCase();
+      const matchesStatus =
+        filterStatus.length === 0 || filterStatus.includes(j.status);
 
-      return matchesSearch && matchesType && matchesLoc;
+      const matchesDifficulty =
+        filterDifficulty.length === 0 ||
+        filterDifficulty.includes(j.difficulty);
+
+      const matchesJobType =
+        filterJobType.length === 0 ||
+        filterJobType.some((t) => t.toLowerCase() === j.type.toLowerCase());
+
+      const matchesExperience =
+        filterExperience.length === 0 ||
+        filterExperience.some((r) => {
+          const expVal = parseInt(j.experience.replace("+", ""), 10);
+          const exp = isNaN(expVal) ? 0 : expVal;
+
+          if (r === "0-2 Years") return exp >= 0 && exp <= 2;
+          if (r === "3-5 Years") return exp >= 3 && exp <= 5;
+          if (r === "5+ Years") return exp > 5;
+          return false;
+        });
+
+      return (
+        matchesSearch &&
+        matchesTypeLegacy &&
+        matchesLocLegacy &&
+        matchesStatus &&
+        matchesDifficulty &&
+        matchesJobType &&
+        matchesExperience
+      );
     });
-  }, [jobs, searchQuery, jobType, locationType]);
+  }, [
+    jobs,
+    searchQuery,
+    jobType,
+    locationType,
+    filterStatus,
+    filterDifficulty,
+    filterJobType,
+    filterExperience,
+  ]);
 
   const allChecked =
     filteredJobs.length > 0 && selectedJobs.length === filteredJobs.length;
@@ -247,7 +298,10 @@ export function EmployerJobs() {
     minWidth: 0,
   };
 
-  const searchWrapperStyle: React.CSSProperties = { position: "relative", width: "95%" };
+  const searchWrapperStyle: React.CSSProperties = {
+    position: "relative",
+    width: "95%",
+  };
   const iconButtonStyle: React.CSSProperties = {
     width: 36,
     height: 36,
@@ -269,7 +323,8 @@ export function EmployerJobs() {
       await loadJobs();
 
       const newId = created?._id;
-      if (newId) navigate(`/app/employer/jobs/${encodeURIComponent(newId)}/edit`);
+      if (newId)
+        navigate(`/app/employer/jobs/${encodeURIComponent(newId)}/edit`);
     } catch (e) {
       console.error("DUPLICATE_JOB_ERROR:", e);
     } finally {
@@ -284,10 +339,7 @@ export function EmployerJobs() {
     try {
       setDelLoadingId(jobId);
 
-      await api(
-        `/api/jobs/${encodeURIComponent(jobId)}`,
-        { method: "DELETE" } ,
-      );
+      await api(`/api/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
 
       setSelectedJobs((prev) => prev.filter((id) => id !== jobId));
       await loadJobs();
@@ -347,9 +399,188 @@ export function EmployerJobs() {
               </SelectContent>
             </Select>
 
-            <Button variant="outline" style={iconButtonStyle}>
-              <Filter20Regular style={{ width: 16, height: 16 }} />
-            </Button>
+            <Popover trapFocus>
+              <PopoverTrigger disableButtonEnhancement>
+                <Button variant="outline" style={iconButtonStyle}>
+                  <Filter20Regular style={{ width: 16, height: 16 }} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverSurface tabIndex={-1} style={{ padding: 16, width: 320 }}>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 16 }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
+                      Filters
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setFilterStatus([]);
+                        setFilterDifficulty([]);
+                        setFilterJobType([]);
+                        setFilterExperience([]);
+                      }}
+                    >
+                      Clear All
+                    </Button>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "#666",
+                        marginBottom: 8,
+                      }}
+                    >
+                      Status
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      {["Active", "Draft", "Closed"].map((s) => (
+                        <Checkbox
+                          key={s}
+                          checked={filterStatus.includes(s)}
+                          label={s}
+                          onChange={(_, data) => {
+                            if (data.checked)
+                              setFilterStatus([...filterStatus, s]);
+                            else
+                              setFilterStatus(
+                                filterStatus.filter((x) => x !== s),
+                              );
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "#666",
+                        marginBottom: 8,
+                      }}
+                    >
+                      Difficulty
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      {["Easy", "Medium", "Hard"].map((s) => (
+                        <Checkbox
+                          key={s}
+                          checked={filterDifficulty.includes(s)}
+                          label={s}
+                          onChange={(_, data) => {
+                            if (data.checked)
+                              setFilterDifficulty([...filterDifficulty, s]);
+                            else
+                              setFilterDifficulty(
+                                filterDifficulty.filter((x) => x !== s),
+                              );
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "#666",
+                        marginBottom: 8,
+                      }}
+                    >
+                      Job Type
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      {["Full Time", "Contract", "Part Time", "Internship"].map(
+                        (s) => (
+                          <Checkbox
+                            key={s}
+                            checked={filterJobType.includes(s)}
+                            label={s}
+                            onChange={(_, data) => {
+                              if (data.checked)
+                                setFilterJobType([...filterJobType, s]);
+                              else
+                                setFilterJobType(
+                                  filterJobType.filter((x) => x !== s),
+                                );
+                            }}
+                          />
+                        ),
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "#666",
+                        marginBottom: 8,
+                      }}
+                    >
+                      Experience
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      {["0-2 Years", "3-5 Years", "5+ Years"].map((s) => (
+                        <Checkbox
+                          key={s}
+                          checked={filterExperience.includes(s)}
+                          label={s}
+                          onChange={(_, data) => {
+                            if (data.checked)
+                              setFilterExperience([...filterExperience, s]);
+                            else
+                              setFilterExperience(
+                                filterExperience.filter((x) => x !== s),
+                              );
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </PopoverSurface>
+            </Popover>
           </div>
 
           <Button
@@ -431,7 +662,9 @@ export function EmployerJobs() {
                   <Checkbox
                     checked={allChecked}
                     onChange={(_, data) =>
-                      setSelectedJobs(data?.checked ? filteredJobs.map((j) => j.id) : [])
+                      setSelectedJobs(
+                        data?.checked ? filteredJobs.map((j) => j.id) : [],
+                      )
                     }
                   />
                 </TableHead>
@@ -462,21 +695,31 @@ export function EmployerJobs() {
                             prev.includes(job.id) ? prev : [...prev, job.id],
                           );
                         } else {
-                          setSelectedJobs((prev) => prev.filter((id) => id !== job.id));
+                          setSelectedJobs((prev) =>
+                            prev.filter((id) => id !== job.id),
+                          );
                         }
                       }}
                     />
                   </TableCell>
 
                   <TableCell>
-                    <div style={{ color: "#0B1220", fontWeight: 500 }}>{job.title}</div>
+                    <div style={{ color: "#0B1220", fontWeight: 500 }}>
+                      {job.title}
+                    </div>
                   </TableCell>
 
                   <TableCell style={{ color: "#5B6475" }}>{job.type}</TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>{job.location}</TableCell>
+                  <TableCell style={{ color: "#5B6475" }}>
+                    {job.location}
+                  </TableCell>
                   <TableCell style={{ color: "#5B6475" }}>{job.ctc}</TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>{job.experience}</TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>{job.duration}</TableCell>
+                  <TableCell style={{ color: "#5B6475" }}>
+                    {job.experience}
+                  </TableCell>
+                  <TableCell style={{ color: "#5B6475" }}>
+                    {job.duration}
+                  </TableCell>
 
                   <TableCell>
                     <StatusPill
@@ -509,7 +752,9 @@ export function EmployerJobs() {
                   <TableCell style={{ color: "#0118D8", fontWeight: 500 }}>
                     {job.responses}
                   </TableCell>
-                  <TableCell style={{ color: "#5B6475" }}>{job.datePosted}</TableCell>
+                  <TableCell style={{ color: "#5B6475" }}>
+                    {job.datePosted}
+                  </TableCell>
 
                   <TableCell>
                     <DropdownMenu positioning={ACTIONS_MENU_POSITIONING}>
@@ -529,29 +774,53 @@ export function EmployerJobs() {
                             cursor: "pointer",
                           }}
                         >
-                          <MoreVerticalRegular style={{ width: 16, height: 16 }} />
+                          <MoreVerticalRegular
+                            style={{ width: 16, height: 16 }}
+                          />
                         </button>
                       </DropdownMenuTrigger>
 
                       <DropdownMenuContent style={{ minWidth: 180 }}>
                         <DropdownMenuItem
                           onClick={() =>
-                            navigate(`/app/employer/jobs/${encodeURIComponent(job.id)}`)
+                            navigate(
+                              `/app/employer/jobs/${encodeURIComponent(job.id)}`,
+                            )
                           }
                         >
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Eye20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
-                            <span style={{ lineHeight: 1.2 }}>View Details</span>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <Eye20Regular
+                              style={{ width: 16, height: 16, flexShrink: 0 }}
+                            />
+                            <span style={{ lineHeight: 1.2 }}>
+                              View Details
+                            </span>
                           </div>
                         </DropdownMenuItem>
 
                         <DropdownMenuItem
                           onClick={() =>
-                            navigate(`/app/employer/jobs/${encodeURIComponent(job.id)}/edit`)
+                            navigate(
+                              `/app/employer/jobs/${encodeURIComponent(job.id)}/edit`,
+                            )
                           }
                         >
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Edit20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <Edit20Regular
+                              style={{ width: 16, height: 16, flexShrink: 0 }}
+                            />
                             <span style={{ lineHeight: 1.2 }}>Edit Job</span>
                           </div>
                         </DropdownMenuItem>
@@ -560,10 +829,20 @@ export function EmployerJobs() {
                           onClick={() => handleDuplicate(job.id)}
                           disabled={dupLoadingId === job.id}
                         >
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Copy20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <Copy20Regular
+                              style={{ width: 16, height: 16, flexShrink: 0 }}
+                            />
                             <span style={{ lineHeight: 1.2 }}>
-                              {dupLoadingId === job.id ? "Duplicating..." : "Duplicate"}
+                              {dupLoadingId === job.id
+                                ? "Duplicating..."
+                                : "Duplicate"}
                             </span>
                           </div>
                         </DropdownMenuItem>
@@ -572,10 +851,20 @@ export function EmployerJobs() {
                           onClick={() => handleDelete(job.id)}
                           disabled={delLoadingId === job.id}
                         >
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Delete20Regular style={{ width: 16, height: 16, flexShrink: 0 }} />
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <Delete20Regular
+                              style={{ width: 16, height: 16, flexShrink: 0 }}
+                            />
                             <span style={{ lineHeight: 1.2, color: "#DC2626" }}>
-                              {delLoadingId === job.id ? "Deleting..." : "Delete"}
+                              {delLoadingId === job.id
+                                ? "Deleting..."
+                                : "Delete"}
                             </span>
                           </div>
                         </DropdownMenuItem>
@@ -587,7 +876,10 @@ export function EmployerJobs() {
 
               {!loading && filteredJobs.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={12} style={{ padding: 16, color: "#5B6475" }}>
+                  <TableCell
+                    colSpan={12}
+                    style={{ padding: 16, color: "#5B6475" }}
+                  >
                     No jobs found.
                   </TableCell>
                 </TableRow>
@@ -595,7 +887,10 @@ export function EmployerJobs() {
 
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={12} style={{ padding: 16, color: "#5B6475" }}>
+                  <TableCell
+                    colSpan={12}
+                    style={{ padding: 16, color: "#5B6475" }}
+                  >
                     Loading jobs...
                   </TableCell>
                 </TableRow>

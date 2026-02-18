@@ -33,7 +33,10 @@ interface EnhancedJobCardProps {
   skills: string[];
   match?: number;
   logoUrl?: string;
+  isSaved?: boolean;
   onApply?: () => void;
+  onSave?: () => void;
+  onShare?: () => void;
   onViewDetails?: () => void;
 }
 
@@ -241,10 +244,12 @@ export const EnhancedJobCard: React.FC<EnhancedJobCardProps> = ({
   match,
   logoUrl,
   onApply,
+  onSave,
+  onShare,
   onViewDetails,
+  isSaved = false,
 }) => {
   const styles = useStyles();
-  const [isBookmarked, setIsBookmarked] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
   const difficultyColors =
@@ -372,17 +377,26 @@ export const EnhancedJobCard: React.FC<EnhancedJobCardProps> = ({
             <div className={styles.actionsColumn}>
               <div className={styles.iconButtonsRow}>
                 <Button
-                  appearance={isBookmarked ? "primary" : "outline"}
+                  appearance={isSaved ? "primary" : "outline"}
                   icon={<Bookmark20Regular />}
                   className={`${styles.iconButton} ${
-                    isBookmarked ? styles.bookmarkActive : ""
+                    isSaved ? styles.bookmarkActive : ""
                   }`}
-                  onClick={() => setIsBookmarked((prev) => !prev)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSave?.();
+                  }}
+                  title={isSaved ? "Unsave Job" : "Save Job"}
                 />
                 <Button
                   appearance="outline"
                   icon={<Share20Regular />}
                   className={styles.iconButton}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShare?.();
+                  }}
+                  title="Share Job"
                 />
               </div>
 

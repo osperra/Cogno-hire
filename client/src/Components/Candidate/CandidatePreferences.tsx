@@ -94,7 +94,13 @@ type Preferences = {
 const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Freelance", "Internship"];
 const WORK_MODES = ["Remote", "Hybrid", "On-site"];
 
-export default function CandidatePreferences() {
+export default function CandidatePreferences({
+  hideHeader = false,
+  hidePadding = false,
+}: {
+  hideHeader?: boolean;
+  hidePadding?: boolean;
+}) {
   const styles = useStyles();
 
   const [loading, setLoading] = React.useState(true);
@@ -183,14 +189,17 @@ export default function CandidatePreferences() {
   }
 
   return (
-    <div className={styles.root}>
+    <div className={hidePadding ? "" : styles.root}>
       <Card className={styles.card}>
-        <div className={styles.header}>
-          <div className={styles.title}>Job Preferences</div>
-          <div className={styles.subtitle}>
-            Tell us what you're looking for to get better job recommendations.
+        {!hideHeader && (
+          <div className={styles.header}>
+            <div className={styles.title}>Job Preferences</div>
+            <div className={styles.subtitle}>
+              Tell us what you're looking for to get better job
+              recommendations.
+            </div>
           </div>
-        </div>
+        )}
 
         <div className={styles.section}>
           <Label className={styles.sectionTitle}>Job Type</Label>
